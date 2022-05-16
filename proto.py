@@ -27,6 +27,30 @@ def enquadrar(dados):
     dados = [len(dados)] + dados
     return dados + [ checksum(dados) ]
 
+# Decodifica número no formato "Contact ID"
+# Retorna -1 se aparenta estar corrompido
+def contact_id_decode(dados):
+    dados_rev = dados[:]
+    dados_rev.reverse()
+    numero = 0
+    posicao = 1
+    for digito in dados_rev:
+        if digito == 0x0a: # zero
+            pass
+        elif digito >= 0x01 and digito <= 0x09:
+            numero += posicao * digito
+        else:
+            llog("valor contact id invalido", dados)
+            return -1
+        posicao *= 10
+    return numero
+
+def bcd(n):
+    if n > 99 or n < 0:
+        llog("valor invalido para BCD:", n)
+        return 0
+    return ((n // 10) << 4) + (n % 10)
+
 class Tratador:
     tratadores = {}
 
@@ -165,32 +189,61 @@ class Tratador:
             return True
 
         tipo = msg[0]
+        msg = msg[1:]
+
         if tipo == 0x80:
-            self.solicita_data_hora()
+            self.solicita_data_hora(msg)
         elif tipo == 0x94:
-            self.identificacao_central()
+            self.identificacao_central(msg)
+        elif tipo == 0xb0:
+            self.evento_alarme(msg)
         else:
             self.log("Solicitacao desconhecida %02x" % tipo)
-            self.resposta_generica()
+            self.resposta_generica(msg)
         return True
 
-    def resposta_generica(self):
+    def resposta_generica(self, msg):
         resposta = [0xfe]
         self.envia_curto(resposta)
 
     # FIXME verificar se a central é a esperada
-    def identificacao_central(self):
+    def identificacao_central(self, msg):
         self.log("Envio identificacao pela central")
         self.id_timeout = 0
         resposta = [0xfe]
         self.envia_curto(resposta)
 
-    def solicita_data_hora(self):
+    def solicita_data_hora(self, msg):
         self.log("Solicitacao de data/hora pela central")
-        agora = time.localtime(time.time())
-        resposta = [ 0x80, agora.tm_year - 2000, agora.tm_mon, agora.tm_mday, \
-            agora.tm_wday, agora.tm_hour, agora.tm_min, agora.tm_sec ]
+        agora = datetime.datetime.now()
+        # proto: 0 = domingo; weekday(): 0 = segunda
+        dow = (agora.weekday() + 1) % 7
+        resposta = [ 0x80, bcd(agora.year - 2000), bcd(agora.month), bcd(agora.day), \
+            bcd(dow), bcd(agora.hour), bcd(agora.minute), bcd(agora.second) ]
         self.envia_longo(resposta)
+
+    def evento_alarme(self, msg):
+        if len(msg) != 16:
+            self.log("Evento de alarme de tamanho inesperado")
+            resposta = [0xfe]
+            self.envia_curto(resposta)
+            return
+
+        self.log(msg)
+        canal = msg[0] # 0x11 Ethernet IP1, 0x12 IP2, 0x21 GPRS IP1, 0x22 IP2
+        contact_id = contact_id_decode(msg[1:5])
+        tipo_msg = contact_id_decode(msg[5:7])
+        qualificador = msg[7]
+        codigo = contact_id_decode(msg[8:11])
+        particao = contact_id_decode(msg[11:13])
+        zona = contact_id_decode(msg[13:16])
+
+        self.log("Evento de alarme canal %02x contact_id %d tipo %d qualificador %d "
+                    "codigo %d particao %d zona %d" % \
+                    (canal, contact_id, tipo_msg, qualificador, codigo, particao, zona))
+
+        resposta = [0xfe]
+        self.envia_curto(resposta)
 
 
 serverfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
