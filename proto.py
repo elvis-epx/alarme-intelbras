@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 
-import sys, socket, time, select
+import sys, socket, time, select, datetime
+
+def llog(*msg):
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(now, *msg, flush=True)
 
 # Calcula checksum de frame longo
 # Presume que "dados" contém o byte de comprimento mas não contém o byte de checksum
@@ -41,7 +45,7 @@ class Tratador:
         for tratador in list(Tratador.tratadores.values()):
             tratador.ping()
 
-    def __init__(self, sock):
+    def __init__(self, sock, addr):
         Tratador.tratadores[sock.fileno()] = self
         self.sock = sock
         self.buf = []
@@ -54,20 +58,21 @@ class Tratador:
         # Timeout de comunicacao em geral
         # Sempre correndo, resetado a cada evento()
         self.comm_timeout = time.time() + 600
+        self.log("Inicio", addr)
 
     def ping(self):
         if self.msg_timeout and time.time() > self.msg_timeout:
             self.log("Timeout de mensagem incompleta")
-            self.destroi()
+            self.encerrar()
         elif self.id_timeout and time.time() > self.id_timeout:
             self.log("Timeout de identificacao")
-            self.destroi()
+            self.encerrar()
         elif time.time() > self.comm_timeout:
             self.log("Timeout de comunicacao")
-            self.destroi()
+            self.encerrar()
 
     def log(self, *msg):
-        print("Conn %d:" % self.sock.fileno(), *msg, flush=True)
+        llog("conn %d:" % self.sock.fileno(), *msg)
 
     def _envia(self, resposta):
         try:
@@ -75,7 +80,7 @@ class Tratador:
             self.log("enviada resposta", ["%02x" % i for i in resposta])
         except socket.error as err:
             self.log("excecao ao enviar", err)
-            self.destroi()
+            self.encerrar()
 
     def envia_longo(self, resposta):
         resposta = enquadrar(resposta)
@@ -84,8 +89,8 @@ class Tratador:
     def envia_curto(self, resposta):
         self._envia(resposta)
 
-    def destroi(self):
-        self.log("destruindo")
+    def encerrar(self):
+        self.log("encerrando")
         del Tratador.tratadores[self.sock.fileno()]
         try:
             self.sock.close()
@@ -94,16 +99,17 @@ class Tratador:
         self.sock = None
 
     def evento(self):
+        self.log("Evento")
         try:
             data = self.sock.recv(1024)
         except socket.error as err:
             self.log("excecao ao ler", err)
-            self.destroi()
+            self.encerrar()
             return
 
         if not data:
             self.log("fechada")
-            self.destroi()
+            self.encerrar()
             return
 
         self.buf += [x for x in data]
@@ -149,7 +155,7 @@ class Tratador:
 
         if not verificar(rawmsg):
             self.log("checksum errado - fatal")
-            self.destroi()
+            self.encerrar()
             return True
 
         msg = rawmsg[1:-1]
@@ -193,7 +199,7 @@ serverfd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 serverfd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 # serverfd.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, 0)
 serverfd.bind((HOST, PORT))
-print("Porta %d" % PORT, flush=True)
+llog("Porta %d" % PORT)
 
 serverfd.listen(5)
 
@@ -201,23 +207,22 @@ serverfd.listen(5)
 while True:
     sockets = [serverfd]
     sockets += Tratador.lista_de_sockets()
-    print(".", flush=True)
     rd, wr, ex = select.select(sockets, [], [], 60)
 
     if serverfd in rd:
         try:
             cliente_sock, addr = serverfd.accept()
-            print("Conexao aceita de %s" % str(addr), flush=True)
-            tratador = Tratador(cliente_sock)
+            tratador = Tratador(cliente_sock, "%s:%d" % addr)
         except socket.error:
-            print("Erro ao aceitar conexao", flush=True)
+            pass
     elif rd:
         tratador = Tratador.pelo_socket(rd[0])
         if not tratador:
-            print("Evento em socket sem tratador", flush=True)
+            llog("(bug?) evento em socket sem tratador")
             rd[0].close()
         else:
-            print("Evento em fd %d" % rd[0].fileno(), flush=True)
             tratador.evento()
+    else:
+        llog(".")
 
     Tratador.ping_all()
