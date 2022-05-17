@@ -209,6 +209,8 @@ class Tratador:
             self.identificacao_central(msg)
         elif tipo == 0xb0:
             self.evento_alarme(msg)
+        elif tipo == 0xb5:
+            self.evento_alarme_foto(msg)
         else:
             self.log("Solicitacao desconhecida %02x" % tipo)
             self.resposta_generica(msg)
@@ -241,6 +243,34 @@ class Tratador:
         resposta = [ 0x80, bcd(agora.year - 2000), bcd(agora.month), bcd(agora.day), \
             bcd(dow), bcd(agora.hour), bcd(agora.minute), bcd(agora.second) ]
         self.envia_longo(resposta)
+
+    def evento_alarme_foto(self, msg):
+        if len(msg) != 19:
+            self.log("Evento de alarme F de tamanho inesperado")
+            resposta = [0xfe]
+            self.envia_curto(resposta)
+            return
+
+        self.log(msg)
+        canal = msg[0] # 0x11 Ethernet IP1, 0x12 IP2, 0x21 GPRS IP1, 0x22 IP2
+        contact_id = contact_id_decode(msg[1:5])
+        tipo_msg = contact_id_decode(msg[5:7])
+        qualificador = msg[7]
+        codigo = contact_id_decode(msg[8:11])
+        particao = contact_id_decode(msg[11:13])
+        zona = contact_id_decode(msg[13:16])
+        checksum = msg[16] # FIXME verificar
+        indice = msg[17] * 256 + msg[18]
+        nr_fotos = msg[19]
+
+        self.log("Evento de alarme F canal %02x contact_id %d tipo %d qualificador %d "
+                    "codigo %d particao %d zona %d fotos %d (%d)" % \
+                    (canal, contact_id, tipo_msg, qualificador, codigo, particao, zona,
+                    indice, nr_fotos))
+        # FIXME como ler dados do evento apontado no indice?
+
+        resposta = [0xfe]
+        self.envia_curto(resposta)
 
     def evento_alarme(self, msg):
         if len(msg) != 16:
