@@ -91,7 +91,7 @@ class Tratador:
         return None
 
     @staticmethod
-    def heartbeat():
+    def heartbeat_geral():
         if time.time() > Tratador.timeout_heartbeat:
             Tratador.timeout_heartbeat = time.time() + 3600
             llog2(LOG_INFO, "receptor ok")
@@ -102,7 +102,7 @@ class Tratador:
             if tratador._ping():
                 break
         else:
-            Tratador.heartbeat()
+            Tratador.heartbeat_geral()
 
     @staticmethod
     def proximo_timeout():
@@ -158,6 +158,7 @@ class Tratador:
 
         self.start_timeout("identificacao", 120, self.timeout_identificacao)
         self.start_timeout("comunicacao", 600, self.timeout_comunicacao)
+        self.start_timeout("heartbeat", 3600, self.heartbeat)
 
         self.log2(LOG_INFO, "inicio", addr)
 
@@ -173,6 +174,10 @@ class Tratador:
         else:
             return False
         return True
+
+    def heartbeat(self, nome):
+        self.log2(LOG_INFO, "ainda ativa")
+        return False
 
     def timeout_comunicacao(self, nome):
         self.log2(LOG_INFO, "timeout de comunicacao")
@@ -249,7 +254,7 @@ class Tratador:
     def consome_frame_curto(self):
         if self.buf and self.buf[0] == 0xf7:
             self.buf = self.buf[1:]
-            self.log2(LOG_DEBUG, "heartbeat")
+            self.log2(LOG_DEBUG, "heartbeat da central")
             resposta = [0xfe]
             self.envia_curto(resposta)
             return True
