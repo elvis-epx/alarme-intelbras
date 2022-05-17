@@ -65,6 +65,7 @@ def from_bcd(dados):
 
 class Tratador:
     tratadores = {}
+    last_id = 0
 
     @staticmethod
     def lista_de_sockets():
@@ -72,8 +73,9 @@ class Tratador:
 
     @staticmethod
     def pelo_socket(sock):
-        if sock.fileno() in Tratador.tratadores:
-            return Tratador.tratadores[sock.fileno()]
+        for tratador in Tratador.tratadores.values():
+            if sock is tratador.sock:
+                return tratador
         return None
 
     @staticmethod
@@ -81,41 +83,90 @@ class Tratador:
         for tratador in list(Tratador.tratadores.values()):
             tratador.ping()
 
+    @staticmethod
+    def get_timeout():
+        timeout = 60
+        timeout_name = "default"
+        for tratador in Tratador.tratadores.values():
+            candidate, name = tratador.get_min_timeout()
+            if candidate < timeout:
+                timeout = candidate
+                timeout_name = "%d:%s" % (tratador.conn_id, name)
+        return (max(0, timeout), timeout_name)
+
+    def get_min_timeout(self):
+        timeout = 9999999
+        timeout_name = "foo"
+        for nome, value in self.timeouts.items():
+            candidate = value['timeout'] - time.time()
+            if candidate < timeout:
+                timeout = candidate
+                timeout_name = nome
+        return (timeout, timeout_name)
+
+    def start_timeout(self, nome, timeout, callback):
+        if nome in self.timeouts:
+            self.cancel_timeout(nome)
+        self.timeouts[nome] = { "rel_timeout": timeout, "callback": callback }
+        self.timeouts[nome]["timeout"] = \
+            time.time() + self.timeouts[nome]["rel_timeout"]
+        self.log("+ timeout %s %d" % (nome, timeout))
+
+    def cancel_timeout(self, nome):
+        if nome in self.timeouts:
+            del self.timeouts[nome]
+            self.log("- timeout %s" % nome)
+
+    def reset_timeout(self, nome):
+        if nome in self.timeouts:
+            self.timeouts[nome]["timeout"] = \
+                time.time() + self.timeouts[nome]["rel_timeout"]
+            self.log("@ timeout %s %d" % (nome, self.timeouts[nome]["rel_timeout"]))
+
     def __init__(self, sock, addr):
-        Tratador.tratadores[sock.fileno()] = self
+        Tratador.last_id += 1
+        self.conn_id = Tratador.last_id
+        Tratador.tratadores[self.conn_id] = self
+
         self.sock = sock
         self.buf = []
-
-        # FIXME classe de tratadores de timeout, lista de timeouts,
-        # report do timeout mais curto para otimizar loop de eventos
+        self.timeouts = {}
 
         # FIXME classe de solicitações na direção receptor -> central,
         # instrumentação para envio, recepção e pendência
 
-        # Timeout de mensagem imcompleta
-        # Corre apenas quando buffer contém mensagem incompleta
-        self.msg_timeout = 0
-        # Timeout de envio de identificação pela central
-        # Corre apenas uma vez
-        self.id_timeout = time.time() + 120
-        # Timeout de comunicacao em geral
-        # Sempre correndo, resetado a cada evento()
-        self.comm_timeout = time.time() + 600
+        self.start_timeout("identificacao", 120, self.timeout_identificacao)
+        self.start_timeout("comunicacao", 600, self.timeout_comunicacao)
+
         self.log("Inicio", addr)
 
     def ping(self):
-        if self.msg_timeout and time.time() > self.msg_timeout:
-            self.log("Timeout de mensagem incompleta")
-            self.encerrar()
-        elif self.id_timeout and time.time() > self.id_timeout:
-            self.log("Timeout de identificacao")
-            self.encerrar()
-        elif time.time() > self.comm_timeout:
-            self.log("Timeout de comunicacao")
-            self.encerrar()
+        for nome, value in self.timeouts.items():
+            if time.time() > value['timeout']:
+                if value['callback'](nome):
+                    self.cancel_timeout(nome)
+                else:
+                    self.reset_timeout(nome)
+                # Não tenta prosseguir pois self.timeouts pode ter mudado
+                break
+
+    def timeout_comunicacao(self, nome):
+        self.log("Timeout de comunicacao")
+        self.encerrar()
+        return True
+
+    def timeout_msgincompleta(self, nome):
+        self.log("Timeout de mensagem incompleta")
+        self.encerrar()
+        return True
+
+    def timeout_identificacao(self, nome):
+        self.log("Timeout de identificacao")
+        self.encerrar()
+        return True
 
     def log(self, *msg):
-        llog("conn %d:" % self.sock.fileno(), *msg)
+        llog("conn %d:" % self.conn_id, *msg)
 
     def _envia(self, resposta):
         try:
@@ -134,12 +185,12 @@ class Tratador:
 
     def encerrar(self):
         self.log("encerrando")
-        del Tratador.tratadores[self.sock.fileno()]
+        del Tratador.tratadores[self.conn_id]
         try:
             self.sock.close()
         except socket.error:
             pass
-        self.sock = None
+        self.timeouts = {}
 
     def evento(self):
         self.log("Evento")
@@ -158,12 +209,8 @@ class Tratador:
         self.buf += [x for x in data]
         self.log("Buf atual ", ["%02x" % i for i in self.buf])
 
-        # Reseta timeout de comunicacao
-        self.comm_timeout = time.time() + 600
-
-        # Inicia timer de mensagem incompleta
-        if not self.msg_timeout:
-            self.msg_timeout = time.time() + 120
+        self.reset_timeout("comunicacao")
+        self.start_timeout("msgincompleta", 60, self.timeout_msgincompleta)
 
         self.determina_msg()
 
@@ -173,8 +220,7 @@ class Tratador:
             pass
 
         if not self.buf:
-            # Nenhuma mensagem incompleta, inibe timeout respectivo
-            self.msg_timeout = 0
+            self.cancel_timeout("msgincompleta")
 
     def consome_frame_curto(self):
         if self.buf and self.buf[0] == 0xf7:
@@ -237,7 +283,7 @@ class Tratador:
             macaddr = msg[3:]
             macaddr_s = ":".join(["%02x" % i for i in macaddr])
             self.log("Identificacao central conta %d mac %s" % (conta, macaddr_s))
-            self.id_timeout = 0
+            self.cancel_timeout("identificacao")
 
         resposta = [0xfe]
         self.envia_curto(resposta)
@@ -317,7 +363,9 @@ serverfd.listen(5)
 while True:
     sockets = [serverfd]
     sockets += Tratador.lista_de_sockets()
-    rd, wr, ex = select.select(sockets, [], [], 60)
+    to, toname = Tratador.get_timeout()
+    llog("Proximo timeout %d (%s)" % (to, toname))
+    rd, wr, ex = select.select(sockets, [], [], to)
 
     if serverfd in rd:
         try:
@@ -333,6 +381,4 @@ while True:
         else:
             tratador.evento()
     else:
-        llog(".")
-
-    Tratador.ping_all()
+        Tratador.ping_all()
