@@ -51,6 +51,18 @@ def bcd(n):
         return 0
     return ((n // 10) << 4) + (n % 10)
 
+def from_bcd(dados):
+    n = 0
+    dados_rev = dados[:]
+    dados_rev.reverse()
+    numero = 0
+    posicao = 1
+    for nibbles in dados_rev:
+        numero += (nibbles >> 4) * 10 * posicao
+        numero += (nibbles & 0x04) * posicao
+        posicao *= 100
+    return numero
+
 class Tratador:
     tratadores = {}
 
@@ -208,8 +220,16 @@ class Tratador:
 
     # FIXME verificar se a central é a esperada
     def identificacao_central(self, msg):
-        self.log("Envio identificacao pela central")
-        self.id_timeout = 0
+        if len(msg) != 6:
+            self.log("Identificacao central: tamanho inesperado")
+        else:
+            canal = msg[0] # 'E' (0x45)=Ethernet, 'G'=GPRS, 'H'=GPRS2
+            conta = from_bcd(msg[1:3])
+            macaddr = msg[3:]
+            macaddr_s = ":".join(["%02x" % i for i in macaddr])
+            self.log("Identificacao central conta %d mac %s" % (conta, macaddr_s))
+            self.id_timeout = 0
+
         resposta = [0xfe]
         self.envia_curto(resposta)
 
