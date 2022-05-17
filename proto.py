@@ -77,6 +77,7 @@ def from_bcd(dados):
 class Tratador:
     tratadores = {}
     last_id = 0
+    timeout_heartbeat = 0
 
     @staticmethod
     def lista_de_sockets():
@@ -90,30 +91,39 @@ class Tratador:
         return None
 
     @staticmethod
-    def ping_all():
-        for tratador in list(Tratador.tratadores.values()):
-            tratador.ping()
+    def heartbeat():
+        if time.time() > Tratador.timeout_heartbeat:
+            Tratador.timeout_heartbeat = time.time() + 3600
+            llog2(LOG_INFO, "receptor ok")
 
     @staticmethod
-    def get_timeout():
-        timeout = 60
-        timeout_name = "default"
-        for tratador in Tratador.tratadores.values():
-            candidate, name = tratador.get_min_timeout()
-            if candidate < timeout:
-                timeout = candidate
-                timeout_name = "%d:%s" % (tratador.conn_id, name)
-        return (max(0, timeout), timeout_name)
+    def ping():
+        for tratador in list(Tratador.tratadores.values()):
+            if tratador._ping():
+                break
+        else:
+            Tratador.heartbeat()
 
-    def get_min_timeout(self):
+    @staticmethod
+    def proximo_timeout():
+        timeout = Tratador.timeout_heartbeat - time.time()
+        timeout_nome = "heartbeat"
+        for tratador in Tratador.tratadores.values():
+            candidate, nome = tratador._proximo_timeout()
+            if nome and candidate < timeout:
+                timeout = candidate
+                timeout_nome = "%d:%s" % (tratador.conn_id, nome)
+        return (max(0, timeout), timeout_nome)
+
+    def _proximo_timeout(self):
         timeout = 9999999
-        timeout_name = "foo"
+        timeout_nome = None
         for nome, value in self.timeouts.items():
             candidate = value['timeout'] - time.time()
             if candidate < timeout:
                 timeout = candidate
-                timeout_name = nome
-        return (timeout, timeout_name)
+                timeout_nome = nome
+        return (timeout, timeout_nome)
 
     def start_timeout(self, nome, timeout, callback):
         if nome in self.timeouts:
@@ -151,7 +161,7 @@ class Tratador:
 
         self.log2(LOG_INFO, "inicio", addr)
 
-    def ping(self):
+    def _ping(self):
         for nome, value in self.timeouts.items():
             if time.time() > value['timeout']:
                 if value['callback'](nome):
@@ -160,6 +170,9 @@ class Tratador:
                     self.reset_timeout(nome)
                 # Não tenta prosseguir pois self.timeouts pode ter mudado
                 break
+        else:
+            return False
+        return True
 
     def timeout_comunicacao(self, nome):
         self.log2(LOG_INFO, "timeout de comunicacao")
@@ -374,8 +387,8 @@ serverfd.listen(5)
 while True:
     sockets = [serverfd]
     sockets += Tratador.lista_de_sockets()
-    to, toname = Tratador.get_timeout()
-    llog2(LOG_DEBUG, "Proximo timeout %d (%s)" % (to, toname))
+    to, tonome = Tratador.proximo_timeout()
+    llog2(LOG_DEBUG, "Proximo timeout %d (%s)" % (to, tonome))
     rd, wr, ex = select.select(sockets, [], [], to)
 
     if serverfd in rd:
@@ -392,4 +405,4 @@ while True:
         else:
             tratador.evento()
     else:
-        Tratador.ping_all()
+        Tratador.ping()
