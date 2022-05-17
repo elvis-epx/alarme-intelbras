@@ -85,6 +85,13 @@ class Tratador:
         Tratador.tratadores[sock.fileno()] = self
         self.sock = sock
         self.buf = []
+
+        # FIXME classe de tratadores de timeout, lista de timeouts,
+        # report do timeout mais curto para otimizar loop de eventos
+
+        # FIXME classe de solicitações na direção receptor -> central,
+        # instrumentação para envio, recepção e pendência
+
         # Timeout de mensagem imcompleta
         # Corre apenas quando buffer contém mensagem incompleta
         self.msg_timeout = 0
