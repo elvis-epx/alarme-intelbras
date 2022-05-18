@@ -75,40 +75,88 @@ def from_bcd(dados):
     return numero
 
 eventos_contact_id = {
-        100: {'nome': "Emergencia medica"},
-        110: {'nome': "Alarme de incendio"},
-        120: {'nome': "Panico"},
-        121: {'nome': "Ativacao/desativacao sob coacao"},
-        122: {'nome': "Panico silencioso"},
-        130: {'nome': "Disparo de zona"},
-        133: {'nome': "Disparo de zona 24h"},
-        146: {'nome': "Disparo silencioso"},
-        301: {'nome': "Falta de energia AC"},
-        342: {'nome': "Falta de energia AC em componente sem fio"},
-        302: {'nome': "Bateria do sistema baixa"},
-        305: {'nome': "Reset do sistema"},
-        306: {'nome': "Alteracao programacao"},
-        311: {'nome': "Bateria ausente"},
-        351: {'nome': "Corte linha telefonica"},
-        354: {'nome': "Falha ao comunicar evento"},
-        147: {'nome': "Falha de supervisao"},
-        145: {'nome': "Tamper em dispositivo expansor"},
-        383: {'nome': "Tamper em sensor"},
-        384: {'nome': "Bateria abaixa em componente sem fio"},
-        401: {'nome': "Ativacao"},
-        403: {'nome': "Ativacao automatica"},
-        404: {'nome': "Ativacao remota"},
-        407: {'nome': "Ativacao remota"},
-        408: {'nome': "Ativacao por uma tecla"},
-        410: {'nome': "Acesso remoto"},
-        461: {'nome': "Senha incorreta"},
-        570: {'nome': "Bypass de zona"},
-        602: {'nome': "Teste periodico"},
-        621: {'nome': "Reset do buffer de eventos"},
-        601: {'nome': "Teste manual"},
-        616: {'nome': "Solicitacao de manutencao"},
-        422: {'nome': "Acionamento da PGM"},
-        625: {'nome': "Data e hora reiniciados"}
+        100: {'*': "Emergencia medica"},
+        110: {'*': "Alarme de incendio"},
+        120: {'*': "Panico"},
+        121: {'*': "Ativacao/desativacao sob coacao"},
+        122: {'*': "Panico silencioso"},
+        130: {
+            'aber': "Disparo de zona",
+            'rest': "Restauracao de zona"
+             },
+        133: {'*': "Disparo de zona 24h"},
+        146: {'*': "Disparo silencioso"},
+        301: {
+            'aber': "Falta de energia AC",
+            'rest': "Retorno de energia AC"
+             },
+        342: {
+             'aber': "Falta de energia AC em componente sem fio",
+             'rest': "Retorno energia AC em componente sem fio"
+             },
+        302: {
+            'aber': "Bateria do sistema baixa",
+            'rest': "Recuperacao bateria do sistema baixa"
+             },
+        305: {'*': "Reset do sistema"},
+        306: {'*': "Alteracao programacao"},
+        311: {
+            'aber': "Bateria ausente",
+            'rest': "Recuperacao bateria ausente"
+             },
+        351: {
+            'aber': "Corte linha telefonica",
+            'rest': "Restauro linha telefonica"
+             },
+        354: {'*': "Falha ao comunicar evento"},
+        147: {
+            'aber': "Falha de supervisao",
+            'rest': "Recuperacao falha de supervisao"
+             },
+        145: {
+             'aber': "Tamper em dispositivo expansor",
+             'rest': "Restauro tamper em dispositivo expansor"
+              },
+        383: {
+              'aber': "Tamper em sensor",
+              'rest': "Restauro tamper em sensor"
+              },
+        384: {
+            'aber': "Bateria baixa em componente sem fio",
+            'rest': "Recuperacao bateria baixa em componente sem fio"
+             },
+        401: {
+             'rest': "Ativacao manual",
+             'aber': "Desativacao manual"
+             },
+        403: {
+             'rest': "Ativacao automatica",
+             'aber': "Desativacao automatica"
+             },
+        404: {
+            'rest': "Ativacao remota",
+            'aber': "Desativacao remota",
+             },
+        407: {
+            'rest': "Ativacao remota II",
+            'aber': "Desativacao remota II",
+             },
+        408: {'*': "Ativacao por uma tecla"},
+        410: {'*': "Acesso remoto"},
+        461: {'*': "Senha incorreta"},
+        570: {
+            'aber': "Bypass de zona",
+            'rest': "Cancel bypass de zona"
+             },
+        602: {'*': "Teste periodico"},
+        621: {'*': "Reset do buffer de eventos"},
+        601: {'*': "Teste manual"},
+        616: {'*': "Solicitacao de manutencao"},
+        422: {
+            'aber': "Acionamento de PGM",
+            'rest': "Desligamento de PGM"
+             },
+        625: {'*': "Data e hora reiniciados"}
 }
 
 class Tratador:
@@ -406,11 +454,25 @@ class Tratador:
         particao = contact_id_decode(msg[11:13])
         zona = contact_id_decode(msg[13:16])
 
-        if tipo_msg == 18 and qualificador in (1, 3, 6) and codigo in eventos_contact_id:
-            squalif = ["", "---", "", "+++", "", "", "==="][qualificador]
-            scodigo = eventos_contact_id[codigo]['nome']
-            self.log2(LOG_INFO, "%s %s %d" % (squalif, scodigo, zona))
-        else:
+        desconhecido = True
+        if tipo_msg == 18 and codigo in eventos_contact_id:
+            if qualificador == 1:
+                squalif = "aber"
+                if squalif not in eventos_contact_id[codigo]:
+                    squalif = "*"
+            elif qualificador == 3:
+                squalif = "rest"
+                if squalif not in eventos_contact_id[codigo]:
+                    squalif = "*"
+            else:
+                squalif = "*"
+
+            if squalif in eventos_contact_id[codigo]:
+                desconhecido = False
+                scodigo = eventos_contact_id[codigo][squalif]
+                self.log2(LOG_INFO, "%s %d" % (scodigo, zona))
+
+        if desconhecido:
             self.log2(LOG_INFO,
                     "Evento de alarme canal %02x contact_id %d tipo %d qualificador %d "
                     "codigo %d particao %d zona %d" % \
