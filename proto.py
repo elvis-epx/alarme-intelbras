@@ -74,6 +74,43 @@ def from_bcd(dados):
         posicao *= 100
     return numero
 
+eventos_contact_id = {
+        100: {'nome': "Emergencia medica"},
+        110: {'nome': "Alarme de incendio"},
+        120: {'nome': "Panico"},
+        121: {'nome': "Ativacao/desativacao sob coacao"},
+        122: {'nome': "Panico silencioso"},
+        130: {'nome': "Disparo de zona"},
+        133: {'nome': "Disparo de zona 24h"},
+        146: {'nome': "Disparo silencioso"},
+        301: {'nome': "Falta de energia AC"},
+        342: {'nome': "Falta de energia AC em componente sem fio"},
+        302: {'nome': "Bateria do sistema baixa"},
+        305: {'nome': "Reset do sistema"},
+        306: {'nome': "Alteracao programacao"},
+        311: {'nome': "Bateria ausente"},
+        351: {'nome': "Corte linha telefonica"},
+        354: {'nome': "Falha ao comunicar evento"},
+        147: {'nome': "Falha de supervisao"},
+        145: {'nome': "Tamper em dispositivo expansor"},
+        383: {'nome': "Tamper em sensor"},
+        384: {'nome': "Bateria abaixa em componente sem fio"},
+        401: {'nome': "Ativacao"},
+        403: {'nome': "Ativacao automatica"},
+        404: {'nome': "Ativacao remota"},
+        407: {'nome': "Ativacao remota"},
+        408: {'nome': "Ativacao por uma tecla"},
+        410: {'nome': "Acesso remoto"},
+        461: {'nome': "Senha incorreta"},
+        570: {'nome': "Bypass de zona"},
+        602: {'nome': "Teste periodico"},
+        621: {'nome': "Reset do buffer de eventos"},
+        601: {'nome': "Teste manual"},
+        616: {'nome': "Solicitacao de manutencao"},
+        422: {'nome': "Acionamento da PGM"},
+        625: {'nome': "Data e hora reiniciados"}
+}
+
 class Tratador:
     tratadores = {}
     last_id = 0
@@ -363,13 +400,18 @@ class Tratador:
 
         canal = msg[0] # 0x11 Ethernet IP1, 0x12 IP2, 0x21 GPRS IP1, 0x22 IP2
         contact_id = contact_id_decode(msg[1:5])
-        tipo_msg = contact_id_decode(msg[5:7])
+        tipo_msg = contact_id_decode(msg[5:7]) # 18 decimal = Contact ID
         qualificador = msg[7]
         codigo = contact_id_decode(msg[8:11])
         particao = contact_id_decode(msg[11:13])
         zona = contact_id_decode(msg[13:16])
 
-        self.log2(LOG_INFO,
+        if tipo_msg == 18 and qualificador in (1, 3) and codigo in eventos_contact_id:
+            squalif = ["", "---", "", "+++"][qualificador]
+            scodigo = eventos_contact_id[codigo]['nome']
+            self.log2(LOG_INFO, "%s %s %d" % (squalif, scodigo, zona))
+        else:
+            self.log2(LOG_INFO,
                     "Evento de alarme canal %02x contact_id %d tipo %d qualificador %d "
                     "codigo %d particao %d zona %d" % \
                     (canal, contact_id, tipo_msg, qualificador, codigo, particao, zona))
