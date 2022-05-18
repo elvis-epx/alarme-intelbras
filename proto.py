@@ -81,18 +81,18 @@ eventos_contact_id = {
         121: {'*': "Ativacao/desativacao sob coacao"},
         122: {'*': "Panico silencioso"},
         130: {
-            'aber': "Disparo de zona",
-            'rest': "Restauracao de zona"
+            'aber': "Disparo de zona {zona}",
+            'rest': "Restauracao de zona {zona}"
              },
-        133: {'*': "Disparo de zona 24h"},
-        146: {'*': "Disparo silencioso"},
+        133: {'*': "Disparo de zona 24h {zona}"},
+        146: {'*': "Disparo silencioso {zona}"},
         301: {
             'aber': "Falta de energia AC",
             'rest': "Retorno de energia AC"
              },
         342: {
-             'aber': "Falta de energia AC em componente sem fio",
-             'rest': "Retorno energia AC em componente sem fio"
+             'aber': "Falta de energia AC em componente sem fio {zona}",
+             'rest': "Retorno energia AC em componente sem fio {zona}"
              },
         302: {
             'aber': "Bateria do sistema baixa",
@@ -110,20 +110,20 @@ eventos_contact_id = {
              },
         354: {'*': "Falha ao comunicar evento"},
         147: {
-            'aber': "Falha de supervisao",
-            'rest': "Recuperacao falha de supervisao"
+            'aber': "Falha de supervisao {zona}",
+            'rest': "Recuperacao falha de supervisao {zona}"
              },
         145: {
-             'aber': "Tamper em dispositivo expansor",
-             'rest': "Restauro tamper em dispositivo expansor"
+             'aber': "Tamper em dispositivo expansor {zona}",
+             'rest': "Restauro tamper em dispositivo expansor {zona}"
               },
         383: {
-              'aber': "Tamper em sensor",
-              'rest': "Restauro tamper em sensor"
+              'aber': "Tamper em sensor {zona}",
+              'rest': "Restauro tamper em sensor {zona}"
               },
         384: {
-            'aber': "Bateria baixa em componente sem fio",
-            'rest': "Recuperacao bateria baixa em componente sem fio"
+            'aber': "Bateria baixa em componente sem fio {zona}",
+            'rest': "Recuperacao bateria baixa em componente sem fio {zona}"
              },
         401: {
              'rest': "Ativacao manual",
@@ -145,16 +145,16 @@ eventos_contact_id = {
         410: {'*': "Acesso remoto"},
         461: {'*': "Senha incorreta"},
         570: {
-            'aber': "Bypass de zona",
-            'rest': "Cancel bypass de zona"
+             'aber': "Bypass de zona {zona}",
+             'rest': "Cancel bypass de zona {zona}"
              },
         602: {'*': "Teste periodico"},
         621: {'*': "Reset do buffer de eventos"},
         601: {'*': "Teste manual"},
         616: {'*': "Solicitacao de manutencao"},
         422: {
-            'aber': "Acionamento de PGM",
-            'rest': "Desligamento de PGM"
+            'aber': "Acionamento de PGM {zona}",
+            'rest': "Desligamento de PGM {zona}"
              },
         625: {'*': "Data e hora reiniciados"}
 }
@@ -470,7 +470,7 @@ class Tratador:
             if squalif in eventos_contact_id[codigo]:
                 desconhecido = False
                 scodigo = eventos_contact_id[codigo][squalif]
-                self.log2(LOG_INFO, "%s %d" % (scodigo, zona))
+                self.log2(LOG_INFO, scodigo.format(zona=zona, particao=particao))
 
         if desconhecido:
             self.log2(LOG_INFO,
