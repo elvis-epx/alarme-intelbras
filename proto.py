@@ -12,11 +12,6 @@ log_level = LOG_INFO
 def hexprint(buf):
     return ", ".join(["%02x" % n for n in buf])
 
-def llog2(level, *msg):
-    if level <= log_level:
-        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(now, *msg, flush=True)
-
 # Calcula checksum de frame longo
 # Presume que "dados" contém o byte de comprimento mas não contém o byte de checksum
 def checksum(dados):
@@ -51,14 +46,14 @@ def contact_id_decode(dados):
         elif digito >= 0x01 and digito <= 0x09:
             numero += posicao * digito
         else:
-            llog2(LOG_WARN, "valor contact id invalido", hexprint(dados))
+            Tratador.llog2(LOG_WARN, "valor contact id invalido", hexprint(dados))
             return -1
         posicao *= 10
     return numero
 
 def bcd(n):
     if n > 99 or n < 0:
-        llog2(LOG_WARN, "valor invalido para BCD: %02x" % n)
+        Tratador.llog2(LOG_WARN, "valor invalido para BCD: %02x" % n)
         return 0
     return ((n // 10) << 4) + (n % 10)
 
@@ -162,7 +157,14 @@ eventos_contact_id = {
 class Tratador:
     tratadores = {}
     last_id = 0
-    timeout_heartbeat = 0
+    timeout_heartbeat = time.time() + 60
+
+    @staticmethod
+    def llog2(level, *msg):
+        if level <= log_level:
+            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(now, *msg, flush=True)
+            Tratador.resetar_heartbeat()
 
     @staticmethod
     def lista_de_sockets():
@@ -176,10 +178,14 @@ class Tratador:
         return None
 
     @staticmethod
+    def resetar_heartbeat():
+        Tratador.timeout_heartbeat = time.time() + 3600
+
+    @staticmethod
     def heartbeat_geral():
         if time.time() > Tratador.timeout_heartbeat:
-            Tratador.timeout_heartbeat = time.time() + 3600
-            llog2(LOG_INFO, "receptor ok")
+            Tratador.llog2(LOG_INFO, "receptor ok")
+            Tratador.resetar_heartbeat()
 
     @staticmethod
     def ping():
@@ -280,7 +286,7 @@ class Tratador:
         return True
 
     def log2(self, level, *msg):
-        llog2(level, "conn %d:" % self.conn_id, *msg)
+        Tratador.llog2(level, "conn %d:" % self.conn_id, *msg)
 
     def _envia(self, resposta):
         try:
@@ -488,7 +494,7 @@ serverfd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 serverfd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 # serverfd.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, 0)
 serverfd.bind((HOST, PORT))
-llog2(LOG_INFO, "Porta %d" % PORT)
+Tratador.llog2(LOG_INFO, "Porta %d" % PORT)
 
 serverfd.listen(5)
 
@@ -497,7 +503,7 @@ while True:
     sockets = [serverfd]
     sockets += Tratador.lista_de_sockets()
     to, tonome = Tratador.proximo_timeout()
-    llog2(LOG_DEBUG, "Proximo timeout %d (%s)" % (to, tonome))
+    Tratador.llog2(LOG_DEBUG, "Proximo timeout %d (%s)" % (to, tonome))
     rd, wr, ex = select.select(sockets, [], [], to)
 
     if serverfd in rd:
@@ -509,7 +515,7 @@ while True:
     elif rd:
         tratador = Tratador.pelo_socket(rd[0])
         if not tratador:
-            llog2(LOG_WARN, "(bug?) evento em socket sem tratador")
+            Tratador.llog2(LOG_WARN, "(bug?) evento em socket sem tratador")
             rd[0].close()
         else:
             tratador.evento()
