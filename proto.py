@@ -7,7 +7,7 @@ LOG_WARN = 1
 LOG_INFO = 2
 LOG_DEBUG = 3
 
-log_level = LOG_INFO
+log_level = LOG_DEBUG
 
 def hexprint(buf):
     return ", ".join(["%02x" % n for n in buf])
@@ -158,6 +158,8 @@ class Tratador:
     tratadores = {}
     last_id = 0
     timeout_heartbeat = time.time() + 60
+    backoff_minimo = 0.125
+    recuo_backoff_minimo = 1.0 # Deve ser bem maior que RTT esperado
 
     @staticmethod
     def llog2(level, *msg):
@@ -206,6 +208,8 @@ class Tratador:
                 timeout_nome = "%d:%s" % (tratador.conn_id, nome)
         return (max(0, timeout), timeout_nome)
 
+    # Métodos da instância
+
     def _proximo_timeout(self):
         timeout = 9999999
         timeout_nome = None
@@ -216,24 +220,20 @@ class Tratador:
                 timeout_nome = nome
         return (timeout, timeout_nome)
 
-    def start_timeout(self, nome, timeout, callback):
-        if nome in self.timeouts:
-            self.cancel_timeout(nome)
+    def init_timeout(self, nome_base, timeout, callback):
+        self.last_to += 1
+        nome = "%s_%x" % (nome_base, self.last_to)
         self.timeouts[nome] = { "rel_timeout": timeout, "callback": callback }
         self.timeouts[nome]["timeout"] = \
             time.time() + self.timeouts[nome]["rel_timeout"]
-        self.log2(LOG_DEBUG, "+ timeout %s %d" % (nome, timeout))
+        self.log2(LOG_DEBUG, "+ timeout %s %f" % (nome, timeout))
+        return nome
 
-    def cancel_timeout(self, nome):
-        if nome in self.timeouts:
+    def remove_timeout(self, nome):
+        if nome and nome in self.timeouts:
+            tempo = self.timeouts[nome]['timeout'] - time.time()
             del self.timeouts[nome]
-            self.log2(LOG_DEBUG, "- timeout %s" % nome)
-
-    def reset_timeout(self, nome):
-        if nome in self.timeouts:
-            self.timeouts[nome]["timeout"] = \
-                time.time() + self.timeouts[nome]["rel_timeout"]
-            self.log2(LOG_DEBUG, "@ timeout %s %d" % (nome, self.timeouts[nome]["rel_timeout"]))
+            self.log2(LOG_DEBUG, "- timeout %s (restante %f)" % (nome, tempo))
 
     def __init__(self, sock, addr):
         Tratador.last_id += 1
@@ -243,47 +243,45 @@ class Tratador:
         self.sock = sock
         self.buf = []
         self.timeouts = {}
+        self.last_to = 0
+        self.backoff = Tratador.backoff_minimo
 
         # FIXME classe de solicitações na direção receptor -> central,
         # instrumentação para envio, recepção e pendência
 
-        self.start_timeout("identificacao", 120, self.timeout_identificacao)
-        self.start_timeout("comunicacao", 600, self.timeout_comunicacao)
-        self.start_timeout("heartbeat", 3600, self.heartbeat)
+        self.to_ident = self.init_timeout("ident", 120, self.timeout_identificacao)
+        self.to_comm = self.init_timeout("comm", 600, self.timeout_comunicacao)
+        self.to_hb = self.init_timeout("hb", 3600, self.heartbeat)
+        self.to_processa = None
+        self.to_incompleta = None
+        self.to_backoff = None
 
         self.log2(LOG_INFO, "inicio", addr)
 
     def _ping(self):
         for nome, value in self.timeouts.items():
             if time.time() > value['timeout']:
-                if value['callback'](nome):
-                    self.cancel_timeout(nome)
-                else:
-                    self.reset_timeout(nome)
-                # Não tenta prosseguir pois self.timeouts pode ter mudado
-                break
-        else:
-            return False
-        return True
-
-    def heartbeat(self, nome):
-        self.log2(LOG_INFO, "ainda ativa")
+                value['callback'](nome)
+                del self.timeouts[nome]
+                self.log2(LOG_DEBUG, "= timeout %s" % nome)
+                return True
         return False
 
-    def timeout_comunicacao(self, nome):
+    def heartbeat(self, _):
+        self.log2(LOG_INFO, "ainda ativa")
+        self.to_hb = self.init_timeout("hb", 3600, self.heartbeat)
+
+    def timeout_comunicacao(self, _):
         self.log2(LOG_INFO, "timeout de comunicacao")
         self.encerrar()
-        return True
 
-    def timeout_msgincompleta(self, nome):
+    def timeout_msgincompleta(self, _):
         self.log2(LOG_WARN, "timeout de mensagem incompleta, buf =", hexprint(self.buf))
         self.encerrar()
-        return True
 
-    def timeout_identificacao(self, nome):
+    def timeout_identificacao(self, _):
         self.log2(LOG_WARN, "timeout de identificacao")
         self.encerrar()
-        return True
 
     def log2(self, level, *msg):
         Tratador.llog2(level, "conn %d:" % self.conn_id, *msg)
@@ -310,7 +308,6 @@ class Tratador:
             self.sock.close()
         except socket.error:
             pass
-        self.timeouts = {}
 
     def evento(self):
         self.log2(LOG_DEBUG, "evento")
@@ -329,18 +326,54 @@ class Tratador:
         self.buf += [x for x in data]
         self.log2(LOG_DEBUG, "buf =", hexprint(self.buf))
 
-        self.reset_timeout("comunicacao")
-        self.start_timeout("msgincompleta", 60, self.timeout_msgincompleta)
+        self.remove_timeout(self.to_comm)
+        self.to_comm = self.init_timeout("comm", 600, self.timeout_comunicacao)
 
-        self.determina_msg()
+        if not self.to_processa:
+            self.to_processa = self.init_timeout("proc_msg", self.backoff, self.processar_msg)
 
-    # FIXME rate limiting (sintoma de problema de parse/resposta)
-    def determina_msg(self):
-        while self.consome_frame_curto() or self.consome_frame_longo():
-            pass
+    def processar_msg(self, _):
+        self.to_processa = None
+        msg_aceita, msgs_pendentes = self.consome_msg()
+        if msg_aceita:
+            self.avancar_backoff()
+        if msgs_pendentes:
+            self.to_processa = self.init_timeout("proc_msg", self.backoff, self.processar_msg)
 
-        if not self.buf:
-            self.cancel_timeout("msgincompleta")
+    def consome_msg(self):
+        if self.consome_frame_curto() or self.consome_frame_longo():
+            # Processou uma mensagem
+            self.remove_timeout(self.to_incompleta)
+            self.to_incompleta = None
+            return True, not not self.buf
+
+        if self.buf:
+            # Mensagem incompleta no buffer
+            if not self.to_incompleta:
+                self.to_incompleta = self.init_timeout("msgincompleta", 60, self.timeout_msgincompleta)
+        return False, False
+
+    def avancar_backoff(self):
+        self.backoff *= 2 # Backoff exponencial
+        self.log2(LOG_DEBUG, "backoff aumentado para %f" % self.backoff)
+
+        self.remove_timeout(self.to_backoff)
+        self.to_backoff = None
+        self.to_backoff = self.init_timeout("recuar_backoff",
+            max(Tratador.recuo_backoff_minimo, self.backoff * 2),
+            self.recuar_backoff)
+
+    def recuar_backoff(self, _):
+        self.to_backoff = None
+
+        self.backoff /= 2
+        self.backoff = max(self.backoff, Tratador.backoff_minimo)
+        self.log2(LOG_DEBUG, "backoff reduzido para %f" % self.backoff)
+
+        if self.backoff > Tratador.backoff_minimo:
+            self.to_backoff = self.init_timeout("recuar_backoff",
+                max(Tratador.recuo_backoff_minimo, self.backoff * 2),
+                self.recuar_backoff)
 
     def consome_frame_curto(self):
         if self.buf and self.buf[0] == 0xf7:
@@ -403,7 +436,8 @@ class Tratador:
             macaddr = msg[3:]
             macaddr_s = ":".join(["%02x" % i for i in macaddr])
             self.log2(LOG_INFO, "identificacao central conta %d mac %s" % (conta, macaddr_s))
-            self.cancel_timeout("identificacao")
+            self.remove_timeout(self.to_ident)
+            self.to_ident = None
 
         resposta = [0xfe]
         self.envia_curto(resposta)
@@ -503,7 +537,7 @@ while True:
     sockets = [serverfd]
     sockets += Tratador.lista_de_sockets()
     to, tonome = Tratador.proximo_timeout()
-    Tratador.llog2(LOG_DEBUG, "Proximo timeout %d (%s)" % (to, tonome))
+    Tratador.llog2(LOG_DEBUG, "Proximo timeout %f (%s)" % (to, tonome))
     rd, wr, ex = select.select(sockets, [], [], to)
 
     if serverfd in rd:
