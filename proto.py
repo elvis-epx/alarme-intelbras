@@ -7,7 +7,7 @@ LOG_WARN = 1
 LOG_INFO = 2
 LOG_DEBUG = 3
 
-log_level = LOG_DEBUG
+log_level = LOG_INFO
 
 def hexprint(buf):
     return ", ".join(["%02x" % n for n in buf])
@@ -406,8 +406,8 @@ class Tratador:
         particao = contact_id_decode(msg[11:13])
         zona = contact_id_decode(msg[13:16])
 
-        if tipo_msg == 18 and qualificador in (1, 3) and codigo in eventos_contact_id:
-            squalif = ["", "---", "", "+++"][qualificador]
+        if tipo_msg == 18 and qualificador in (1, 3, 6) and codigo in eventos_contact_id:
+            squalif = ["", "---", "", "+++", "", "", "==="][qualificador]
             scodigo = eventos_contact_id[codigo]['nome']
             self.log2(LOG_INFO, "%s %s %d" % (squalif, scodigo, zona))
         else:
