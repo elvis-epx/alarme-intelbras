@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
 
-import sys, socket, time, select, datetime
+import sys, socket, time, datetime
 
-LOG_ERROR = 0
-LOG_WARN = 1
-LOG_INFO = 2
-LOG_DEBUG = 3
-
-log_level = LOG_DEBUG
+from myeventloop import Timeout, Handler, EventLoop, Log
 
 def hexprint(buf):
     return ", ".join(["%02x" % n for n in buf])
@@ -46,14 +41,14 @@ def contact_id_decode(dados):
         elif digito >= 0x01 and digito <= 0x09:
             numero += posicao * digito
         else:
-            Tratador.llog2(LOG_WARN, "valor contact id invalido", hexprint(dados))
+            Log.warn("valor contact id invalido", hexprint(dados))
             return -1
         posicao *= 10
     return numero
 
 def bcd(n):
     if n > 99 or n < 0:
-        Tratador.llog2(LOG_WARN, "valor invalido para BCD: %02x" % n)
+        Log.warn("valor invalido para BCD: %02x" % n)
         return 0
     return ((n // 10) << 4) + (n % 10)
 
@@ -154,145 +149,50 @@ eventos_contact_id = {
         625: {'*': "Data e hora reiniciados"}
 }
 
-class Tratador:
-    tratadores = {}
-    last_id = 0
-    timeout_heartbeat = time.time() + 60
+class TratadorConexao:
     backoff_minimo = 0.125
     recuo_backoff_minimo = 1.0 # Deve ser bem maior que RTT esperado
 
-    @staticmethod
-    def llog2(level, *msg):
-        if level <= log_level:
-            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            print(now, *msg, flush=True)
-            Tratador.resetar_heartbeat()
-
-    @staticmethod
-    def lista_de_sockets():
-        return [ tratador.sock for tratador in Tratador.tratadores.values() ]
-
-    @staticmethod
-    def pelo_socket(sock):
-        for tratador in Tratador.tratadores.values():
-            if sock is tratador.sock:
-                return tratador
-        return None
-
-    @staticmethod
-    def resetar_heartbeat():
-        Tratador.timeout_heartbeat = time.time() + 3600
-
-    @staticmethod
-    def heartbeat_geral():
-        if time.time() > Tratador.timeout_heartbeat:
-            Tratador.llog2(LOG_INFO, "receptor ok")
-            Tratador.resetar_heartbeat()
-
-    @staticmethod
-    def ping():
-        for tratador in list(Tratador.tratadores.values()):
-            if tratador._ping():
-                break
-        else:
-            Tratador.heartbeat_geral()
-
-    @staticmethod
-    def proximo_timeout():
-        timeout = Tratador.timeout_heartbeat - time.time()
-        timeout_nome = "heartbeat"
-        for tratador in Tratador.tratadores.values():
-            candidate, nome = tratador._proximo_timeout()
-            if nome and candidate < timeout:
-                timeout = candidate
-                timeout_nome = "%d:%s" % (tratador.conn_id, nome)
-        return (max(0, timeout), timeout_nome)
-
-    # Métodos da instância
-
-    def _proximo_timeout(self):
-        timeout = 9999999
-        timeout_nome = None
-        for nome, value in self.timeouts.items():
-            candidate = value['timeout'] - time.time()
-            if candidate < timeout:
-                timeout = candidate
-                timeout_nome = nome
-        return (timeout, timeout_nome)
-
-    def init_timeout(self, nome_base, timeout, callback):
-        self.last_to += 1
-        nome = "%s_%x" % (nome_base, self.last_to)
-        self.timeouts[nome] = { "rel_timeout": timeout, "callback": callback }
-        self.timeouts[nome]["timeout"] = \
-            time.time() + self.timeouts[nome]["rel_timeout"]
-        self.log2(LOG_DEBUG, "+ timeout %s %f" % (nome, timeout))
-        return nome
-
-    def remove_timeout(self, nome):
-        if nome and nome in self.timeouts:
-            tempo = self.timeouts[nome]['timeout'] - time.time()
-            del self.timeouts[nome]
-            self.log2(LOG_DEBUG, "- timeout %s (restante %f)" % (nome, tempo))
-
-    def __init__(self, sock, addr):
-        Tratador.last_id += 1
-        self.conn_id = Tratador.last_id
-        Tratador.tratadores[self.conn_id] = self
-
-        self.sock = sock
+    def __init__(self, addr, sock):
+        super().__init__("%s:%d" % addr, sock, socket.error)
         self.buf = []
-        self.timeouts = {}
-        self.last_to = 0
-        self.backoff = Tratador.backoff_minimo
+        self.backoff = TratadorConexao.backoff_minimo
 
         # FIXME classe de solicitações na direção receptor -> central,
         # instrumentação para envio, recepção e pendência
 
-        self.to_ident = self.init_timeout("ident", 120, self.timeout_identificacao)
-        self.to_comm = self.init_timeout("comm", 600, self.timeout_comunicacao)
-        self.to_hb = self.init_timeout("hb", 3600, self.heartbeat)
+        self.to_ident = Timeout(self, "ident", 120, self.timeout_identificacao)
+        self.to_comm = Timeout(self, "comm", 600, self.timeout_comunicacao)
+        self.to_hb = Timeout(self, "hb", 3600, self.heartbeat)
         self.to_processa = None
         self.to_incompleta = None
         self.to_backoff = None
 
-        self.log2(LOG_INFO, "inicio", addr)
+        self.log_info("inicio")
 
-    def _ping(self):
-        for nome, value in self.timeouts.items():
-            if time.time() > value['timeout']:
-                value['callback'](nome)
-                del self.timeouts[nome]
-                self.log2(LOG_DEBUG, "= timeout %s" % nome)
-                return True
-        return False
+    def heartbeat(self):
+        self.log_info("ainda ativa")
+        self.to_hb = Timeout(self, "hb", 3600, self.heartbeat)
 
-    def heartbeat(self, _):
-        self.log2(LOG_INFO, "ainda ativa")
-        self.to_hb = self.init_timeout("hb", 3600, self.heartbeat)
+    def timeout_comunicacao(self):
+        self.log_info("timeout de comunicacao")
+        self.destroy()
 
-    def timeout_comunicacao(self, _):
-        self.log2(LOG_INFO, "timeout de comunicacao")
-        self.encerrar()
+    def timeout_msgincompleta(self):
+        self.log_warn("timeout de mensagem incompleta, buf =", hexprint(self.buf))
+        self.destroy()
 
-    def timeout_msgincompleta(self, _):
-        self.log2(LOG_WARN, "timeout de mensagem incompleta, buf =", hexprint(self.buf))
-        self.encerrar()
-
-    def timeout_identificacao(self, _):
-        self.log2(LOG_WARN, "timeout de identificacao")
-        self.encerrar()
-
-    def log2(self, level, *msg):
-        Tratador.llog2(level, "conn %d:" % self.conn_id, *msg)
+    def timeout_identificacao(self):
+        self.log_warn("timeout de identificacao")
+        self.destroy()
 
     def _envia(self, resposta):
         try:
-            self.sock.sendall(bytearray(resposta))
-            self.log2(LOG_DEBUG, "enviada resposta", hexprint(resposta))
+            self.fd.sendall(bytearray(resposta))
+            self.log_debug("enviada resposta", hexprint(resposta))
         except socket.error as err:
-            self.log2(LOG_DEBUG, "excecao ao enviar", err)
-            self.encerrar()
+            self.log_debug("excecao ao enviar", err)
+            self.destroy()
 
     def envia_longo(self, resposta):
         resposta = enquadrar(resposta)
@@ -301,36 +201,29 @@ class Tratador:
     def envia_curto(self, resposta):
         self._envia(resposta)
 
-    def encerrar(self):
-        self.log2(LOG_INFO, "encerrando")
-        del Tratador.tratadores[self.conn_id]
-        try:
-            self.sock.close()
-        except socket.error:
-            pass
-
-    def evento(self):
-        self.log2(LOG_DEBUG, "evento")
+    def read_callback(self):
+        self.log_debug("evento")
         try:
             data = self.sock.recv(1024)
         except socket.error as err:
-            self.log2(LOG_DEBUG, "excecao ao ler", err)
-            self.encerrar()
+            self.log_debug("excecao ao ler", err)
+            self.destroy()
             return
 
         if not data:
-            self.log2(LOG_DEBUG, "fechada")
-            self.encerrar()
+            self.log_debug("fechada")
+            self.destroy()
             return
 
         self.buf += [x for x in data]
-        self.log2(LOG_DEBUG, "buf =", hexprint(self.buf))
+        self.log_debug("buf =", hexprint(self.buf))
 
-        self.remove_timeout(self.to_comm)
-        self.to_comm = self.init_timeout("comm", 600, self.timeout_comunicacao)
+        if self.to_comm:
+            self.to_comm.cancel()
+        self.to_comm = Timeout(self, "comm", 600, self.timeout_comunicacao)
 
         if not self.to_processa:
-            self.to_processa = self.init_timeout("proc_msg", self.backoff, self.processar_msg)
+            self.to_processa = Timeout(self, "proc_msg", self.backoff, self.processar_msg)
 
     def processar_msg(self, _):
         self.to_processa = None
@@ -338,28 +231,31 @@ class Tratador:
         if msg_aceita:
             self.avancar_backoff()
         if msgs_pendentes:
-            self.to_processa = self.init_timeout("proc_msg", self.backoff, self.processar_msg)
+            self.to_processa = Timeout(self, "proc_msg", self.backoff, self.processar_msg)
 
     def consome_msg(self):
         if self.consome_frame_curto() or self.consome_frame_longo():
             # Processou uma mensagem
-            self.remove_timeout(self.to_incompleta)
-            self.to_incompleta = None
+            if self.to_incompleta:
+                self.to_incompleta.cancel()
+                self.to_incompleta = None
             return True, not not self.buf
 
         if self.buf:
             # Mensagem incompleta no buffer
             if not self.to_incompleta:
-                self.to_incompleta = self.init_timeout("msgincompleta", 60, self.timeout_msgincompleta)
+                self.to_incompleta = Timeout(self, "msgincompleta", 60, self.timeout_msgincompleta)
         return False, False
 
     def avancar_backoff(self):
         self.backoff *= 2 # Backoff exponencial
-        self.log2(LOG_DEBUG, "backoff aumentado para %f" % self.backoff)
+        self.log_debug("backoff aumentado para %f" % self.backoff)
 
-        self.remove_timeout(self.to_backoff)
-        self.to_backoff = None
-        self.to_backoff = self.init_timeout("recuar_backoff",
+        if self.to_backoff:
+            self.to_backoff.cancel()
+            self.to_backoff = None
+
+        self.to_backoff = Timeout(self, "recuar_backoff",
             max(Tratador.recuo_backoff_minimo, self.backoff * 2),
             self.recuar_backoff)
 
@@ -368,17 +264,17 @@ class Tratador:
 
         self.backoff /= 2
         self.backoff = max(self.backoff, Tratador.backoff_minimo)
-        self.log2(LOG_DEBUG, "backoff reduzido para %f" % self.backoff)
+        self.log_debug("backoff reduzido para %f" % self.backoff)
 
         if self.backoff > Tratador.backoff_minimo:
-            self.to_backoff = self.init_timeout("recuar_backoff",
+            self.to_backoff = Timeout(self, "recuar_backoff",
                 max(Tratador.recuo_backoff_minimo, self.backoff * 2),
                 self.recuar_backoff)
 
     def consome_frame_curto(self):
         if self.buf and self.buf[0] == 0xf7:
             self.buf = self.buf[1:]
-            self.log2(LOG_DEBUG, "heartbeat da central")
+            self.log_debug("heartbeat da central")
             resposta = [0xfe]
             self.envia_curto(resposta)
             return True
@@ -396,14 +292,14 @@ class Tratador:
         self.buf = self.buf[esperado:]
 
         if not verificar(rawmsg):
-            self.log2(LOG_WARN, "checksum errado - fatal, rawmsg =", hexprint(rawmsg))
-            self.encerrar()
+            self.log_warn("checksum errado - fatal, rawmsg =", hexprint(rawmsg))
+            self.destroy()
             return True
 
         msg = rawmsg[1:-1]
 
         if not msg:
-            self.log2(LOG_WARN, "mensagem nula")
+            self.log_warn("mensagem nula")
             return True
 
         tipo = msg[0]
@@ -418,7 +314,7 @@ class Tratador:
         elif tipo == 0xb5:
             self.evento_alarme_foto(msg)
         else:
-            self.log2(LOG_WARN, "solicitacao desconhecida %02x payload =" % tipo, hexprint(msg))
+            self.log_warn("solicitacao desconhecida %02x payload =" % tipo, hexprint(msg))
             self.resposta_generica(msg)
         return True
 
@@ -429,21 +325,22 @@ class Tratador:
     # FIXME verificar se a central é a esperada
     def identificacao_central(self, msg):
         if len(msg) != 6:
-            self.log2(LOG_WARN, "identificacao central: tamanho inesperado,", hexprint(msg))
+            self.log_warn("identificacao central: tamanho inesperado,", hexprint(msg))
         else:
             canal = msg[0] # 'E' (0x45)=Ethernet, 'G'=GPRS, 'H'=GPRS2
             conta = from_bcd(msg[1:3])
             macaddr = msg[3:]
             macaddr_s = ":".join(["%02x" % i for i in macaddr])
-            self.log2(LOG_INFO, "identificacao central conta %d mac %s" % (conta, macaddr_s))
-            self.remove_timeout(self.to_ident)
-            self.to_ident = None
+            self.log_info("identificacao central conta %d mac %s" % (conta, macaddr_s))
+            if self.to_ident:
+                self.to_ident.cancel()
+                self.to_ident = None
 
         resposta = [0xfe]
         self.envia_curto(resposta)
 
     def solicita_data_hora(self, msg):
-        self.log2(LOG_DEBUG, "solicitacao de data/hora pela central")
+        self.log_debug("solicitacao de data/hora pela central")
         agora = datetime.datetime.now()
         # proto: 0 = domingo; weekday(): 0 = segunda
         dow = (agora.weekday() + 1) % 7
@@ -453,7 +350,7 @@ class Tratador:
 
     def evento_alarme_foto(self, msg):
         if len(msg) != 19:
-            self.log2(LOG_WARN, "evento de alarme F de tamanho inesperado,", hexprint(msg))
+            self.log_warn("evento de alarme F de tamanho inesperado,", hexprint(msg))
             resposta = [0xfe]
             self.envia_curto(resposta)
             return
@@ -469,11 +366,10 @@ class Tratador:
         indice = msg[17] * 256 + msg[18]
         nr_fotos = msg[19]
 
-        self.log2(LOG_INFO,
-                    "Evento de alarme F canal %02x contact_id %d tipo %d qualificador %d "
-                    "codigo %d particao %d zona %d fotos %d (%d)" % \
-                    (canal, contact_id, tipo_msg, qualificador, codigo, particao, zona,
-                    indice, nr_fotos))
+        self.log_info("Evento de alarme F canal %02x contact_id %d tipo %d qualificador %d "
+                      "codigo %d particao %d zona %d fotos %d (%d)" % \
+                       (canal, contact_id, tipo_msg, qualificador, codigo, particao, zona,
+                       indice, nr_fotos))
         # FIXME como ler dados do evento apontado no indice?
 
         resposta = [0xfe]
@@ -481,7 +377,7 @@ class Tratador:
 
     def evento_alarme(self, msg):
         if len(msg) != 16:
-            self.log2(LOG_WARN, "evento de alarme de tamanho inesperado,", hexprint(msg))
+            self.log_warn("evento de alarme de tamanho inesperado,", hexprint(msg))
             resposta = [0xfe]
             self.envia_curto(resposta)
             return
@@ -510,17 +406,18 @@ class Tratador:
             if squalif in eventos_contact_id[codigo]:
                 desconhecido = False
                 scodigo = eventos_contact_id[codigo][squalif]
-                self.log2(LOG_INFO, scodigo.format(zona=zona, particao=particao))
+                self.log_info(scodigo.format(zona=zona, particao=particao))
 
         if desconhecido:
-            self.log2(LOG_INFO,
-                    "Evento de alarme canal %02x contact_id %d tipo %d qualificador %d "
-                    "codigo %d particao %d zona %d" % \
-                    (canal, contact_id, tipo_msg, qualificador, codigo, particao, zona))
+            self.log_info("Evento de alarme canal %02x contact_id %d tipo %d qualificador %d "
+                          "codigo %d particao %d zona %d" % \
+                          (canal, contact_id, tipo_msg, qualificador, codigo, particao, zona))
 
         resposta = [0xfe]
         self.envia_curto(resposta)
 
+
+# Socket que aceita conexões 
 
 serverfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 HOST, PORT = "0.0.0.0", 9009 + int(sys.argv[1])
@@ -528,30 +425,30 @@ serverfd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 serverfd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
 # serverfd.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, 0)
 serverfd.bind((HOST, PORT))
-Tratador.llog2(LOG_INFO, "Porta %d" % PORT)
-
 serverfd.listen(5)
+Log.info("Porta %d" % PORT)
 
-# Loop de eventos
-while True:
-    sockets = [serverfd]
-    sockets += Tratador.lista_de_sockets()
-    to, tonome = Tratador.proximo_timeout()
-    Tratador.llog2(LOG_DEBUG, "Proximo timeout %f (%s)" % (to, tonome))
-    rd, wr, ex = select.select(sockets, [], [], to)
+class NovaConexao(Handler):
+    def __init__(self, fd):
+        super().__init__("listener", fd, socket.error)
 
-    if serverfd in rd:
+    def read_callback(self):
         try:
-            cliente_sock, addr = serverfd.accept()
-            tratador = Tratador(cliente_sock, "%s:%d" % addr)
+            client_sock, addr = self.fd.accept()
+            TratadorConexao(addr, client_sock)
         except socket.error:
-            pass
-    elif rd:
-        tratador = Tratador.pelo_socket(rd[0])
-        if not tratador:
-            Tratador.llog2(LOG_WARN, "(bug?) evento em socket sem tratador")
-            rd[0].close()
-        else:
-            tratador.evento()
-    else:
-        Tratador.ping()
+            return
+
+accepthandler = NovaConexao(serverfd)
+
+def heartbeat():
+    Log.info("receptor ok")
+    Timeout(None, "heartbeat", 3600, heartbeat)
+
+Timeout(None, "heartbeat", 60, heartbeat)
+
+class MyEventLoop(EventLoop):
+    def __init__(self):
+        super().__init__()
+
+MyEventLoop().loop()
