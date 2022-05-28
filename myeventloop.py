@@ -10,7 +10,7 @@ LOG_INFO = 2
 LOG_DEBUG = 3
 
 class Log:
-    log_level = LOG_INFO
+    log_level = LOG_DEBUG
 
     @staticmethod
     def set_level(new_level):
@@ -61,7 +61,7 @@ class Timeout:
     def handle():
         for candidate in Timeout.pending.values():
             if time.time() > candidate.absolute_to:
-                del Timeouts.pending[id(candidate)]
+                del Timeout.pending[id(candidate)]
                 candidate.callback()
                 Log.debug("= timeout %s" % candidate.label)
                 return True
@@ -72,7 +72,7 @@ class Timeout:
         if id(timeout_object) in Timeout.pending:
             del Timeout.pending[id(timeout_object)]
             remaining_time = timeout_object.absolute_to - time.time()
-            Log.debug("- timeout %s (remaining %f)" % (nome, remaining_time))
+            Log.debug("- timeout %s (remaining %f)" % (timeout_object.label, remaining_time))
 
     @staticmethod
     def cancel_by_owner(owner):
@@ -86,6 +86,7 @@ class Timeout:
         self.relative_to = relative_to
         self.callback = callback
         self.absolute_to = time.time() + relative_to
+        Timeout.pending[id(self)] = self
         Log.debug("+ timeout %s %f" % (label, relative_to))
 
     def cancel(self):

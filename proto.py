@@ -2,7 +2,9 @@
 
 import sys, socket, time, datetime
 
-from myeventloop import Timeout, Handler, EventLoop, Log
+from myeventloop import Timeout, Handler, EventLoop, Log, LOG_INFO
+
+Log.set_level(LOG_INFO)
 
 def hexprint(buf):
     return ", ".join(["%02x" % n for n in buf])
@@ -149,12 +151,14 @@ eventos_contact_id = {
         625: {'*': "Data e hora reiniciados"}
 }
 
-class TratadorConexao:
+class TratadorConexao(Handler):
     backoff_minimo = 0.125
     recuo_backoff_minimo = 1.0 # Deve ser bem maior que RTT esperado
 
     def __init__(self, addr, sock):
         super().__init__("%s:%d" % addr, sock, socket.error)
+        self.log_info("inicio")
+
         self.buf = []
         self.backoff = TratadorConexao.backoff_minimo
 
@@ -167,8 +171,6 @@ class TratadorConexao:
         self.to_processa = None
         self.to_incompleta = None
         self.to_backoff = None
-
-        self.log_info("inicio")
 
     def heartbeat(self):
         self.log_info("ainda ativa")
@@ -204,7 +206,7 @@ class TratadorConexao:
     def read_callback(self):
         self.log_debug("evento")
         try:
-            data = self.sock.recv(1024)
+            data = self.fd.recv(1024)
         except socket.error as err:
             self.log_debug("excecao ao ler", err)
             self.destroy()
@@ -225,7 +227,7 @@ class TratadorConexao:
         if not self.to_processa:
             self.to_processa = Timeout(self, "proc_msg", self.backoff, self.processar_msg)
 
-    def processar_msg(self, _):
+    def processar_msg(self):
         self.to_processa = None
         msg_aceita, msgs_pendentes = self.consome_msg()
         if msg_aceita:
@@ -256,19 +258,19 @@ class TratadorConexao:
             self.to_backoff = None
 
         self.to_backoff = Timeout(self, "recuar_backoff",
-            max(Tratador.recuo_backoff_minimo, self.backoff * 2),
+            max(TratadorConexao.recuo_backoff_minimo, self.backoff * 2),
             self.recuar_backoff)
 
-    def recuar_backoff(self, _):
+    def recuar_backoff(self):
         self.to_backoff = None
 
         self.backoff /= 2
-        self.backoff = max(self.backoff, Tratador.backoff_minimo)
+        self.backoff = max(self.backoff, TratadorConexao.backoff_minimo)
         self.log_debug("backoff reduzido para %f" % self.backoff)
 
-        if self.backoff > Tratador.backoff_minimo:
+        if self.backoff > TratadorConexao.backoff_minimo:
             self.to_backoff = Timeout(self, "recuar_backoff",
-                max(Tratador.recuo_backoff_minimo, self.backoff * 2),
+                max(TratadorConexao.recuo_backoff_minimo, self.backoff * 2),
                 self.recuar_backoff)
 
     def consome_frame_curto(self):
