@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
-import time, select, datetime
+import time, select, datetime, os
 from abc import ABC, abstractmethod
-
 
 LOG_ERROR = 0
 LOG_WARN = 1
@@ -11,16 +10,60 @@ LOG_DEBUG = 3
 
 class Log:
     log_level = LOG_DEBUG
+    logfile = None
+    is_daemon = False
+
+    mail_level = LOG_INFO
+    mail_from = "None"
+    mail_to = "None"
 
     @staticmethod
     def set_level(new_level):
         Log.log_level = new_level
 
     @staticmethod
+    def set_mail(mail_level, mail_from, mail_to):
+        Log.mail_level = mail_level
+        Log.mail_from = mail_from
+        Log.mail_to = mail_to
+
+    @staticmethod
+    def set_file(f):
+        if f != "None":
+            Log.logfile = open(f, "a")
+
+    @staticmethod
+    def daemonize():
+        Log.is_daemon = True
+
+    @staticmethod
     def log(level, *msg):
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        msgw = now
+        for item in msg:
+            msgw += " "
+            msgw += str(item)
+
         if level <= Log.log_level:
-            now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            print(now, *msg, flush=True)
+            if not Log.is_daemon:
+                print(msgw, flush=True)
+
+            if Log.logfile:
+                Log.logfile.write(msgw)
+                Log.logfile.write("\n")
+                Log.logfile.flush()
+
+        if level <= Log.mail_level and Log.mail_from != 'None' and Log.mail_to != 'None':
+            Log.mail(msgw)
+
+    def mail(msg):
+        # credit: http://www.thinkspot.net/sheila/article.php?story=20040822174141155
+        mailbody = "From: %s\r\nTo: %s\r\nSubject: vmonitor\r\n\r\n%s\r\n" % \
+                        (Log.mail_from, Log.mail_to, msg);
+        MAIL = "/usr/sbin/sendmail"
+        p = os.popen("%s -t" % MAIL, 'w')
+        p.write(mailbody)
+        exitcode = p.close()
 
     @staticmethod
     def error(*msg):
@@ -37,6 +80,33 @@ class Log:
     @staticmethod
     def debug(*msg):
         Log.log(LOG_DEBUG, *msg)
+
+
+# background() credits: http://www.noah.org/python/daemonize.py
+
+def background():
+    try:
+        pid = os.fork()
+        if pid > 0:
+            sys.exit(0)   # Exit first parent.
+    except OSError as e:
+        sys.stderr.write("fork #1 failed: (%d) %s\n" % (e.errno, e.strerror))
+        sys.exit(1)
+
+    # Decouple from parent environment.
+    os.chdir("/")
+    os.umask(0)
+    os.setsid()
+
+    # Do second fork.
+    try:
+        pid = os.fork()
+        if pid > 0:
+            sys.exit(0)
+        Log.daemonize()
+    except OSError as e:
+        sys.stderr.write("fork #2 failed: (%d) %s\n" % (e.errno, e.strerror))
+        sys.exit(1)
 
 
 class Timeout:
@@ -62,6 +132,7 @@ class Timeout:
         for candidate in Timeout.pending.values():
             if time.time() > candidate.absolute_to:
                 del Timeout.pending[id(candidate)]
+                candidate._expired = True
                 candidate.callback()
                 Log.debug("= timeout %s" % candidate.label)
                 return True
@@ -86,11 +157,23 @@ class Timeout:
         self.relative_to = relative_to
         self.callback = callback
         self.absolute_to = time.time() + relative_to
+        self._expired = False
+        self._cancelled = False
         Timeout.pending[id(self)] = self
         Log.debug("+ timeout %s %f" % (label, relative_to))
 
+    def remaining(self):
+        return max(0, self.absolute_to - time.time())
+
     def cancel(self):
+        self._cancelled = True
         Timeout._cancel(self)
+
+    def cancelled(self):
+        return self._cancelled
+
+    def expired(self):
+        return self._expired
 
 
 class Handler(ABC):
@@ -176,18 +259,31 @@ class Handler(ABC):
 
 class EventLoop:
     def __init__(self):
-        pass
+        self.pre_gather = self.default_pre_gather
+        self.pre_select = self.default_pre_select
 
     def loop(self):
         while self.cycle():
             pass
         Log.warn("Exiting")
 
-    def pre_cycle(self, crd, cwr, cex, next_to, to_label):
+    def default_pre_gather(self):
+        pass
+
+    def pre_gather_callback(self, cb):
+        self.pre_gather = cb
+
+    def default_pre_select(self, crd, cwr, cex, next_to, to_label):
         if to_label:
             Log.debug("Next timeout %f %s" % (next_to, to_label))
 
+    def pre_select_callback(self, cb):
+        self.pre_select = cb
+
     def cycle(self):
+        if self.pre_gather:
+            self.pre_gather()
+
         crd = Handler.readable_fds()
         cwr = Handler.writable_fds()
         cex = Handler.exception_fds()
@@ -196,7 +292,9 @@ class EventLoop:
             Log.warn("No remaining tasks")
             return False
 
-        self.pre_cycle(crd, cwr, cex, next_to, to_label)
+        if self.pre_select:
+            self.pre_select(crd, cwr, cex, next_to, to_label)
+
         rd, wr, ex = select.select(crd, cwr, cex, next_to)
 
         if rd:
