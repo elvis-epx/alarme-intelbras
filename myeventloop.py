@@ -178,8 +178,8 @@ class Timeout:
 
     def cancel(self):
         self._cancelled = True
-        remaining_time = timeout_object.absolute_to - time.time()
-        Log.debug("- timeout %s (remaining %f)" % (timeout_object.label, remaining_time))
+        remaining_time = self.absolute_to - time.time()
+        Log.debug("- timeout %s (remaining %f)" % (self.label, remaining_time))
         Timeout._cancel(self)
 
     def cancelled(self):
