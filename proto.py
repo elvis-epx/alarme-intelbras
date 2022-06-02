@@ -426,7 +426,7 @@ accepthandler = NovaConexao(serverfd)
 
 def heartbeat(to_obj):
     Log.info("receptor em funcionamento")
-    to_obj.reset(600)
+    to_obj.reset(3600)
 
 Timeout(None, "heartbeat", 60, heartbeat)
 
