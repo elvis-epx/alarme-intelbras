@@ -119,7 +119,7 @@ class Timeout:
  
     @staticmethod
     def next_absolute():
-        to = time.time() + 86400
+        to = time.time() + 999999999
         label = None
         for candidate in Timeout.pending.values():
             if candidate.absolute_to < to:
@@ -133,8 +133,8 @@ class Timeout:
             if time.time() > candidate.absolute_to:
                 del Timeout.pending[id(candidate)]
                 candidate._expired = True
-                candidate.callback()
                 Log.debug("= timeout %s" % candidate.label)
+                candidate.callback()
                 return True
         return False
 
@@ -142,8 +142,6 @@ class Timeout:
     def _cancel(timeout_object):
         if id(timeout_object) in Timeout.pending:
             del Timeout.pending[id(timeout_object)]
-            remaining_time = timeout_object.absolute_to - time.time()
-            Log.debug("- timeout %s (remaining %f)" % (timeout_object.label, remaining_time))
 
     @staticmethod
     def cancel_by_owner(owner):
@@ -156,17 +154,32 @@ class Timeout:
         self.label = label
         self.relative_to = relative_to
         self.callback = callback
-        self.absolute_to = time.time() + relative_to
-        self._expired = False
-        self._cancelled = False
-        Timeout.pending[id(self)] = self
-        Log.debug("+ timeout %s %f" % (label, relative_to))
+        self._restart()
+        Log.debug("+ timeout %s %f" % (self.label, self.relative_to))
 
     def remaining(self):
         return max(0, self.absolute_to - time.time())
 
+    def _restart(self):
+        self.absolute_to = time.time() + self.relative_to
+        self._expired = False
+        self._cancelled = False
+        Timeout.pending[id(self)] = self
+
+    # Restart with the same timeout
+    def restart(self):
+        self._restart()
+        Log.debug("> timeout %s %f" % (self.label, self.relative_to))
+
+    # Restart with a different timeout
+    def reset(self, relative_to):
+        self.relative_to = relative_to
+        self.restart()
+
     def cancel(self):
         self._cancelled = True
+        remaining_time = timeout_object.absolute_to - time.time()
+        Log.debug("- timeout %s (remaining %f)" % (timeout_object.label, remaining_time))
         Timeout._cancel(self)
 
     def cancelled(self):
@@ -187,9 +200,12 @@ class Handler(ABC):
                 fds.append(handler.fd)
         return fds 
 
+    # You may override this if you don't want to handle reads
+    # but typically all sockets are selected for read
     def is_readable(self):
         return True
 
+    # You must override and implement this
     @abstractmethod
     def read_callback(self):
         pass
@@ -202,9 +218,11 @@ class Handler(ABC):
                 fds.append(handler.fd)
         return fds 
 
+    # Override if you need to do buffered write
     def is_writable(self):
         return False
 
+    # Override if you need to do buffered write
     def write_callback(self):
         pass
 
@@ -216,9 +234,11 @@ class Handler(ABC):
                 fds.append(handler.fd)
         return fds 
 
+    # Override if you don't want to handle exceptions
     def is_exceptionable(self):
         return True
 
+    # Override if you need more elaborate handling of exceptions/errors
     def exception_callback(self):
         self.destroy()
 
@@ -235,6 +255,7 @@ class Handler(ABC):
         self.fd_exceptions = fd_exceptions
         Handler.items[id(self)] = self
 
+    # extend if you need to do more upon destruction
     def destroy(self):
         self.log_debug("destroyed")
         del Handler.items[id(self)]
@@ -259,41 +280,35 @@ class Handler(ABC):
 
 class EventLoop:
     def __init__(self):
-        self.pre_gather = self.default_pre_gather
-        self.pre_select = self.default_pre_select
+        pass
 
     def loop(self):
         while self.cycle():
             pass
         Log.warn("Exiting")
 
-    def default_pre_gather(self):
+    # override to change behavior
+    def started_cycle(self):
         pass
 
-    def pre_gather_callback(self, cb):
-        self.pre_gather = cb
-
-    def default_pre_select(self, crd, cwr, cex, next_to, to_label):
+    # override to change behavior
+    def before_select(self, crd, cwr, cex, next_to, to_label):
         if to_label:
             Log.debug("Next timeout %f %s" % (next_to, to_label))
 
-    def pre_select_callback(self, cb):
-        self.pre_select = cb
-
     def cycle(self):
-        if self.pre_gather:
-            self.pre_gather()
+        self.started_cycle()
 
         crd = Handler.readable_fds()
         cwr = Handler.writable_fds()
         cex = Handler.exception_fds()
         next_to, to_label = Timeout.next_relative()
-        if not crd and not cex and not to_label:
+
+        if not crd and not cwr and not cex and not to_label:
             Log.warn("No remaining tasks")
             return False
 
-        if self.pre_select:
-            self.pre_select(crd, cwr, cex, next_to, to_label)
+        self.before_select(crd, cwr, cex, next_to, to_label)
 
         rd, wr, ex = select.select(crd, cwr, cex, next_to)
 

@@ -174,7 +174,7 @@ class TratadorConexao(Handler):
 
     def heartbeat(self):
         self.log_info("ainda ativa")
-        self.to_hb = Timeout(self, "hb", 3600, self.heartbeat)
+        self.to_hb.restart()
 
     def timeout_comunicacao(self):
         self.log_info("timeout de comunicacao")
@@ -220,9 +220,7 @@ class TratadorConexao(Handler):
         self.buf += [x for x in data]
         self.log_debug("buf =", hexprint(self.buf))
 
-        if self.to_comm:
-            self.to_comm.cancel()
-        self.to_comm = Timeout(self, "comm", 600, self.timeout_comunicacao)
+        self.to_comm.restart()
 
         if not self.to_processa:
             self.to_processa = Timeout(self, "proc_msg", self.backoff, self.processar_msg)
