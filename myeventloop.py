@@ -134,7 +134,7 @@ class Timeout:
                 del Timeout.pending[id(candidate)]
                 candidate._expired = True
                 Log.debug("= timeout %s" % candidate.label)
-                candidate.callback()
+                candidate.callback(candidate)
                 return True
         return False
 

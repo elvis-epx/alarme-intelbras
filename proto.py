@@ -167,24 +167,24 @@ class TratadorConexao(Handler):
 
         self.to_ident = Timeout(self, "ident", 120, self.timeout_identificacao)
         self.to_comm = Timeout(self, "comm", 600, self.timeout_comunicacao)
-        self.to_hb = Timeout(self, "hb", 3600, self.heartbeat)
+        to_hb = Timeout(self, "hb", 3600, self.heartbeat)
         self.to_processa = None
         self.to_incompleta = None
         self.to_backoff = None
 
-    def heartbeat(self):
-        self.log_info("ainda ativa")
-        self.to_hb.restart()
+    def heartbeat(self, to_obj):
+        self.log_info("permanece conectado")
+        to_obj.restart()
 
-    def timeout_comunicacao(self):
+    def timeout_comunicacao(self, _):
         self.log_info("timeout de comunicacao")
         self.destroy()
 
-    def timeout_msgincompleta(self):
+    def timeout_msgincompleta(self, _):
         self.log_warn("timeout de mensagem incompleta, buf =", hexprint(self.buf))
         self.destroy()
 
-    def timeout_identificacao(self):
+    def timeout_identificacao(self, _):
         self.log_warn("timeout de identificacao")
         self.destroy()
 
@@ -225,7 +225,7 @@ class TratadorConexao(Handler):
         if not self.to_processa:
             self.to_processa = Timeout(self, "proc_msg", self.backoff, self.processar_msg)
 
-    def processar_msg(self):
+    def processar_msg(self, _):
         self.to_processa = None
         msg_aceita, msgs_pendentes = self.consome_msg()
         if msg_aceita:
@@ -259,7 +259,7 @@ class TratadorConexao(Handler):
             max(TratadorConexao.recuo_backoff_minimo, self.backoff * 2),
             self.recuar_backoff)
 
-    def recuar_backoff(self):
+    def recuar_backoff(self, _):
         self.to_backoff = None
 
         self.backoff /= 2
@@ -424,14 +424,10 @@ class NovaConexao(Handler):
 
 accepthandler = NovaConexao(serverfd)
 
-def heartbeat():
-    Log.info("receptor ok")
-    Timeout(None, "heartbeat", 3600, heartbeat)
+def heartbeat(to_obj):
+    Log.info("receptor em funcionamento")
+    to_obj.reset(600)
 
 Timeout(None, "heartbeat", 60, heartbeat)
 
-class MyEventLoop(EventLoop):
-    def __init__(self):
-        super().__init__()
-
-MyEventLoop().loop()
+EventLoop().loop()
