@@ -2,7 +2,7 @@
 
 import sys, socket, time, datetime
 
-from myeventloop import Timeout, Handler, EventLoop, Log, LOG_INFO
+from myeventloop import Timeout, Handler, EventLoop, Log, LOG_INFO, LOG_DEBUG
 
 Log.set_level(LOG_INFO)
 
@@ -298,7 +298,9 @@ class TratadorConexao(Handler):
             self.destroy()
             return True
 
-        msg = rawmsg[1:-1]
+        # Mantém checksum no final pois, em algumas mensagens, o último octeto
+        # calcula como checksum mas tem outro significado (e.g. 0xb5)
+        msg = rawmsg[1:]
 
         if not msg:
             self.log_warn("mensagem nula")
@@ -326,12 +328,12 @@ class TratadorConexao(Handler):
 
     # FIXME verificar se a central é a esperada
     def identificacao_central(self, msg):
-        if len(msg) != 6:
+        if len(msg) != 7:
             self.log_warn("identificacao central: tamanho inesperado,", hexprint(msg))
         else:
             canal = msg[0] # 'E' (0x45)=Ethernet, 'G'=GPRS, 'H'=GPRS2
             conta = from_bcd(msg[1:3])
-            macaddr = msg[3:]
+            macaddr = msg[3:6]
             macaddr_s = ":".join(["%02x" % i for i in macaddr])
             self.log_info("identificacao central conta %d mac %s" % (conta, macaddr_s))
             if self.to_ident:
@@ -351,7 +353,7 @@ class TratadorConexao(Handler):
         self.envia_longo(resposta)
 
     def evento_alarme_foto(self, msg):
-        if len(msg) != 19:
+        if len(msg) != 20:
             self.log_warn("evento de alarme F de tamanho inesperado,", hexprint(msg))
             resposta = [0xfe]
             self.envia_curto(resposta)
@@ -364,7 +366,7 @@ class TratadorConexao(Handler):
         codigo = contact_id_decode(msg[8:11])
         particao = contact_id_decode(msg[11:13])
         zona = contact_id_decode(msg[13:16])
-        checksum = msg[16] # FIXME verificar
+        checksum = msg[16] # truque do protocolo de reposicionar o checksum
         indice = msg[17] * 256 + msg[18]
         nr_fotos = msg[19]
 
@@ -378,7 +380,7 @@ class TratadorConexao(Handler):
         self.envia_curto(resposta)
 
     def evento_alarme(self, msg):
-        if len(msg) != 16:
+        if len(msg) != 17:
             self.log_warn("evento de alarme de tamanho inesperado,", hexprint(msg))
             resposta = [0xfe]
             self.envia_curto(resposta)
