@@ -314,9 +314,9 @@ class TratadorConexao(Handler):
         elif tipo == 0x94:
             self.identificacao_central(msg)
         elif tipo == 0xb0:
-            self.evento_alarme(msg)
+            self.evento_alarme(msg, False)
         elif tipo == 0xb5:
-            self.evento_alarme_foto(msg)
+            self.evento_alarme(msg, True)
         else:
             self.log_warn("solicitacao desconhecida %02x payload =" % tipo, hexprint(msg))
             self.resposta_generica(msg)
@@ -352,35 +352,9 @@ class TratadorConexao(Handler):
             bcd(dow), bcd(agora.hour), bcd(agora.minute), bcd(agora.second) ]
         self.envia_longo(resposta)
 
-    def evento_alarme_foto(self, msg):
-        if len(msg) != 20:
-            self.log_warn("evento de alarme F de tamanho inesperado,", hexprint(msg))
-            resposta = [0xfe]
-            self.envia_curto(resposta)
-            return
-
-        canal = msg[0] # 0x11 Ethernet IP1, 0x12 IP2, 0x21 GPRS IP1, 0x22 IP2
-        contact_id = contact_id_decode(msg[1:5])
-        tipo_msg = contact_id_decode(msg[5:7])
-        qualificador = msg[7]
-        codigo = contact_id_decode(msg[8:11])
-        particao = contact_id_decode(msg[11:13])
-        zona = contact_id_decode(msg[13:16])
-        checksum = msg[16] # truque do protocolo de reposicionar o checksum
-        indice = msg[17] * 256 + msg[18]
-        nr_fotos = msg[19]
-
-        self.log_info("Evento de alarme F canal %02x contact_id %d tipo %d qualificador %d "
-                      "codigo %d particao %d zona %d fotos %d (%d)" % \
-                       (canal, contact_id, tipo_msg, qualificador, codigo, particao, zona,
-                       indice, nr_fotos))
-        # FIXME como ler dados do evento apontado no indice?
-
-        resposta = [0xfe]
-        self.envia_curto(resposta)
-
-    def evento_alarme(self, msg):
-        if len(msg) != 17:
+    def evento_alarme(self, msg, com_foto):
+        compr = com_foto and 20 or 17
+        if len(msg) != compr:
             self.log_warn("evento de alarme de tamanho inesperado,", hexprint(msg))
             resposta = [0xfe]
             self.envia_curto(resposta)
@@ -393,6 +367,10 @@ class TratadorConexao(Handler):
         codigo = contact_id_decode(msg[8:11])
         particao = contact_id_decode(msg[11:13])
         zona = contact_id_decode(msg[13:16])
+        if com_foto:
+            checksum = msg[16] # truque do protocolo de reposicionar o checksum
+            indice = msg[17] * 256 + msg[18]
+            nr_fotos = msg[19]
 
         desconhecido = True
         if tipo_msg == 18 and codigo in eventos_contact_id:
@@ -410,7 +388,10 @@ class TratadorConexao(Handler):
             if squalif in eventos_contact_id[codigo]:
                 desconhecido = False
                 scodigo = eventos_contact_id[codigo][squalif]
-                self.log_info(scodigo.format(zona=zona, particao=particao))
+                fotos = ""
+                if com_foto:
+                    fotos = "fotos: %d %d" % (indice, nr_fotos)
+                self.log_info(scodigo.format(zona=zona, particao=particao), fotos)
 
         if desconhecido:
             self.log_info("Evento de alarme canal %02x contact_id %d tipo %d qualificador %d "
