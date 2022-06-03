@@ -4,7 +4,7 @@ import sys, socket, time, datetime
 
 from myeventloop import Timeout, Handler, EventLoop, Log, LOG_INFO, LOG_DEBUG
 
-Log.set_level(LOG_DEBUG)
+Log.set_level(LOG_INFO)
 
 def hexprint(buf):
     return ", ".join(["%02x" % n for n in buf])
