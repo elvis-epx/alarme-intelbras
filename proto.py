@@ -4,7 +4,7 @@ import sys, socket, time, datetime
 
 from myeventloop import Timeout, Handler, EventLoop, Log, LOG_INFO, LOG_DEBUG
 
-Log.set_level(LOG_INFO)
+Log.set_level(LOG_DEBUG)
 
 def hexprint(buf):
     return ", ".join(["%02x" % n for n in buf])
@@ -165,9 +165,9 @@ class TratadorConexao(Handler):
         # FIXME classe de solicitações na direção receptor -> central,
         # instrumentação para envio, recepção e pendência
 
-        self.to_ident = Timeout(self, "ident", 120, self.timeout_identificacao)
-        self.to_comm = Timeout(self, "comm", 600, self.timeout_comunicacao)
-        to_hb = Timeout(self, "hb", 3600, self.heartbeat)
+        self.to_ident = self.timeout("ident", 120, self.timeout_identificacao)
+        self.to_comm = self.timeout("comm", 600, self.timeout_comunicacao)
+        to_hb = self.timeout("hb", 3600, self.heartbeat)
         self.to_processa = None
         self.to_incompleta = None
         self.to_backoff = None
@@ -223,7 +223,7 @@ class TratadorConexao(Handler):
         self.to_comm.restart()
 
         if not self.to_processa:
-            self.to_processa = Timeout(self, "proc_msg", self.backoff, self.processar_msg)
+            self.to_processa = self.timeout("proc_msg", self.backoff, self.processar_msg)
 
     def processar_msg(self, _):
         self.to_processa = None
@@ -231,7 +231,7 @@ class TratadorConexao(Handler):
         if msg_aceita:
             self.avancar_backoff()
         if msgs_pendentes:
-            self.to_processa = Timeout(self, "proc_msg", self.backoff, self.processar_msg)
+            self.to_processa = self.timeout("proc_msg", self.backoff, self.processar_msg)
 
     def consome_msg(self):
         if self.consome_frame_curto() or self.consome_frame_longo():
@@ -244,7 +244,7 @@ class TratadorConexao(Handler):
         if self.buf:
             # Mensagem incompleta no buffer
             if not self.to_incompleta:
-                self.to_incompleta = Timeout(self, "msgincompleta", 60, self.timeout_msgincompleta)
+                self.to_incompleta = self.timeout("msgincompleta", 60, self.timeout_msgincompleta)
         return False, False
 
     def avancar_backoff(self):
@@ -255,7 +255,7 @@ class TratadorConexao(Handler):
             self.to_backoff.cancel()
             self.to_backoff = None
 
-        self.to_backoff = Timeout(self, "recuar_backoff",
+        self.to_backoff = self.timeout("recuar_backoff",
             max(TratadorConexao.recuo_backoff_minimo, self.backoff * 2),
             self.recuar_backoff)
 
@@ -267,7 +267,7 @@ class TratadorConexao(Handler):
         self.log_debug("backoff reduzido para %f" % self.backoff)
 
         if self.backoff > TratadorConexao.backoff_minimo:
-            self.to_backoff = Timeout(self, "recuar_backoff",
+            self.to_backoff = self.timeout("recuar_backoff",
                 max(TratadorConexao.recuo_backoff_minimo, self.backoff * 2),
                 self.recuar_backoff)
 
@@ -428,6 +428,6 @@ def heartbeat(to_obj):
     Log.info("receptor em funcionamento")
     to_obj.reset(3600)
 
-Timeout(None, "heartbeat", 60, heartbeat)
+Timeout.new("heartbeat", 0, heartbeat)
 
 EventLoop().loop()

@@ -113,35 +113,37 @@ class Timeout:
     pending = {}
 
     @staticmethod
-    def next_relative():
-        absolute_to, label = Timeout.next_absolute()
-        return max(0, absolute_to - time.time()), label
- 
-    @staticmethod
-    def next_absolute():
+    def _next():
         to = time.time() + 999999999
-        label = None
+        chosen = None
         for candidate in Timeout.pending.values():
             if candidate.absolute_to < to:
                 to = candidate.absolute_to
-                label = candidate.label
-        return to, label
+                chosen = candidate
+        return to, chosen
 
+    @staticmethod
+    def next_absolute():
+        to, chosen = Timeout._next()
+        if chosen:
+            chosen = chosen.label
+        return to, chosen
+
+    @staticmethod
+    def next_relative():
+        absolute_to, chosen = Timeout.next_absolute()
+        return max(0, absolute_to - time.time()), chosen
+ 
     @staticmethod
     def handle():
-        for candidate in Timeout.pending.values():
-            if time.time() > candidate.absolute_to:
-                del Timeout.pending[id(candidate)]
-                candidate._expired = True
-                Log.debug("= timeout %s" % candidate.label)
-                candidate.callback(candidate)
-                return True
-        return False
+        to, chosen = Timeout._next()
+        if not chosen or to > time.time():
+            return False
 
-    @staticmethod
-    def _cancel(timeout_object):
-        if id(timeout_object) in Timeout.pending:
-            del Timeout.pending[id(timeout_object)]
+        del Timeout.pending[id(chosen)]
+        Log.debug("= timeout %s" % chosen.label)
+        chosen.callback(chosen)
+        return True
 
     @staticmethod
     def cancel_by_owner(owner):
@@ -149,6 +151,12 @@ class Timeout:
             if owner is candidate.owner:
                 del Timeout.pending[id(candidate)]
 
+    # Creates a new Timeout without a specific owner
+    @staticmethod
+    def new(label, relative_to, callback):
+        return Timeout(None, label, relative_to, callback)
+
+    # Typically, not to be used directly
     def __init__(self, owner, label, relative_to, callback):
         self.owner = owner
         self.label = label
@@ -157,16 +165,16 @@ class Timeout:
         self._restart()
         Log.debug("+ timeout %s %f" % (self.label, self.relative_to))
 
+    # Remaining time to finish (regardless of being alive)
     def remaining(self):
         return max(0, self.absolute_to - time.time())
 
     def _restart(self):
         self.absolute_to = time.time() + self.relative_to
-        self._expired = False
-        self._cancelled = False
         Timeout.pending[id(self)] = self
 
-    # Restart with the same timeout
+    # Restart, with the same timeout
+    # Postpone if alive, rearm if dead
     def restart(self):
         self._restart()
         Log.debug("> timeout %s %f" % (self.label, self.relative_to))
@@ -176,17 +184,17 @@ class Timeout:
         self.relative_to = relative_to
         self.restart()
 
+    # Cancel timeout
     def cancel(self):
-        self._cancelled = True
+        if not self.alive():
+            return False
         remaining_time = self.absolute_to - time.time()
         Log.debug("- timeout %s (remaining %f)" % (self.label, remaining_time))
-        Timeout._cancel(self)
+        del Timeout.pending[id(self)]
+        return True
 
-    def cancelled(self):
-        return self._cancelled
-
-    def expired(self):
-        return self._expired
+    def alive(self):
+        return id(self) in Timeout.pending
 
 
 class Handler(ABC):
@@ -276,6 +284,11 @@ class Handler(ABC):
 
     def log_debug(self, *msg):
         Log.debug(self.label, *msg)
+
+    # Creates a timeout owned by this Handler
+    # (automatically cancelled upon Handler.destroy())
+    def timeout(self, label, relative_to, callback):
+        return Timeout(self, label, relative_to, callback)
 
 
 class EventLoop:
