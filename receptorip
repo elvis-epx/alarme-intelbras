@@ -157,10 +157,10 @@ class Tratador(TCPServerHandler):
     recuo_backoff_minimo = 1.0 # Deve ser bem maior que RTT esperado
 
     def __init__(self, addr, sock):
-        super().__init__("%s:%d" % addr, sock, socket.error)
+        super().__init__(addr, sock)
 
         self.log_info("inicio")
-        self.backoff = TratadorConexao.backoff_minimo
+        self.backoff = Tratador.backoff_minimo
 
         # FIXME classe de solicitações na direção receptor -> central,
         # instrumentação para envio, recepção e pendência
@@ -210,6 +210,10 @@ class Tratador(TCPServerHandler):
         self.log_info("fechada")
         super().shutdown_callback() # impl padrão = fechar
 
+    def send_callback(self):
+        self.log_debug("envio dados")
+        super().send_callback()
+
     def processar_msg(self, _):
         self.to_processa = None
         msg_aceita, msgs_pendentes = self.consome_msg()
@@ -241,19 +245,19 @@ class Tratador(TCPServerHandler):
             self.to_backoff = None
 
         self.to_backoff = self.timeout("recuar_backoff",
-            max(TratadorConexao.recuo_backoff_minimo, self.backoff * 2),
+            max(Tratador.recuo_backoff_minimo, self.backoff * 2),
             self.recuar_backoff)
 
     def recuar_backoff(self, _):
         self.to_backoff = None
 
         self.backoff /= 2
-        self.backoff = max(self.backoff, TratadorConexao.backoff_minimo)
+        self.backoff = max(self.backoff, Tratador.backoff_minimo)
         self.log_debug("backoff reduzido para %f" % self.backoff)
 
-        if self.backoff > TratadorConexao.backoff_minimo:
+        if self.backoff > Tratador.backoff_minimo:
             self.to_backoff = self.timeout("recuar_backoff",
-                max(TratadorConexao.recuo_backoff_minimo, self.backoff * 2),
+                max(Tratador.recuo_backoff_minimo, self.backoff * 2),
                 self.recuar_backoff)
 
     def consome_frame_curto(self):
