@@ -114,7 +114,7 @@ class Timeout:
 
     @staticmethod
     def _next():
-        to = time.time() + 999999999
+        to = time.time() + 86400
         chosen = None
         for candidate in Timeout.pending.values():
             if candidate.absolute_to < to:
@@ -235,19 +235,19 @@ class Handler(ABC):
         pass
 
     @staticmethod
-    def exception_fds():
+    def exceptional_fds():
         fds = []
         for handler in Handler.items.values():
-            if handler.is_exceptionable():
+            if handler.is_exceptional():
                 fds.append(handler.fd)
         return fds 
 
-    # Override if you don't want to handle exceptions
-    def is_exceptionable(self):
-        return True
+    # Override if you want to handle exceptions
+    def is_exceptional(self):
+        return False
 
-    # Override if you need more elaborate handling of exceptions/errors
-    def exception_callback(self):
+    # Override if you need to handle "exceptional" sockets (e.g. OOB) 
+    def exceptional_callback(self):
         self.destroy()
 
     @staticmethod
@@ -314,7 +314,7 @@ class EventLoop:
 
         crd = Handler.readable_fds()
         cwr = Handler.writable_fds()
-        cex = Handler.exception_fds()
+        cex = Handler.exceptional_fds()
         next_to, to_label = Timeout.next_relative()
 
         if not crd and not cwr and not cex and not to_label:
@@ -333,7 +333,7 @@ class EventLoop:
             handler.write_callback()
         elif ex:
             handler = Handler.find_by_fd(ex[0])
-            handler.exception_callback()
+            handler.exceptional_callback()
         else:
             Timeout.handle()
 

@@ -2,9 +2,10 @@
 
 import sys, socket, time, datetime
 
-from myeventloop import Timeout, Handler, EventLoop, Log, LOG_INFO, LOG_DEBUG
+from myeventloop import Timeout, Log, LOG_INFO, LOG_DEBUG
+from tcpserver import *
 
-Log.set_level(LOG_INFO)
+Log.set_level(LOG_DEBUG)
 
 def hexprint(buf):
     return ", ".join(["%02x" % n for n in buf])
@@ -151,15 +152,14 @@ eventos_contact_id = {
         625: {'*': "Data e hora reiniciados"}
 }
 
-class TratadorConexao(Handler):
+class Tratador(TCPServerHandler):
     backoff_minimo = 0.125
     recuo_backoff_minimo = 1.0 # Deve ser bem maior que RTT esperado
 
     def __init__(self, addr, sock):
         super().__init__("%s:%d" % addr, sock, socket.error)
-        self.log_info("inicio")
 
-        self.buf = []
+        self.log_info("inicio")
         self.backoff = TratadorConexao.backoff_minimo
 
         # FIXME classe de solicitações na direção receptor -> central,
@@ -181,7 +181,7 @@ class TratadorConexao(Handler):
         self.destroy()
 
     def timeout_msgincompleta(self, _):
-        self.log_warn("timeout de mensagem incompleta, buf =", hexprint(self.buf))
+        self.log_warn("timeout de mensagem incompleta, buf =", hexprint(self.recv_buf))
         self.destroy()
 
     def timeout_identificacao(self, _):
@@ -189,12 +189,8 @@ class TratadorConexao(Handler):
         self.destroy()
 
     def _envia(self, resposta):
-        try:
-            self.fd.sendall(bytearray(resposta))
-            self.log_debug("enviada resposta", hexprint(resposta))
-        except socket.error as err:
-            self.log_debug("excecao ao enviar", err)
-            self.destroy()
+        self.send_buf += bytearray(resposta)
+        self.log_debug("enviada resposta", hexprint(resposta))
 
     def envia_longo(self, resposta):
         resposta = enquadrar(resposta)
@@ -203,27 +199,16 @@ class TratadorConexao(Handler):
     def envia_curto(self, resposta):
         self._envia(resposta)
 
-    def read_callback(self):
+    def recv_callback(self, _):
         self.log_debug("evento")
-        try:
-            data = self.fd.recv(1024)
-        except socket.error as err:
-            self.log_debug("excecao ao ler", err)
-            self.destroy()
-            return
-
-        if not data:
-            self.log_debug("fechada")
-            self.destroy()
-            return
-
-        self.buf += [x for x in data]
-        self.log_debug("buf =", hexprint(self.buf))
-
+        self.log_debug("buf =", hexprint(self.recv_buf))
         self.to_comm.restart()
-
         if not self.to_processa:
             self.to_processa = self.timeout("proc_msg", self.backoff, self.processar_msg)
+
+    def shutdown_callback(self):
+        self.log_info("fechada")
+        super().shutdown_callback() # impl padrão = fechar
 
     def processar_msg(self, _):
         self.to_processa = None
@@ -239,9 +224,9 @@ class TratadorConexao(Handler):
             if self.to_incompleta:
                 self.to_incompleta.cancel()
                 self.to_incompleta = None
-            return True, not not self.buf
+            return True, not not self.recv_buf
 
-        if self.buf:
+        if self.recv_buf:
             # Mensagem incompleta no buffer
             if not self.to_incompleta:
                 self.to_incompleta = self.timeout("msgincompleta", 60, self.timeout_msgincompleta)
@@ -272,8 +257,8 @@ class TratadorConexao(Handler):
                 self.recuar_backoff)
 
     def consome_frame_curto(self):
-        if self.buf and self.buf[0] == 0xf7:
-            self.buf = self.buf[1:]
+        if self.recv_buf and self.recv_buf[0] == 0xf7:
+            self.recv_buf = self.recv_buf[1:]
             self.log_debug("heartbeat da central")
             resposta = [0xfe]
             self.envia_curto(resposta)
@@ -281,15 +266,15 @@ class TratadorConexao(Handler):
         return False
 
     def consome_frame_longo(self):
-        if len(self.buf) < 2:
+        if len(self.recv_buf) < 2:
             return False
 
-        esperado = self.buf[0] + 2 # comprimento + dados + checksum
-        if len(self.buf) < esperado:
+        esperado = self.recv_buf[0] + 2 # comprimento + dados + checksum
+        if len(self.recv_buf) < esperado:
             return False
 
-        rawmsg = self.buf[:esperado]
-        self.buf = self.buf[esperado:]
+        rawmsg = self.recv_buf[:esperado]
+        self.recv_buf = self.recv_buf[esperado:]
 
         if not verificar(rawmsg):
             self.log_warn("checksum errado - fatal, rawmsg =", hexprint(rawmsg))
@@ -400,34 +385,12 @@ class TratadorConexao(Handler):
         self.envia_curto(resposta)
 
 
-# Socket que aceita conexões 
-
-serverfd = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-HOST, PORT = "0.0.0.0", 9009 + int(sys.argv[1])
-serverfd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-serverfd.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-# serverfd.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, 0)
-serverfd.bind((HOST, PORT))
-serverfd.listen(5)
-Log.info("Porta %d" % PORT)
-
-class NovaConexao(Handler):
-    def __init__(self, fd):
-        super().__init__("listener", fd, socket.error)
-
-    def read_callback(self):
-        try:
-            client_sock, addr = self.fd.accept()
-            TratadorConexao(addr, client_sock)
-        except socket.error:
-            return
-
-accepthandler = NovaConexao(serverfd)
-
 def heartbeat(to_obj):
     Log.info("receptor em funcionamento")
     to_obj.reset(3600)
 
 Timeout.new("heartbeat", 0, heartbeat)
 
-EventLoop().loop()
+HOST, PORT = "0.0.0.0", 9009 + int(sys.argv[1])
+
+TCPServerEventLoop((HOST, PORT), TCPListener, Tratador).loop()
