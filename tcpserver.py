@@ -39,6 +39,10 @@ class TCPServerHandler(Handler):
     def is_writable(self):
         return not not self.send_buf
 
+    # Use this as a shortcut to add data to send stream queue
+    def send(self, data):
+        self.send_buf += data
+
     def write_callback(self):
         self.send_callback()
 

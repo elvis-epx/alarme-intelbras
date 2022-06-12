@@ -189,7 +189,7 @@ class Tratador(TCPServerHandler):
         self.destroy()
 
     def _envia(self, resposta):
-        self.send_buf += bytearray(resposta)
+        self.send(bytearray(resposta))
         self.log_debug("enviada resposta", hexprint(resposta))
 
     def envia_longo(self, resposta):
