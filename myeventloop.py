@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import time, select, datetime, os
+import time, select, datetime, os, signal
 from abc import ABC, abstractmethod
 
 LOG_ERROR = 0
@@ -293,7 +293,9 @@ class Handler(ABC):
 
 class EventLoop:
     def __init__(self):
-        pass
+        # typically used in TCP code to avoid unexpected signal
+        # when a socket is written but was RSTed by the remote side
+        signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
     def loop(self):
         while self.cycle():
