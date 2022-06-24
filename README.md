@@ -47,3 +47,7 @@ Não é preciso assinar nenhum acordo de confidencialidade
 para acessar ou ler esses documentos. Portanto, fica implicitamente
 permitido que este projeto (e outros) possa ser de código-fonte aberto.
 (O que na prática serve como documentação alternativa do protocolo.)
+
+Aproveitamos para agradecer ao suporte Intelbras, em particular 
+Robson dos Santos, pela pronta resposta e fornecimento de informações, nas
+diversas ocasiões em que precisamos de direções e esclarecimentos.
