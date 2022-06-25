@@ -234,11 +234,12 @@ eventos_contact_id = {
 # Agente que obtem fotos de um evento de sensor com câmera
 
 class ObtemFotosDeEvento(TCPClientHandler):
-    def __init__(self, addr, indice, senha, tam_senha, observer):
+    def __init__(self, addr, indice, nrfoto, senha, tam_senha, observer):
         super().__init__(addr)
-        self.log_info("Iniciando obtencao de foto")
+        self.log_info("Iniciando obtencao de foto %d:%d" % (indice, nrfoto))
         self.conn_timeout = self.timeout("conn_timeout", 15, self.conn_timeout)
         self.indice = indice
+        self.nrfoto = nrfoto
         self.senha = senha
         self.tam_senha = tam_senha
         self.observer = observer
@@ -250,7 +251,7 @@ class ObtemFotosDeEvento(TCPClientHandler):
 
     def destroyed_callback(self):
         # Informa observador sobre status final da tarefa
-        self.observer.resultado_fotos(self.indice, self.status)
+        self.observer.resultado_fotos(self.indice, self.nrfoto, self.status)
 
     def conn_timeout(self, task):
         if self.status != 0:
@@ -301,23 +302,21 @@ class ObtemFotosDeEvento(TCPClientHandler):
         self.inicia_obtencao_fotos()
 
     def inicia_obtencao_fotos(self):
-        self.nr_fotos = None
-        # Foto 0, fragmento 1 sempre existe
-        self.obtem_fragmento_foto(0, 1, [])
+        # Fragmento 1 sempre existe
+        self.obtem_fragmento_foto(1, [])
 
-    def obtem_fragmento_foto(self, foto_corrente, fragmento_corrente, jpeg_corrente):
-        self.log_debug("Conexao foto: obtendo fragmento %d:%d" % \
-                (foto_corrente, fragmento_corrente))
-        pct = pacote_foto_req(self.indice, foto_corrente, fragmento_corrente)
+    def obtem_fragmento_foto(self, fragmento_corrente, jpeg_corrente):
+        self.log_debug("Conexao foto: obtendo fragmento %d" % fragmento_corrente)
+        pct = pacote_foto_req(self.indice, self.nrfoto, fragmento_corrente)
         self.send(pct)
 
         def tratador(cmd, payload):
-            self.resposta_fragmento(cmd, payload, foto_corrente, fragmento_corrente, jpeg_corrente)
+            self.resposta_fragmento(cmd, payload, fragmento_corrente, jpeg_corrente)
 
         self.tratador = tratador
         self.conn_timeout.restart()
 
-    def resposta_fragmento(self, cmd, payload, foto_corrente, fragmento_corrente, jpeg_corrente):
+    def resposta_fragmento(self, cmd, payload, fragmento_corrente, jpeg_corrente):
         if cmd == 0xf0fd:
             self.nak(payload)
             return
@@ -339,8 +338,7 @@ class ObtemFotosDeEvento(TCPClientHandler):
             self.destroy()
             return
 
-        self.log_debug("Conexao foto: resposta fragmento %d:%d" % \
-                (foto_corrente, fragmento_corrente))
+        self.log_debug("Conexao foto: resposta fragmento %d" % fragmento_corrente)
 
         indice = parse_be16(payload[0:2])
         foto = payload[2]
@@ -354,8 +352,8 @@ class ObtemFotosDeEvento(TCPClientHandler):
             self.destroy()
             return
 
-        if foto != foto_corrente:
-            self.log_info("Conexao foto: foto corrente invalida")
+        if foto != self.nrfoto:
+            self.log_info("Conexao foto: nr foto invalida")
             self.destroy()
             return
 
@@ -367,18 +365,14 @@ class ObtemFotosDeEvento(TCPClientHandler):
         jpeg_corrente += fragmento_jpeg
 
         if fragmento < nr_fragmentos:
-            self.obtem_fragmento_foto(foto, fragmento + 1, jpeg_corrente)
+            self.obtem_fragmento_foto(fragmento + 1, jpeg_corrente)
             return
 
         self.log_info("Conexao foto: salvando imagem")
-        f = open("imagem%.6f-%d.jpeg" % (time.time(), foto), "wb")
+        f = open("imagem%.6f.jpeg" % time.time(), "wb")
         f.write(bytearray(jpeg_corrente))
         f.close()
 
-        if foto < (nr_fotos - 1):
-            self.obtem_fragmento_foto(foto + 1, 1, [])
-            return
-            
         self.despedida()
 
     def despedida(self):
@@ -398,6 +392,7 @@ class ObtemFotosDeEvento(TCPClientHandler):
         else:
             motivo = payload[0]
             self.log_info("Conexao foto: NAK motivo %02x" % motivo)
+            self.status = 1 # erro não-fatal
         self.destroy()
 
     def recv_callback(self, latest):
@@ -444,7 +439,7 @@ class Tratador(TCPServerHandler):
         self.to_incompleta = None
         self.to_backoff = None
 
-        self.fila_fotos_download = {} # {indice: tentativas}
+        self.fila_fotos_download = [] # [indice, nr. foto, tentativas restantes]
         self.task_fotos = None
         self.ip_addr = addr[0]
 
@@ -557,8 +552,7 @@ class Tratador(TCPServerHandler):
         self.recv_buf = self.recv_buf[esperado:]
 
         if not verificar(rawmsg):
-            self.log_warn("checksum errado - fatal, rawmsg =", hexprint(rawmsg))
-            self.destroy()
+            self.log_warn("checksum errado, rawmsg =", hexprint(rawmsg))
             return True
 
         # Mantém checksum no final pois, em algumas mensagens, o último octeto
@@ -656,9 +650,12 @@ class Tratador(TCPServerHandler):
                     fotos = "fotos: %d %d" % (indice, nr_fotos)
                 self.log_info(scodigo.format(zona=zona, particao=particao), fotos)
 
-                self.fila_fotos_download[indice] = 3
-                if not self.task_fotos:
-                    self.task_fotos = self.timeout("fotos", 5, self.obtem_fotos)
+                if com_foto:
+                    for n in range(0, nr_fotos):
+                        self.fila_fotos_download.append([indice, n, 5])
+                    if not self.task_fotos:
+                        # Fotos de sensor 8000 demoram para gravar (NAK 0x28 = foto não gravada)
+                        self.task_fotos = self.timeout("fotos", 20, self.obtem_fotos)
 
         if desconhecido:
             self.log_info("Evento de alarme canal %02x contact_id %d tipo %d qualificador %d "
@@ -674,26 +671,26 @@ class Tratador(TCPServerHandler):
             self.task_fotos = None
             return
 
-        indice, tentativas = random.choice(self.fila_fotos_download.items())
-        self.log_info("Obtendo fotos indice %d tentativas %d" % (indice, tentativas))
+        indice, nrfoto, tentativas = self.fila_fotos_download[0]
+        self.log_info("Obtendo foto %d:%d tentativas %d" % (indice, nrfoto, tentativas))
 
-        ObtemFotosDeEvento((self.ip_addr, Tratador.cport), indice, \
+        ObtemFotosDeEvento((self.ip_addr, Tratador.cport), indice, nrfoto, \
                             Tratador.senha, Tratador.tam_senha, self)
 
     # Método observer chamado quando ObtemFotosDeEvento finaliza
-    def resultado_fotos(self, indice, status):
+    def resultado_fotos(self, indice, nrfoto, status):
         if status == 0:
-            self.log_debug("Fotos indice %d: sucesso" % indice)
-            self.fila_fotos_download[indice] = 0
+            self.log_debug("Fotos indice %d:%d: sucesso" % (indice, nrfoto))
+            self.fila_fotos_download[0][2] = 0
         elif status == 2:
-            self.log_debug("Fotos indice %d: erro fatal" % indice)
-            self.fila_fotos_download[indice] = 0
+            self.log_debug("Fotos indice %d:%d: erro fatal" % (indice, nrfoto))
+            self.fila_fotos_download[0][2] = 0
         else:
-            self.log_debug("Fotos indice %d: erro temporario" % indice)
-            self.fila_fotos_download[indice] -= 1
+            self.log_debug("Fotos indice %d:%d: erro temporario" % (indice, nrfoto))
+            self.fila_fotos_download[0][2] -= 1
 
-        if self.fila_fotos_download[indice] <= 0:
-            del self.fila_fotos_download[indice]
+        if self.fila_fotos_download[0][2] <= 0:
+            del self.fila_fotos_download[0]
 
         # FIXME caso em que Tratador é destruído antes de ObtémFotosDeEvento
         # Soluções:
