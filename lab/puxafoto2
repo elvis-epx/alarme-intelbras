@@ -98,25 +98,36 @@ Log.set_level(LOG_DEBUG)
 
 # Agente que obtem fotos de um evento de sensor com câmera
 
-class ObtemFotoDeEvento(TCPClientHandler):
-    def __init__(self, addr, evento, senha, tam_senha):
+class ObtemFotosDeEvento(TCPClientHandler):
+    def __init__(self, addr, evento, senha, tam_senha, observer):
         super().__init__(addr)
         self.log_info("Iniciando obtencao de foto")
         self.conn_timeout = self.timeout("conn_timeout", 15, self.conn_timeout)
         self.evento = evento
         self.senha = senha
         self.tam_senha = tam_senha
+        self.observer = observer
+
+        # Se destruído com esse status, reporta erro fatal
+        self.status = 2
+
         self.tratador = None
 
+    def destroyed_callback(self):
+        # Informa observador sobre status final da tarefa
+        self.observer.resultado_fotos(self.evento, self.status)
+
     def conn_timeout(self, task):
-        # FIXME tentar novamente a partir de observador
+        if self.status != 0:
+            # reporta erro não-fatal, exceto se status = 0 (download completo)
+            self.status = 1
         self.log_info("Timeout conexao foto")
         self.destroy()
 
     def connection_callback(self, ok):
         self.conn_timeout.cancel()
         if not ok:
-            # FIXME avisar observador
+            self.status = 1 # erro não-fatal
             self.log_info("Conexao foto falhou")
             # destroy() executado pelo chamador
             return
@@ -177,7 +188,9 @@ class ObtemFotoDeEvento(TCPClientHandler):
             return
 
         if cmd == 0xf0f7:
-            # FIXME erro temporário, tentar novamente mais tarde
+            # Código não documentado retornado pela central após lentidão
+            # Possivelmente sinaliza central ocupada
+            self.status = 1 # erro não-fatal
             self.destroy()
             return
 
@@ -223,7 +236,7 @@ class ObtemFotoDeEvento(TCPClientHandler):
             return
 
         self.log_info("Conexao foto: salvando imagem")
-        f = open("imagem%d.jpeg" % foto, "wb")
+        f = open("imagem%.6f-%d.jpeg" % (time.time(), foto), "wb")
         f.write(bytearray(jpeg_corrente))
         f.close()
 
@@ -238,9 +251,11 @@ class ObtemFotoDeEvento(TCPClientHandler):
         pct = pacote_foto_bye()
         self.send(pct)
 
-        # Resposta esperada: central fechar conexão
         self.tratador = None
+        # Reportar sucesso ao observador
+        self.status = 0
         self.conn_timeout.restart()
+        # Resposta esperada: central fechar conexão
 
     def nak(self, payload):
         if len(payload) != 1:
@@ -283,6 +298,12 @@ evento_com_foto = 321
 senha = int(sys.argv[1])
 tam_senha = int(sys.argv[2])
 
+class Observador:
+    def resultado_fotos(self, evento, status):
+        Log.info("Status final evento %d: %d" % (evento, status))
+
+observador = Observador()
+
 loop = EventLoop()
-client = ObtemFotoDeEvento((HOST, PORT), evento_com_foto, senha, tam_senha)
+client = ObtemFotosDeEvento((HOST, PORT), evento_com_foto, senha, tam_senha, observador)
 loop.loop()
