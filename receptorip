@@ -589,7 +589,7 @@ class Tratador(TCPServerHandler):
         resposta = [0xfe]
         self.envia_curto(resposta)
 
-    # FIXME verificar se a central é a esperada
+    # TODO verificar se a central é a esperada
     def identificacao_central(self, msg):
         if len(msg) != 7:
             self.log_warn("identificacao central: tamanho inesperado,", hexprint(msg))
@@ -696,6 +696,12 @@ class Tratador(TCPServerHandler):
             del self.fila_fotos_download[indice]
 
         # FIXME caso em que Tratador é destruído antes de ObtémFotosDeEvento
+        # Soluções:
+        # 1. criar uma forma de Handlers possuírem hierarquia entre si
+        # 2. deslocar download de fotos completamente para fora de Tratador
+        #    (i.e. download poderia funcionar mesmo que conexão principal
+        #     fosse fechada)
+        # Solução 2 parece mais racional
         self.task_fotos.restart()
 
 
