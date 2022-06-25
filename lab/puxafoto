@@ -40,7 +40,7 @@ numero_fotos = [2] # [int(sys.argv[3])]
 
 Formato geral do protocolo:
 
-  2      2     1   2     x        1
+  2      2     2   2     x        1
 DST_ID SRC_ID LEN CMD PAYLOAD CHECKSUM
 
 DST_ID: identificação do servidor (central de alarme): sempre zero

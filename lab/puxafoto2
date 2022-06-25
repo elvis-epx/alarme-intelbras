@@ -1,0 +1,288 @@
+#!/usr/bin/env python3
+
+import sys, time, datetime
+from myeventloop import EventLoop, Log, LOG_DEBUG
+from tcpclient import *
+
+def hexprint(buf):
+    return ", ".join(["%02x" % n for n in buf])
+
+def checksum(dados):
+    checksum = 0
+    for n in dados:
+        checksum ^= n
+    checksum ^= 0xff
+    checksum &= 0xff
+    return checksum
+
+# Codifica um número de tamanho fixo no formato Contact-ID
+def contact_id_encode(number, length):
+    number = abs(number)
+    buf = []
+    for i in range(0, length):
+        digit = number % 10
+        number //= 10
+        if not digit:
+            digit = 0x0a
+        buf = [digit] + buf
+    return buf
+
+# Codifica um número de 16 bits em 2 octetos
+def be16(n):
+    return [ n // 256, n % 256 ]
+
+# Decodifica um buffer de 2 octetos para inteiro de 16 bits
+def parse_be16(buf):
+    return buf[0] * 256 + buf[1]
+
+# Cria um pacote válido do protocolo de obtenção de fotos
+def pacote_foto(cmd, payload):
+    dst_id = be16(0x0000)
+    src_id = be16(0x8fff)
+    length = be16(len(payload) + 2)
+    cmd_enc = be16(cmd)
+    pacote = dst_id + src_id + length + cmd_enc + payload
+    pacote = pacote + [ checksum(pacote) ]
+    return pacote
+
+# Retorna o comprimento de um pacote, se houver um pacote completo no buffer
+# Se não, retorna 0
+def pacote_foto_completo(data):
+    # Um pacote tem tamanho mínimo 9 (src_id, dst_id, len, cmd, checksum)
+    if len(data) < 9:
+        return 0
+    compr = 6 + parse_be16(data[4:6]) + 1
+    if len(data) < compr:
+        return 0
+    return compr
+
+# Consiste um pacote do protocolo de foto
+def pacote_foto_correto(pct):
+    compr_liquido = parse_be16(pct[4:6])
+    if compr_liquido < 2:
+        # Um pacote deveria ter no minimo um comando
+        return False
+    # Algoritmo de checksum tem propriedade interessante:
+    # checksum de pacote sufixado com checksum resulta em 0
+    return checksum(pct) == 0x00
+
+# Interpreta um pacote do protocolo de foto
+def pacote_foto_parse(pct):
+    compr_liquido = parse_be16(pct[4:6])
+    compr_payload = compr_liquido - 2
+    cmd = parse_be16(pct[6:8])
+    payload = pct[8:8+compr_payload]
+    return cmd, payload
+
+# Cria um pacote de autenticação para o protocolo de fotos
+def pacote_foto_auth(senha, tam_senha):
+    # 0x02 software de monitoramento, 0x03 mobile app
+    sw_type = [ 0x02 ]
+    senha = contact_id_encode(senha, tam_senha)
+    sw_ver = [ 0x10 ]  # nibble.nibble (0x10 = 1.0)
+    payload = sw_type + senha + sw_ver
+    return pacote_foto(0xf0f0, payload)
+
+# Cria um pacote de requisição de fragmento de foto
+def pacote_foto_req(evento, foto, fragmento):
+    payload = be16(evento) + [ foto, fragmento ]
+    return pacote_foto(0x0bb0, payload)
+
+# Cria um pacote de desconexão
+def pacote_foto_bye():
+    return pacote_foto(0xf0f1, [])
+
+
+Log.set_level(LOG_DEBUG)
+
+
+# Agente que obtem fotos de um evento de sensor com câmera
+
+class ObtemFotoDeEvento(TCPClientHandler):
+    def __init__(self, addr, evento, senha, tam_senha):
+        super().__init__(addr)
+        self.log_info("Iniciando obtencao de foto")
+        self.conn_timeout = self.timeout("conn_timeout", 15, self.conn_timeout)
+        self.evento = evento
+        self.senha = senha
+        self.tam_senha = tam_senha
+        self.tratador = None
+
+    def conn_timeout(self, task):
+        # FIXME tentar novamente a partir de observador
+        self.log_info("Timeout conexao foto")
+        self.destroy()
+
+    def connection_callback(self, ok):
+        self.conn_timeout.cancel()
+        if not ok:
+            # FIXME avisar observador
+            self.log_info("Conexao foto falhou")
+            # destroy() executado pelo chamador
+            return
+        self.autenticacao()
+
+    def autenticacao(self):
+        self.log_debug("Conexao foto: auth")
+        pct = pacote_foto_auth(self.senha, self.tam_senha)
+        self.send(pct)
+
+        self.tratador = self.resposta_autenticacao
+        self.conn_timeout.restart()
+
+    def resposta_autenticacao(self, cmd, payload):
+        if cmd == 0xf0fd:
+            self.nak(payload)
+            return
+
+        if cmd != 0xf0f0:
+            self.log_info("Conexao foto: resp inesperada %04x" % cmd)
+            self.destroy()
+            return
+
+        if len(payload) != 1:
+            self.log_info("Conexao foto: resp auth invalida")
+            self.destroy()
+            return
+
+        resposta = payload[0]
+        if resposta > 0:
+            self.log_info("Conexao foto: auth falhou motivo %d" % resposta)
+            self.destroy()
+            return
+
+        self.log_info("Conexao foto: autenticado")
+        self.inicia_obtencao_fotos()
+
+    def inicia_obtencao_fotos(self):
+        self.nr_fotos = None
+        # Foto 0, fragmento 1 sempre existe
+        self.obtem_fragmento_foto(0, 1, [])
+
+    def obtem_fragmento_foto(self, foto_corrente, fragmento_corrente, jpeg_corrente):
+        self.log_debug("Conexao foto: obtendo fragmento %d:%d" % \
+                (foto_corrente, fragmento_corrente))
+        pct = pacote_foto_req(self.evento, foto_corrente, fragmento_corrente)
+        self.send(pct)
+
+        def tratador(cmd, payload):
+            self.resposta_fragmento(cmd, payload, foto_corrente, fragmento_corrente, jpeg_corrente)
+
+        self.tratador = tratador
+        self.conn_timeout.restart()
+
+    def resposta_fragmento(self, cmd, payload, foto_corrente, fragmento_corrente, jpeg_corrente):
+        if cmd == 0xf0fd:
+            self.nak(payload)
+            return
+
+        if cmd == 0xf0f7:
+            # FIXME erro temporário, tentar novamente mais tarde
+            self.destroy()
+            return
+
+        if cmd != 0x0bb0:
+            self.log_info("Conexao foto: resp inesperada %04x" % cmd)
+            self.destroy()
+            return
+
+        if len(payload) < 6:
+            self.log_info("Conexao foto: resp frag muito curta")
+            self.destroy()
+            return
+
+        self.log_debug("Conexao foto: resposta fragmento %d:%d" % \
+                (foto_corrente, fragmento_corrente))
+
+        evento = parse_be16(payload[0:2])
+        foto = payload[2]
+        nr_fotos = payload[3]
+        fragmento = payload[4]
+        nr_fragmentos = payload[5]
+        fragmento_jpeg = payload[6:]
+
+        if evento != self.evento:
+            self.log_info("Conexao foto: evento invalido")
+            self.destroy()
+            return
+
+        if foto != foto_corrente:
+            self.log_info("Conexao foto: foto corrente invalida")
+            self.destroy()
+            return
+
+        if fragmento != fragmento_corrente:
+            self.log_info("Conexao foto: frag corrente invalido")
+            self.destroy()
+            return
+
+        jpeg_corrente += fragmento_jpeg
+
+        if fragmento < nr_fragmentos:
+            self.obtem_fragmento_foto(foto, fragmento + 1, jpeg_corrente)
+            return
+
+        self.log_info("Conexao foto: salvando imagem")
+        f = open("imagem%d.jpeg" % foto, "wb")
+        f.write(bytearray(jpeg_corrente))
+        f.close()
+
+        if foto < (nr_fotos - 1):
+            self.obtem_fragmento_foto(foto + 1, 1, [])
+            return
+            
+        self.despedida()
+
+    def despedida(self):
+        self.log_debug("Conexao foto: despedindo")
+        pct = pacote_foto_bye()
+        self.send(pct)
+
+        # Resposta esperada: central fechar conexão
+        self.tratador = None
+        self.conn_timeout.restart()
+
+    def nak(self, payload):
+        if len(payload) != 1:
+            self.log_info("Conexao foto: NAK invalido")
+        else:
+            motivo = payload[0]
+            self.log_info("Conexao foto: NAK motivo %02x" % motivo)
+        self.destroy()
+
+    def recv_callback(self, latest):
+        self.log_debug("Conexao foto: recv", latest)
+
+        compr = pacote_foto_completo(self.recv_buf)
+        if not compr:
+            self.log_debug("Conexao foto: incompleto")
+            return
+
+        pct, self.recv_buf = self.recv_buf[:compr], self.recv_buf[compr:]
+
+        if not pacote_foto_correto(pct):
+            self.log_info("Conexao foto: pacote incorreto, desistindo")
+            self.destroy()
+            return
+
+        cmd, payload = pacote_foto_parse(pct)
+        self.log_debug("Conexao foto: resposta %04x" % cmd)
+
+        if not self.tratador:
+            self.log_info("Conexao foto: sem tratador")
+            self.destroy()
+            return
+
+        self.conn_timeout.cancel()
+        self.tratador(cmd, payload)
+
+
+HOST = "192.168.0.16"
+PORT = 9009
+evento_com_foto = 321
+senha = int(sys.argv[1])
+tam_senha = int(sys.argv[2])
+
+loop = EventLoop()
+client = ObtemFotoDeEvento((HOST, PORT), evento_com_foto, senha, tam_senha)
+loop.loop()
