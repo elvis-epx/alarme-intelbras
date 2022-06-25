@@ -265,6 +265,7 @@ class Handler(ABC):
 
     # extend if you need to do more upon destruction
     def destroy(self):
+        self.destroyed_callback()
         self.log_debug("destroyed")
         del Handler.items[id(self)]
         Timeout.cancel_by_owner(self)
@@ -272,6 +273,10 @@ class Handler(ABC):
             self.fd.close()
         except self.fd_exceptions:
             pass
+
+    # Override if you need to know this is going to be destroyed
+    def destroyed_callback(self):
+        pass
 
     def log_error(self, *msg):
         Log.error(self.label, *msg)
