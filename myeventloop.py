@@ -146,9 +146,10 @@ class Timeout:
         return True
 
     @staticmethod
-    def cancel_by_owner(owner):
+    def cancel_and_inval_by_owner(owner):
         for candidate in list(Timeout.pending.values()):
             if owner is candidate.owner:
+                candidate.invalidate()
                 del Timeout.pending[id(candidate)]
 
     # Creates a new Timeout without a specific owner
@@ -162,30 +163,48 @@ class Timeout:
         self.label = label
         self.relative_to = relative_to
         self.callback = callback
+        self.invalidated = False
         self._restart()
         Log.debug("+ timeout %s %f" % (self.label, self.relative_to))
 
+    # "Invalidate" a timeout i.e. mark as unsuitable for further use
+    # Used for assertion/debugging, not necessary (but useful) in client code
+    def invalidate(self):
+        if self.invalidated:
+            raise Exception("called Timeout.invalidate() twice")
+        self.invalidated = True
+
     # Remaining time to finish (regardless of being alive)
     def remaining(self):
+        if self.invalidated:
+            raise Exception("called Timeout.remaining() on invalidated")
         return max(0, self.absolute_to - time.time())
 
     def _restart(self):
+        if self.invalidated:
+            raise Exception("called Timeout._restart() on invalidated")
         self.absolute_to = time.time() + self.relative_to
         Timeout.pending[id(self)] = self
 
     # Restart, with the same timeout
     # Postpone if alive, rearm if dead
     def restart(self):
+        if self.invalidated:
+            raise Exception("called Timeout.restart() on invalidated")
         self._restart()
         Log.debug("> timeout %s %f" % (self.label, self.relative_to))
 
     # Restart with a different timeout
     def reset(self, relative_to):
+        if self.invalidated:
+            raise Exception("called Timeout.reset() on invalidated")
         self.relative_to = relative_to
         self.restart()
 
     # Cancel timeout
     def cancel(self):
+        if self.invalidated:
+            raise Exception("called Timeout.cancel() on invalidated")
         if not self.alive():
             return False
         remaining_time = self.absolute_to - time.time()
@@ -194,6 +213,8 @@ class Timeout:
         return True
 
     def alive(self):
+        if self.invalidated:
+            raise Exception("called Timeout.alive() on invalidated")
         return id(self) in Timeout.pending
 
 
@@ -261,14 +282,18 @@ class Handler(ABC):
         self.label = label
         self.fd = fd
         self.fd_exceptions = fd_exceptions
+        self.destroyed = False
         Handler.items[id(self)] = self
 
     # extend if you need to do more upon destruction
     def destroy(self):
+        if self.destroyed:
+            raise Exception("called Handler.destroy() twice")
         self.destroyed_callback()
+        self.destroyed = True
         self.log_debug("destroyed")
         del Handler.items[id(self)]
-        Timeout.cancel_by_owner(self)
+        Timeout.cancel_and_inval_by_owner(self)
         try:
             self.fd.close()
         except self.fd_exceptions:
@@ -293,6 +318,8 @@ class Handler(ABC):
     # Creates a timeout owned by this Handler
     # (automatically cancelled upon Handler.destroy())
     def timeout(self, label, relative_to, callback):
+        if self.destroyed:
+            raise Exception("called Handler.timeout() after destroy()")
         return Timeout(self, label, relative_to, callback)
 
 
