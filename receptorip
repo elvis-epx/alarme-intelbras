@@ -713,7 +713,7 @@ class TratadorDeFotos:
             Log.info("Fotos indice %s:%d:%d: erro temporario" % (ip_addr, indice, nrfoto))
             self.fila[0][3] -= 1
 
-        if self.fila_fotos_download[0][3] <= 0:
+        if self.fila[0][3] <= 0:
             del self.fila[0]
 
         self.task.restart()
