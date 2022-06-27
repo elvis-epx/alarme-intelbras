@@ -32,8 +32,8 @@ Receptor, e recomendamos que você faça o mesmo!
 ## Limitações atuais
 
 No momento o receptor é apenas um programa de linha de comando, que reporta
-os eventos na saída de terminal. No futuro, ganchos de integração com SMS,
-WhatsApp, etc. serão desenvolvidos.
+os eventos na saída de terminal. No futuro próximo, disponibilizaremos um
+gancho de integração.
 
 O programa não tem pacote de instalação nem imagem Docker. No momento, é
 necessário que o usuário possua conhecimento suficiente de informática.
@@ -76,6 +76,21 @@ Exemplo:
 ```
 ./receptorip 9010 0 123456 6
 ```
+
+## Roadmap
+
+- Gancho de integração de eventos com programas externos (para envio de SMS, e-mail, etc.).
+- Exemplos de integrações (e-mail e PushOver pelo menos).
+- Integração de eventos com foto.
+- Utilitário para obtenção manual de fotos de eventos
+- Hierarquização de eventos - todas as mensagens nível log.info são importantes mas algumas podem ser enviadas em bloco, e não precisam ir imediatamente.
+- Rodar como serviço (daemon) em background.
+- Testes unitários e de robustez.
+- Script de restart em caso de quebra
+- Monitor externo de funcionamento
+- Refinamento de mensagens de conexão (informar se central não conectada por X tempo).
+- Configuração em arquivo em vez de parâmetros CLI
+
 
 ## Motivação
 
