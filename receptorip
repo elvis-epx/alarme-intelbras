@@ -6,7 +6,7 @@ from myeventloop import Timeout, Log, LOG_INFO, LOG_DEBUG
 from tcpserver import *
 from tcpclient import *
 
-Log.set_level(LOG_DEBUG)
+Log.set_level(LOG_INFO)
 
 def hexprint(buf):
     return ", ".join(["%02x" % n for n in buf])
@@ -684,6 +684,8 @@ class TratadorDeFotos:
 
     # Recebe nova foto de algum Tratador para a fila
     def enfileirar(self, ip_addr, indice, nrfoto):
+        if self.tam_senha <= 0:
+            return
         self.fila.append([ip_addr, indice, nrfoto, 10])
         if not self.task:
             # Fotos de sensor 8000 demoram para gravar (NAK 0x28 = foto não gravada)

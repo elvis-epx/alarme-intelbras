@@ -1,19 +1,87 @@
-O objetivo deste projeto é implementar um "Receptor IP" alternativo
+# Receptor IP Intelbras
+
+O objetivo principal deste projeto é implementar um "Receptor IP" alternativo
 para centrais de alarme Intelbras.
 
-O report de eventos via IP é a tendência geral do mercado de alarmes,
-pois o telefone fixo está a caminho da extinção. Até mesmo o report
-via SMS foi removido em firmwares mais recentes da central AMT-8000.
-A central tem bateria interna e pode usar GPRS/3G além de Ethernet, o
-que supre os casos de queda de energia e interrupção da conexão à Internet.
+Um objetivo secundário do projeto é fornecer uma documentação alternativa
+para os protocolos dessas centrais de alarme, no espírito "code-as-documentation".
+
+## Estado da implementação
+
+No momento, o receptor implementa o protocolo da forma mais correta
+possível (até onde vai nosso entendimento) e interpreta todos os eventos
+listados na documentação (arme, desarme, disparo de zona, fechamento de
+zona, etc.), reportando mensagens legíveis.
+
+O programa também é capaz de fazer o download de fotos de disparos do sensor
+IVP-8000.
+
+## Plataforma e hardware de alarme
+
+O programa é desenvolvido e testado nos sistemas operacionais Linux
+e macOS, com ênfase maior no Linux, pois nosso caso de uso é um
+"Receptor IP" rodando na nuvem.
+
+Em nosso projeto, fazemos testes apenas com a central AMT-8000, que
+é a que possuímos, embora o
+protocolo pareça ser o mesmo para todas as centrais monitoradas via Internet.
+
+Uma vez que o protocolo não é criptografado, utilizamos VPN entre alarme e
+Receptor, e recomendamos que você faça o mesmo!
+
+## Limitações atuais
+
+No momento o receptor é apenas um programa de linha de comando, que reporta
+os eventos na saída de terminal. No futuro, ganchos de integração com SMS,
+WhatsApp, etc. serão desenvolvidos.
+
+O programa não tem pacote de instalação nem imagem Docker. No momento, é
+necessário que o usuário possua conhecimento suficiente de informática.
+
+O receptor não verifica a versão de Python instalada em seu sistema, mas
+deve ser razoavelmente atual (mínimo absoluto 3.5, recomendado 3.8 ou acima).
+
+Ao fazer a conexão de callback para download de fotos, o Receptor presume que
+o IP da central é o mesmo da conexão principal. Isto pode não funcionar se
+houver um roteador NAT no caminho (este é outro motivo pelo qual usamos VPN).
+
+## Como rodar
+
+Invoque o programa via linha de comando
+
+```
+./receptorip <porta> <porta central> <senha> <tamanho senha>
+```
+
+"Porta" é a porta TCP/IP em que o Receptor IP aceita conexão.
+Se passado o valor 0, ouve na porta default 9009. (Pode-se usar
+qualquer número de porta, desde que a respectiva configuração seja atualizada
+na central.)
+
+"Porta central" é a porta TCP/IP em que a central aceita conexão.
+Se passado o valor 0, usa a porta default 9009. Esta porta é utilizada
+para conexões de callback, utilizadas apenas obter fotos de um disparo de zona
+do sensor IVP-8000.
+
+"Senha" é a senha de acesso remoto (usuário 98), a mesma utilizada
+para acesso à central via app AMT Mobile. Utilizada apenas para obter
+fotos do sensor IVP-8000. Informe um número qualquer se não deseja fazer
+download de fotos.
+
+"Tamanho senha" é o tamanho da senha acima. Informe 4 ou 6, ou zero se
+não deseja que seja feito download de fotos.
+
+Exemplo:
+
+```
+./receptorip 9010 0 123456 6
+```
+
+## Motivação
 
 Numa configuração "baunilha", o Receptor IP é uma empresa de segurança
 e monitoramento, que provavelmente está rodando o software homônimo da
 Intelbras.
-
-Em paralelo, o usuário pode interagir com a central através
-do aplicativo AMT Mobile v3. Uma vez que a conexão acontece através
-da Intelbras Cloud, não é necessário preocupar-se com NAT, IP dinâmico, etc.
 
 Porém, existem casos em que pode ser útil haver um "Receptor IP"
 alternativo, por exemplo
@@ -31,12 +99,15 @@ capazes de tirar fotos. Um invasor diligente procurará destruir
 a central para eliminar essas fotos. Então é importante que haja um Receptor IP
 configurado para que as fotos sejam salvas a tempo.
 
-d) uso da central de alarme em usos atípicos, não relacionados a segurança
+d) uma central de alarme pode ter casos de uso não relacionados a segurança
 patrimonial.
 
-Em nosso projeto, testamos com a
-central AMT-8000, embora o protocolo pareça ser o mesmo para todas
-as centrais monitoradas via Internet.
+Outra motivação, mais pessoal, para este projeto é conhecer mais de perto
+esse ecossistema das centrais de alarme. Os protocolos são verdadeiras 
+cápsulas do tempo; suas implementações possuem cacoetes dos tempos em que
+eventos de alarme eram reportados por DTMF, portas seriais e modem discado.
+
+## Onde está a documentação dos protocolos?
 
 Os documentos do protocolo Intelbras não são públicos, por isso não
 há cópias deles aqui neste repositório. Mas eles mas podem ser obtidos
