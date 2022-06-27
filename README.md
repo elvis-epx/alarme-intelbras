@@ -91,18 +91,21 @@ os eventos ainda poderiam ser reportados para uma rede de vizinhos;
 
 b) seja desejável armazenar e/ou tratar os eventos de alarme
 de forma sistemática e automatizada, em particular quando o celular do usuário
-está fora de área. Envio de e-mail ou até SMS (não mais suportado no firmware
-da central) pode ser executado via nuvem.
+está fora de área. Envio de e-mail, SMS (não mais suportado no firmware
+da central) e integração WhatsApp podem ser feitos via nuvem.
 
 c) um caso particular do ponto (b) é o report de sensores de movimento
 capazes de tirar fotos. Um invasor diligente procurará destruir
-a central para eliminar essas fotos. Então é importante que haja um Receptor IP
-configurado para que as fotos sejam salvas a tempo.
+a central para eliminar essas fotos. Um Receptor IP rodando na nuvem 
+coloca os eventos e as fotos a salvo, e fora de alcance.
 
-d) uma central de alarme pode ter casos de uso não relacionados a segurança
-patrimonial.
+d) uma central de alarme poderia ser usada em projetos IoT não 
+necessariamente relacionados com segurança patrimonial.
 
-Outra motivação, mais pessoal, para este projeto é conhecer mais de perto
+e) o Receptor IP da Intelbras é um software Windows, o que nem sempre
+é conveniente. A nossa alternativa rodaria facilmente num Raspberry Pi Zero.
+
+Outra motivação para este projeto, mais pessoal, é conhecer mais de perto
 esse ecossistema das centrais de alarme. Os protocolos são verdadeiras 
 cápsulas do tempo; suas implementações possuem cacoetes dos tempos em que
 eventos de alarme eram reportados por DTMF, portas seriais e modem discado.
