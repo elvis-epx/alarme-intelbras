@@ -90,7 +90,11 @@ def parse_be16(buf):
 
 # Cria um pacote válido do protocolo de obtenção de fotos
 def pacote_foto(cmd, payload):
+    # ID da central, sempre zero
     dst_id = be16(0x0000)
+    # ID nosso, pode ser qualquer número, devolvido nos pacotes de retorno
+    # Possivelmente uma relíquia de canais seriais onde múltiplos receptores
+    # ouvem as mensagens, e dst_id ajudaria a identificar o recipiente
     src_id = be16(0x8fff)
     length = be16(len(payload) + 2)
     cmd_enc = be16(cmd)
@@ -128,6 +132,7 @@ def pacote_foto_parse(pct):
     return cmd, payload
 
 # Cria um pacote de autenticação para o protocolo de fotos
+# No protocolo de fotos, a autenticação deve preceder o download
 def pacote_foto_auth(senha, tam_senha):
     # 0x02 software de monitoramento, 0x03 mobile app
     sw_type = [ 0x02 ]
@@ -297,6 +302,11 @@ class ObtemFotosDeEvento(TCPClientHandler):
             return
 
         resposta = payload[0]
+        # Possíveis respostas:
+        # 01 = senha incorreta
+        # 02 = versão software incorreta
+        # 03 = painel chamará de volta (?)
+        # 04 = aguardando permissão de usuário (?)
         if resposta > 0:
             self.log_info("Conexao foto: auth falhou motivo %d" % resposta)
             self.destroy()
@@ -394,10 +404,73 @@ class ObtemFotosDeEvento(TCPClientHandler):
         if len(payload) != 1:
             self.log_info("Conexao foto: NAK invalido")
         else:
+            # NAK comum = 0x28 significando que foto ainda não foi transferida do sensor
+            # Por isso consideramos NAK um erro não-fatal, poderia refinar por motivo
             motivo = payload[0]
             self.log_info("Conexao foto: NAK motivo %02x" % motivo)
             self.status = 1 # erro não-fatal
         self.destroy()
+
+    # Motivos NAK (nem todos se aplicam a download de fotos):
+    # 00    Mensagem Ok (Por que NAK então? ACK = cmd 0xf0fe)
+    # 01    Erro de checksum (daqui para baixo, todos são erros)
+    # 02    Número de bytes da mensagem
+    # 03    Número de bytes do parâmetro (payload)
+    # 04    Parâmetro inexistente
+    # 05    Indice parâmetro
+    # 06    Valor máximo
+    # 07    Valor mínimo
+    # 08    Quantidade de campos
+    # 09    Nibble 0-9
+    # 0a    Nibble 1-a
+    # 0b    Nibble 0-f
+    # 0c    Nibble 1-f-ex-b-c
+    # 0d    ASCII
+    # 0e    29 de fevereiro
+    # 0f    Dia inválido
+    # 10    Mês inválido
+    # 11    Ano inválido
+    # 12    Hora inválida
+    # 13    Minuto inválido
+    # 14    Segundo inválido
+    # 15    Tipo de comando inválido
+    # 16    Tecla especial
+    # 17    Número de dígitos
+    # 18    Número de dígitos senha
+    # 19    Senha incorreta (mas reportado na resposta da autenticação, não por NAK)
+    # 1a    Partição inexistente
+    # 1b    Usuário sem permissão na partição
+    # 1c    Sem permissão programar
+    # 1d    Buffer de recepção cheio
+    # 1e    Sem permissão para desarmar
+    # 1f    Necessária autenticação prévia
+    # 20    Sem zonas habilitadas
+    # 21    Sem permissão para comando
+    # 22    Sem partições definidas
+    # 23    Evento sem foto associada
+    # 24    Índice foto inválido
+    # 25    Fragmento foto inválido
+    # 26    Sistema não particionado
+    # 27    Zonas abertas
+    # 28    Ainda gravando foto / transferindo do sensor (tente mais tarde)
+    # 29    Acesso mobile desabilitado
+    # 2a    Operação não permitida
+    # 2b    Memória RF vazia
+    # 2c    Memória RF ocupada
+    # 2d    Senha repetida
+    # 2e    Falha ativação/desativação
+    # 2f    Sem permissão arme stay
+    # 30    Desative a central
+    # 31    Reset bloqueado
+    # 32    Teclado bloqueado
+    # 33    Recebimento de foto falhou
+    # 34    Não conectado ao servidor
+    # 35    Taclado sem permissão
+    # 36    Partição sem zonas stay
+    # 37    Sem permissão bypass
+    # 38    Firmware corrompido
+    # fe    Comando inválido
+    # ff    Erro não especificado (não documentado mas observado se checksum ou tamanho pacote errado)
 
     def recv_callback(self, latest):
         self.log_debug("Conexao foto: recv", latest)
