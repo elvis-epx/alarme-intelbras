@@ -100,33 +100,45 @@ scripts-gancho (gancho\_msg e gancho\_arquivo).
 
 ## Motivação
 
-Numa configuração "baunilha", o Receptor IP é uma empresa de segurança
-e monitoramento, que provavelmente está rodando o software homônimo da
-Intelbras.
+Num caso de uso típico, uma pessoa contrata uma empresa de segurança,
+que realiza dois serviços: instala o alarme na casa do cliente, e roda
+o Receptor IP -- um software desenvolvido pela Intelbras -- a fim de receber
+os eventos de alarme.
 
-Porém, existem casos em que pode ser útil haver um "Receptor IP"
-alternativo, por exemplo
+Porém, existem casos em que pode ser útil usar um "Receptor IP"
+alternativo, por exemplo:
 
 a) numa área onde nenhuma empresa de segurança possa atender, porém
-os eventos ainda poderiam ser reportados para uma rede de vizinhos;
+os eventos ainda poderiam ser reportados para uma rede de vizinhos.
 
-b) seja desejável armazenar e/ou tratar os eventos de alarme
-de forma sistemática e automatizada, em particular quando o celular do usuário
-está fora de área. Envio de e-mail, SMS (não mais suportado no firmware
-da central) e integração WhatsApp podem ser feitos via nuvem.
+b) quando for desejável armazenar e/ou tratar os eventos de alarme
+de forma sistemática e automatizada, salvando dados na nuvem ou
+ainda disponibilizando-os na Web.
 
-c) um caso particular do ponto (b) é o report de sensores de movimento
+Um caso particular do ponto acima é o disparo de sensores de movimento
 capazes de tirar fotos. Um invasor diligente procurará destruir
-a central para eliminar essas fotos. Um Receptor IP rodando na nuvem 
-coloca os eventos e as fotos a salvo, e fora de alcance.
+a central para eliminar essas fotos. Um Receptor IP rodando na nuvem
+garante que as fotos estarão salvas.
+
+c) A central AMT-8000 não suporta envio de SMS no firmware mais
+recente. Se SMS for absolutamente necessário, o nosso programa pode
+ser usado para repassar os disparos a um serviço SMS, ou integrar
+com WhatsApp/Telegram. A nuvem da Amazon possui o serviço SNS para
+facilitar esse tipo de integração.
+
+(Lembrando que uma central de alarme pode reportar eventos a dois
+Receptores IP, então é possível reportar ao Receptor IP original
+e ao alternativo ao mesmo tempo.)
 
 d) uma central de alarme poderia ser usada em projetos IoT não 
-necessariamente relacionados com segurança patrimonial.
+necessariamente relacionados com segurança patrimonial. É um
+hardware barato, de boa qualidade e fácil de encontrar.
 
-e) o Receptor IP da Intelbras é um software Windows, o que nem sempre
-é conveniente. A nossa alternativa rodaria facilmente num Raspberry Pi Zero.
+e) o Receptor IP da Intelbras é um software Windows, feito para
+empresas de monitoramento que acompanham inúmeros clientes ao
+mesmo tempo. A nossa alternativa rodaria facilmente num Raspberry Pi Zero.
 
-Outra motivação para este projeto, mais pessoal, é conhecer mais de perto
+Uma última motivação para este projeto, mais pessoal, é conhecer mais de perto
 esse ecossistema das centrais de alarme. Os protocolos são verdadeiras 
 cápsulas do tempo; suas implementações possuem cacoetes dos tempos em que
 eventos de alarme eram reportados por DTMF, portas seriais e modem discado.
