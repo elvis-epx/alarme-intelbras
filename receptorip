@@ -511,16 +511,11 @@ class Tratador(TCPServerHandler):
 
         self.to_ident = self.timeout("ident", 120, self.timeout_identificacao)
         self.to_comm = self.timeout("comm", 600, self.timeout_comunicacao)
-        to_hb = self.timeout("hb", 3600, self.heartbeat)
         self.to_processa = None
         self.to_incompleta = None
         self.to_backoff = None
 
         self.ip_addr = addr[0]
-
-    def heartbeat(self, to_obj):
-        self.log_info("permanece conectado")
-        to_obj.restart()
 
     def timeout_comunicacao(self, _):
         self.log_info("timeout de comunicacao")
@@ -796,9 +791,9 @@ class TratadorDeFotos:
 
 def heartbeat(to_obj):
     Log.info("receptor em funcionamento")
-    to_obj.reset(3600)
+    to_obj.reset(86400)
 
-Timeout.new("heartbeat", 0, heartbeat)
+Timeout.new("heartbeat", 30, heartbeat)
 
 host = "0.0.0.0"
 port = int(sys.argv[1]) or 9009  # Porta deste Receptor IP
@@ -808,4 +803,17 @@ tam_senha = int(sys.argv[4])     # Tamanho da senha (4 ou 6 dígitos)
 
 Tratador.tratador_de_fotos = TratadorDeFotos(cport, senha, tam_senha)
 
-TCPServerEventLoop((host, port), TCPListener, Tratador).loop()
+ev = TCPServerEventLoop((host, port), TCPListener, Tratador)
+
+def watchdog(to_obj):
+    centrais_conectadas = 0
+    for h in Handler.items.values():
+        if h is Tratador:
+            centrais_conectadas += 1
+    if not centrais_conectadas:
+        Log.info("nenhuma central conectada")
+    to_obj.reset(3600)
+
+Timeout.new("watchdog", 60, watchdog)
+
+ev.loop()

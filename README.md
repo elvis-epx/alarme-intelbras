@@ -88,7 +88,6 @@ Exemplo:
 - Testes unitários e de robustez.
 - Script de restart em caso de quebra
 - Monitor externo de funcionamento
-- Refinamento de mensagens de conexão (informar se central não conectada por X tempo).
 - Configuração em arquivo em vez de parâmetros CLI
 
 
