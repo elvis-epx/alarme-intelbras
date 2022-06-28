@@ -16,6 +16,11 @@ zona, etc.), reportando mensagens legíveis.
 O programa também é capaz de fazer o download de fotos de disparos do sensor
 IVP-8000.
 
+Há potencial de extensão, que reside nos ganchos. Os ganchos são scripts
+invocados em disparos (gancho\_msg e gancho\_arquivo).
+Neles, você pode adicionar código e fazer o repasse dos eventos
+via e-mail, SMS, Telegram, PushOver, etc.
+
 ## Plataforma e hardware de alarme
 
 O programa é desenvolvido e testado nos sistemas operacionais Linux
@@ -31,18 +36,14 @@ Receptor, e recomendamos que você faça o mesmo!
 
 ## Limitações atuais
 
-No momento o receptor é apenas um programa de linha de comando, que reporta
-os eventos na saída de terminal.
-
-Há potencial de extensão, que reside nos ganchos
-(scripts gancho\_msg e gancho\_arquivo) que são invocados em disparos.
-Nestes scripts, você pode codificar o repasse dos eventos via e-mail, SMS,
-Telegram, PushOver, etc.
+No momento o receptor é apenas um programa de linha de comando, que 
+imprime o log na saída de terminal.
 
 O programa não tem pacote de instalação nem imagem Docker. No momento, é
-necessário que o usuário possua conhecimento suficiente de informática.
+necessário que o usuário possua algum conhecimento de "devops" para fazer
+uso deste programa.
 
-O receptor não verifica a versão de Python instalada em seu sistema, mas
+O Receptor não verifica a versão de Python instalada em seu sistema, mas
 deve ser razoavelmente atual (mínimo absoluto 3.5, recomendado 3.8 ou acima).
 
 Ao fazer a conexão de callback para download de fotos, o Receptor presume que
@@ -87,8 +88,6 @@ scripts-gancho (gancho\_msg e gancho\_arquivo).
 
 ## Roadmap
 
-- Exemplos de integrações (e-mail e PushOver pelo menos).
-- Integração de eventos com foto.
 - Utilitário para obtenção manual de fotos de eventos
 - Redirecionar log para arquivo
 - Script de exemplo de envio de log por e-mail
