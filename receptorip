@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import sys, time, datetime, random, os
+import sys, time, datetime, random, os, shlex
 
 from myeventloop import Timeout, Log, LOG_INFO, LOG_DEBUG
 from tcpserver import *
@@ -16,7 +16,7 @@ def msg_imediata(*msg):
     for item in msg:
         msgw += " "
         msgw += str(item)
-    p = os.popen("./gancho_msg '%s'" % msgw, 'w')
+    p = os.popen("./gancho_msg %s" % shlex.quote(msgw), 'w')
     p.close()
 
 # O mesmo, mas para um arquivo (geralmente uma imagem JPEG)
