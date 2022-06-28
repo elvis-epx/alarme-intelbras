@@ -8,6 +8,18 @@ from tcpclient import *
 
 Log.set_level(LOG_INFO)
 
+# Mensagem que deve ser repassada o mais rápido possível
+# e.g. disparos de alarme
+def msg_imediata(*msg):
+    pass
+
+# O mesmo, mas para um arquivo (geralmente uma imagem JPEG)
+def msg_imediata_arquivo(arquivo):
+    pass
+
+# Mensagens que podem ser repassadas em lote podem ser
+# extraídas do log salvo em arquivo
+
 def hexprint(buf):
     return ", ".join(["%02x" % n for n in buf])
 
@@ -250,6 +262,7 @@ class ObtemFotosDeEvento(TCPClientHandler):
         self.senha = senha
         self.tam_senha = tam_senha
         self.observer = observer
+        self.arquivo = ""
 
         # Se destruído com esse status, reporta erro fatal
         self.status = 2
@@ -260,7 +273,7 @@ class ObtemFotosDeEvento(TCPClientHandler):
         # Informa observador sobre status final da tarefa
         self.observer.resultado_foto(self.ip_addr, self.cport, \
                                      self.indice, self.nrfoto, \
-                                     self.status)
+                                     self.status, self.arquivo)
 
     def conn_timeout(self, task):
         if self.status != 0:
@@ -383,7 +396,8 @@ class ObtemFotosDeEvento(TCPClientHandler):
             return
 
         self.log_info("Conexao foto: salvando imagem")
-        f = open("imagem%.6f.jpeg" % time.time(), "wb")
+        self.arquivo = "imagem%.6f.jpeg" % time.time()
+        f = open(self.arquivo, "wb")
         f.write(bytearray(jpeg_corrente))
         f.close()
 
@@ -715,19 +729,24 @@ class Tratador(TCPServerHandler):
             if squalif in eventos_contact_id[codigo]:
                 desconhecido = False
                 scodigo = eventos_contact_id[codigo][squalif]
-                fotos = ""
+                fotos = fotosm = ""
                 if com_foto:
                     fotos = "fotos: %d %d" % (indice, nr_fotos)
-                self.log_info(scodigo.format(zona=zona, particao=particao), fotos)
+                    fotosm = "(com fotos)"
+                descricao_humana = scodigo.format(zona=zona, particao=particao)
+                self.log_info(descricao_humana, fotos)
+                msg_imediata(descricao_humana, fotosm)
 
                 if com_foto:
                     for n in range(0, nr_fotos):
                         Tratador.tratador_de_fotos.enfileirar(self.ip_addr, indice, n)
 
         if desconhecido:
-            self.log_info("Evento de alarme canal %02x contact_id %d tipo %d qualificador %d "
-                          "codigo %d particao %d zona %d" % \
-                          (canal, contact_id, tipo_msg, qualificador, codigo, particao, zona))
+            msg = "Evento de alarme canal %02x contact_id %d tipo %d qualificador %d "
+                  "codigo %d particao %d zona %d" % \
+                  (canal, contact_id, tipo_msg, qualificador, codigo, particao, zona))
+            self.log_info(msg)
+            msg_imediata(msg)
 
         resposta = [0xfe]
         self.envia_curto(resposta)
@@ -772,19 +791,23 @@ class TratadorDeFotos:
                             self.senha, self.tam_senha, self)
 
     # observer chamado quando ObtemFotosDeEvento finaliza
-    def resultado_foto(self, ip_addr, cport, indice, nrfoto, status):
+    def resultado_foto(self, ip_addr, cport, indice, nrfoto, status, arquivo):
         if status == 0:
             Log.info("Fotos indice %s:%d:%d: sucesso" % (ip_addr, indice, nrfoto))
-            self.fila[0][3] = 0
+            Log.info("Arquivo de foto %s" % arquivo)
+            msg_imediata("Foto recebida")
+            msg_imediata_arquivo(arquivo)
+            del self.fila[0]
         elif status == 2:
             Log.info("Fotos indice %s:%d:%d: erro fatal" % (ip_addr, indice, nrfoto))
-            self.fila[0][3] = 0
-        else:
-            Log.info("Fotos indice %s:%d:%d: erro temporario" % (ip_addr, indice, nrfoto))
-            self.fila[0][3] -= 1
-
-        if self.fila[0][3] <= 0:
             del self.fila[0]
+        else:
+            self.fila[0][3] -= 1
+            if self.fila[0][3] <= 0:
+                Log.info("Fotos indice %s:%d:%d: tentativas esgotadas" % (ip_addr, indice, nrfoto))
+                del self.fila[0]
+            else:
+                Log.info("Fotos indice %s:%d:%d: erro temporario" % (ip_addr, indice, nrfoto))
 
         self.task.restart()
 
