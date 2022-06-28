@@ -742,9 +742,9 @@ class Tratador(TCPServerHandler):
                         Tratador.tratador_de_fotos.enfileirar(self.ip_addr, indice, n)
 
         if desconhecido:
-            msg = "Evento de alarme canal %02x contact_id %d tipo %d qualificador %d "
+            msg = "Evento de alarme canal %02x contact_id %d tipo %d qualificador %d " \
                   "codigo %d particao %d zona %d" % \
-                  (canal, contact_id, tipo_msg, qualificador, codigo, particao, zona))
+                  (canal, contact_id, tipo_msg, qualificador, codigo, particao, zona)
             self.log_info(msg)
             msg_imediata(msg)
 
