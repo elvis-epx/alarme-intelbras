@@ -83,7 +83,8 @@ Exemplo:
 - Exemplos de integrações (e-mail e PushOver pelo menos).
 - Integração de eventos com foto.
 - Utilitário para obtenção manual de fotos de eventos
-- Hierarquização de eventos - todas as mensagens nível log.info são importantes mas algumas podem ser enviadas em bloco, e não precisam ir imediatamente.
+- Redirecionar log para arquivo
+- Script de exemplo de envio de log por e-mail
 - Rodar como serviço (daemon) em background.
 - Testes unitários e de robustez.
 - Script de restart em caso de quebra
