@@ -9,4 +9,4 @@
 # conteúdo para que ele não faça nada (o script precisa
 # existir e ser executável, mesmo que não faça nada.)
 
-echo "($0) $1"
+echo "$1" >> gancho_arquivo.txt

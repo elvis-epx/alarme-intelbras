@@ -18,12 +18,12 @@ def msg_imediata(*msg):
         msgw += str(item)
     p = os.popen("./gancho_msg", 'w')
     p.write(msgw)
-    exitcode = p.close()
+    p.close()
 
 # O mesmo, mas para um arquivo (geralmente uma imagem JPEG)
 def msg_imediata_arquivo(arquivo):
-    p = os.popen("./gancho_foto %s" % arquivo, 'w')
-    exitcode = p.close()
+    p = os.popen("./gancho_arquivo %s" % arquivo, 'w')
+    p.close()
 
 # Mensagens que podem ser repassadas em lote podem ser
 # extraídas do log salvo em arquivo

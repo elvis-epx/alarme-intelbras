@@ -10,6 +10,10 @@
 # conteúdo para que ele não faça nada (o script precisa
 # existir e ser executável, mesmo que não faça nada.)
 
-while read line; do
-    echo "($0) $line"
+while true; do
+    read line
+    if [ "$line" = "" ]; then
+	break
+    fi
+    echo "$line" >> gancho_msg.txt
 done < /dev/stdin
