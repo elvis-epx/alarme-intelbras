@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# Gancho para mensagens urgentes (de disparo)
+#
+# O conteúdo da mensagem é passado via stdin, geralmente
+# é apenas uma linha, mas podem ser várias.
+#
+# Modifique este script para que a mensagem seja repassada
+# via e-mail, SMS, Telegram, PushOver, etc. Ou remova seu
+# conteúdo para que ele não faça nada (o script precisa
+# existir e ser executável, mesmo que não faça nada.)
+
+while read line; do
+    echo "($0) $line"
+done < /dev/stdin

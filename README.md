@@ -32,8 +32,12 @@ Receptor, e recomendamos que você faça o mesmo!
 ## Limitações atuais
 
 No momento o receptor é apenas um programa de linha de comando, que reporta
-os eventos na saída de terminal. No futuro próximo, disponibilizaremos um
-gancho de integração.
+os eventos na saída de terminal.
+
+Há potencial de extensão, que reside nos ganchos
+(scripts gancho\_msg e gancho\_arquivo) que são invocados em disparos.
+Nestes scripts, você pode codificar o repasse dos eventos via e-mail, SMS,
+Telegram, PushOver, etc.
 
 O programa não tem pacote de instalação nem imagem Docker. No momento, é
 necessário que o usuário possua conhecimento suficiente de informática.
@@ -77,9 +81,12 @@ Exemplo:
 ./receptorip 9010 0 123456 6
 ```
 
+Se você deseja repassar as mensagens e fotos de disparo de alarme para
+outros serviços (email, SMS, WhatsApp, etc.) você deve estender os
+scripts-gancho (gancho\_msg e gancho\_arquivo).
+
 ## Roadmap
 
-- Gancho de integração de eventos com programas externos (para envio de SMS, e-mail, etc.).
 - Exemplos de integrações (e-mail e PushOver pelo menos).
 - Integração de eventos com foto.
 - Utilitário para obtenção manual de fotos de eventos
