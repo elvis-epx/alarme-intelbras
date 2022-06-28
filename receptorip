@@ -16,8 +16,7 @@ def msg_imediata(*msg):
     for item in msg:
         msgw += " "
         msgw += str(item)
-    p = os.popen("./gancho_msg", 'w')
-    p.write(msgw)
+    p = os.popen("./gancho_msg '%s'" % msgw, 'w')
     p.close()
 
 # O mesmo, mas para um arquivo (geralmente uma imagem JPEG)

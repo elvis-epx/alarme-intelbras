@@ -2,18 +2,12 @@
 
 # Gancho para mensagens urgentes (de disparo)
 #
-# O conteúdo da mensagem é passado via stdin, geralmente
-# é apenas uma linha, mas podem ser várias.
+# O conteúdo da mensagem é passado como um parâmetro de
+# linha de comando ($1).
 #
 # Modifique este script para que a mensagem seja repassada
 # via e-mail, SMS, Telegram, PushOver, etc. Ou remova seu
 # conteúdo para que ele não faça nada (o script precisa
 # existir e ser executável, mesmo que não faça nada.)
 
-while true; do
-    read line
-    if [ "$line" = "" ]; then
-	break
-    fi
-    echo "$line" >> gancho_msg.txt
-done < /dev/stdin
+echo "$1" >> gancho_msg.txt
