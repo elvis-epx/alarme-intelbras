@@ -42,7 +42,6 @@ class Log:
         for item in msg:
             msgw += " "
             msgw += str(item)
-        msgw += "\r\n"
 
         if level <= Log.log_level:
             if not Log.is_daemon:
@@ -51,6 +50,7 @@ class Log:
             if Log.logfile != "None":
                 f = open(Log.logfile, "a")
                 f.write(msgw)
+                f.write("\r\n")
                 f.close()
 
         if level <= Log.mail_level and Log.mail_from != 'None' and Log.mail_to != 'None':
