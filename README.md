@@ -132,8 +132,9 @@ Já o script `gancho_central` só é invocado quando nenhuma central está conec
 Receptor IP.
 
 Sugerimos que o script `gancho_watchdog` seja conectado a um serviço como
-healthchecks.io. Este serviço é especializado em "notificações negativas", ou
-seja, ele avisa quando uma rotina periódica falha em bater o ponto.
+(healthchecks.io)[https://healthchecks.io]. Este serviço é especializado em
+"notificações negativas", ou seja, ele avisa quando uma rotina periódica falha
+em bater o ponto.
 
 Para o script `gancho_central`, sugerimos que ele envie uma notificação
 ao usuário, usando o mesmo método que o script `gancho_msg`, pois a falta
