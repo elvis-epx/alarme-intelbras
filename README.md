@@ -86,9 +86,26 @@ Se você deseja repassar as mensagens e fotos de disparo de alarme para
 outros serviços (email, SMS, WhatsApp, etc.) você deve estender os
 scripts-gancho (gancho\_msg e gancho\_arquivo).
 
+O receptor tenta fazer o download de fotos de disparo assim que eles ocorrem.
+Se for necessário fazê-lo manualmente a posteriori, pode-se utilizar o script
+
+```
+./dlfoto <IP central> <porta central> <senha> <tam.senha> <indice> <nr.foto>
+```
+
+Os primeiros parâmetros têm o mesmo significado dos passados para o 
+Receptor IP, já elencados antes. O índice da foto é informado juntamente
+com a mensagem de disparo. O número da foto começa em 0, e para o sensor
+IVP-8000, duas fotos são tiradas por disparo (números 0 e 1).
+
+Exemplo de uso:
+
+```
+./dlfoto 192.168.0.16 0 123456 6 404 1
+```
+
 ## Roadmap
 
-- Utilitário para obtenção manual de fotos de eventos
 - Redirecionar log para arquivo
 - Script de exemplo de envio de log por e-mail
 - Rodar como serviço (daemon) em background.

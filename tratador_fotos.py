@@ -30,6 +30,10 @@ class TratadorDeFotos:
             # Fotos de sensor 8000 demoram para gravar (NAK 0x28 = foto não gravada)
             self.task = Timeout.new("trata_foto", 20, self.obtem_foto)
 
+    # Reduz tempo de timeout (caso de uso: dlfoto)
+    def imediato(self):
+        self.task.reset(0.1)
+
     def obtem_foto(self, task):
         if not self.fila:
             self.task = None

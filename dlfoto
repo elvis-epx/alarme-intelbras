@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+
+import sys
+
+from myeventloop import Timeout, Log, LOG_INFO, LOG_DEBUG
+from tratador import *
+from tratador_fotos import *
+
+Log.set_level(LOG_INFO)
+
+ipaddr = sys.argv[1]             # Endereço IP da central
+cport = int(sys.argv[2]) or 9009 # Porta da central de alarme
+senha = int(sys.argv[3])         # Senha de acesso remoto (usuário 98)
+tam_senha = int(sys.argv[4])     # Tamanho da senha (4 ou 6 dígitos)
+indice = int(sys.argv[5])        # Índice da foto (informado no disparo)
+nrfoto = int(sys.argv[6])        # Número da foto (total informado no disparo)
+
+t = TratadorDeFotos(cport, senha, tam_senha)
+t.enfileirar(ipaddr, indice, nrfoto)
+t.imediato()
+
+ev = EventLoop()
+ev.loop()
