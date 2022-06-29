@@ -2,6 +2,7 @@
 
 import time
 from tcpclient import *
+from utils_proto import *
 
 # Agente que obtem fotos de um evento de sensor com câmera
 
