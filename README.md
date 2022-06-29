@@ -193,7 +193,7 @@ eventos de alarme eram reportados por DTMF, portas seriais e modem discado.
 ## Onde está a documentação dos protocolos?
 
 Os documentos do protocolo Intelbras não são públicos, por isso não
-há cópias deles aqui neste repositório. Mas eles mas podem ser obtidos
+há cópias deles aqui neste repositório. Mas eles podem ser obtidos
 facilmente acionando o suporte via WhatsApp. Instruções em
 https://forum.intelbras.com.br/viewtopic.php?f=2257&t=73067
 
