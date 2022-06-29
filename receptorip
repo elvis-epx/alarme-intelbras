@@ -7,6 +7,7 @@ from tratador import *
 from tratador_fotos import *
 
 Log.set_level(LOG_INFO)
+Log.set_file("receptorip.log")
 
 def heartbeat(to_obj):
     Log.info("receptor em funcionamento")

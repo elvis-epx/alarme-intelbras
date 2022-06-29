@@ -95,8 +95,8 @@ Se for necessário fazê-lo manualmente a posteriori, pode-se utilizar o script
 
 Os primeiros parâmetros têm o mesmo significado dos passados para o 
 Receptor IP, já elencados antes. O índice da foto é informado juntamente
-com a mensagem de disparo. O número da foto começa em 0, e para o sensor
-IVP-8000, duas fotos são tiradas por disparo (números 0 e 1).
+com a mensagem de disparo. O número da foto começa em 0. No caso do sensor
+IVP-8000, duas fotos são tiradas por disparo (números de foto 0 e 1).
 
 Exemplo de uso:
 
@@ -104,15 +104,25 @@ Exemplo de uso:
 ./dlfoto 192.168.0.16 0 123456 6 404 1
 ```
 
+## Log (registro de funcionamento)
+
+O Receptor IP grava o log no arquivo receptorip.log. Esse registro inclui mensagens
+de disparo, e também algumas mensagens administrativas (conexão e desconexão da
+central, etc.)
+
+O arquivo é fechado a cada linha gravada, então um script periódico pode renomeá-lo
+e manipulá-lo a qualquer momento, sem precisar parar o monitor. (Assim que outra
+mensagem de log tiver de ser gravada, o programa criará um arquivo novo com o mesmo
+nome: receptorip.log.)
+
 ## Roadmap
 
-- Redirecionar log para arquivo
-- Script de exemplo de envio de log por e-mail
 - Rodar como serviço (daemon) em background.
 - Testes unitários e de robustez.
 - Script de restart em caso de quebra
 - Monitor externo de funcionamento
 - Configuração em arquivo em vez de parâmetros CLI
+- Sugerir https://healthchecks.io/, gancho de watchdog
 
 
 ## Motivação

@@ -10,7 +10,7 @@ LOG_DEBUG = 3
 
 class Log:
     log_level = LOG_DEBUG
-    logfile = None
+    logfile = "None"
     is_daemon = False
 
     mail_level = LOG_INFO
@@ -28,9 +28,8 @@ class Log:
         Log.mail_to = mail_to
 
     @staticmethod
-    def set_file(f):
-        if f != "None":
-            Log.logfile = open(f, "a")
+    def set_file(logfile):
+        Log.logfile = logfile
 
     @staticmethod
     def daemonize():
@@ -43,15 +42,16 @@ class Log:
         for item in msg:
             msgw += " "
             msgw += str(item)
+        msgw += "\r\n"
 
         if level <= Log.log_level:
             if not Log.is_daemon:
                 print(msgw, flush=True)
 
-            if Log.logfile:
-                Log.logfile.write(msgw)
-                Log.logfile.write("\n")
-                Log.logfile.flush()
+            if Log.logfile != "None":
+                f = open(Log.logfile, "a")
+                f.write(msgw)
+                f.close()
 
         if level <= Log.mail_level and Log.mail_from != 'None' and Log.mail_to != 'None':
             Log.mail(msgw)
