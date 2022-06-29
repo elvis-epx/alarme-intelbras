@@ -723,13 +723,12 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
             if squalif in Tratador.eventos_contact_id[codigo]:
                 desconhecido = False
                 scodigo = Tratador.eventos_contact_id[codigo][squalif]
-                fotos = fotosm = ""
+                fotos = ""
                 if com_foto:
-                    fotos = "fotos: %d %d" % (indice, nr_fotos)
-                    fotosm = "(com fotos)"
+                    fotos = "(com fotos, i=%d n=%d)" % (indice, nr_fotos)
                 descricao_humana = scodigo.format(zona=zona, particao=particao)
                 self.log_info(descricao_humana, fotos)
-                self.msg_para_gancho(descricao_humana, fotosm)
+                self.msg_para_gancho(descricao_humana, fotos)
 
                 if com_foto:
                     for n in range(0, nr_fotos):
