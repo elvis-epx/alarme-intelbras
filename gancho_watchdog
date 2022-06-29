@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# Gancho para watchdog, invocado uma vez por hora.
+# Modifique este script para utilizar o evento de 
+# watchdog.
+#
+# É importante fiscalizar (de forma manual ou automática)
+# os eventos de watchdog, para garantir que o Receptor IP
+# está rodando continuamente.
+#
+# Recomendamos usar um serviço como healthchecks.io,
+# especialmente desenhado para monitorar serviços de
+# execução periódica.
+
+date >> gancho_watchdog.txt

@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# Gancho para evento de central *não* conectada.
+#
+# Em geral, espera-se que uma central de alarme esteja conectada
+# o tempo todo ao Receptor IP (a central tem bateria e pode ter
+# um chip de celular instalado). A falta de conexão indica um
+# problema continuado de rede ou de falta de energia (quiçá 
+# propositado).
+#
+# Por ser sintoma de problema sério, sugerimos que este evento
+# seja encaminhado usando o mesmo canal utilizado para disparos
+# de alarme.
+
+date >> gancho_central.txt
