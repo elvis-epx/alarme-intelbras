@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import sys
+import sys, os
 
 from myeventloop import Timeout, Log, LOG_INFO, LOG_DEBUG
 from tratador import *
@@ -9,11 +9,13 @@ from tratador_fotos import *
 Log.set_level(LOG_INFO)
 Log.set_file("receptorip.log")
 
-def heartbeat(to_obj):
+def watchdog(to_obj):
     Log.info("receptor em funcionamento")
-    to_obj.reset(86400)
+    p = os.popen("./gancho_watchdog", 'w')
+    p.close()
+    to_obj.reset(3600)
 
-Timeout.new("heartbeat", 30, heartbeat)
+Timeout.new("watchdog", 15, watchdog)
 
 host = "0.0.0.0"
 port = int(sys.argv[1]) or 9009  # Porta deste Receptor IP
@@ -25,15 +27,17 @@ Tratador.tratador_de_fotos = TratadorDeFotos(cport, senha, tam_senha)
 
 ev = TCPServerEventLoop((host, port), TCPListener, Tratador)
 
-def watchdog(to_obj):
+def central_nao_conectada(to_obj):
     centrais_conectadas = 0
     for h in Handler.items.values():
         if isinstance(h, Tratador):
             centrais_conectadas += 1
     if not centrais_conectadas:
         Log.info("nenhuma central conectada")
-    to_obj.reset(3600)
+        p = os.popen("./gancho_central", 'w')
+        p.close()
+    to_obj.restart()
 
-Timeout.new("watchdog", 60, watchdog)
+Timeout.new("central_nc", 3600, central_nao_conectada)
 
 ev.loop()

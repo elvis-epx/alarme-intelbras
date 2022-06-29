@@ -17,7 +17,7 @@ O programa também é capaz de fazer o download de fotos de disparos do sensor
 IVP-8000.
 
 Há potencial de extensão, que reside nos ganchos. Os ganchos são scripts
-invocados em disparos (gancho\_msg e gancho\_arquivo).
+invocados em disparos (`gancho\_msg` e `gancho\_arquivo`).
 Neles, você pode adicionar código e fazer o repasse dos eventos
 via e-mail, SMS, Telegram, PushOver, etc.
 
@@ -84,7 +84,7 @@ Exemplo:
 
 Se você deseja repassar as mensagens e fotos de disparo de alarme para
 outros serviços (email, SMS, WhatsApp, etc.) você deve estender os
-scripts-gancho (gancho\_msg e gancho\_arquivo).
+scripts-gancho (`gancho\_msg` e `gancho\_arquivo`).
 
 O receptor tenta fazer o download de fotos de disparo assim que eles ocorrem.
 Se for necessário fazê-lo manualmente a posteriori, pode-se utilizar o script
@@ -106,24 +106,43 @@ Exemplo de uso:
 
 ## Log (registro de funcionamento)
 
-O Receptor IP grava o log no arquivo receptorip.log. Esse registro inclui mensagens
+O Receptor IP grava o log no arquivo `receptorip.log`. Esse registro inclui mensagens
 de disparo, e também algumas mensagens administrativas (conexão e desconexão da
 central, etc.)
 
 O arquivo é fechado a cada linha gravada, então um script periódico pode renomeá-lo
 e manipulá-lo a qualquer momento, sem precisar parar o monitor. (Assim que outra
 mensagem de log tiver de ser gravada, o programa criará um arquivo novo com o mesmo
-nome: receptorip.log.)
+nome: `receptorip.log`.)
+
+## Ganchos de monitoramento
+
+Um grande problema de rodar um serviço na nuvem é o monitoramento. Se o serviço
+parar de funcionar, como você vai ficar sabendo?
+O mesmo vale para a central de alarme: se ela ficar sem bateria, ou sem conexão,
+pode demorar muito tempo até que o problema seja notado.
+
+Para auxiliar neste mister, o Receptor IP invoca dois ganchos adicionais:
+`gancho\_watchdog` e `gancho\_central`.
+
+O script `gancho\_watchdog` é invocado religiosamente uma vez por hora, enquanto
+o Receptor IP estiver rodando.
+
+Já o script `gancho\_central` só é invocado quando nenhuma central está conectada ao
+Receptor IP.
+
+Sugerimos que o script `gancho\_watchdog` seja conectado a um serviço como
+healthchecks.io. Este serviço é especializado em "notificações negativas", ou
+seja, ele avisa quando uma rotina periódica falha em bater o ponto.
+
+Para o script `gancho\_central`, sugerimos que ele envie uma notificação
+ao usuário, usando o mesmo método que o script `gancho\_msg`, pois a falta
+de conexão da central é tão preocupante quanto um disparo de alarme.
 
 ## Roadmap
 
-- Rodar como serviço (daemon) em background.
 - Testes unitários e de robustez.
 - Script de restart em caso de quebra
-- Monitor externo de funcionamento
-- Configuração em arquivo em vez de parâmetros CLI
-- Sugerir https://healthchecks.io/, gancho de watchdog
-
 
 ## Motivação
 
