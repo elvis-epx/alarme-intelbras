@@ -17,7 +17,7 @@ O programa também é capaz de fazer o download de fotos de disparos do sensor
 IVP-8000.
 
 Há potencial de extensão, que reside nos ganchos. Os ganchos são scripts
-invocados em disparos (`gancho\_msg` e `gancho\_arquivo`).
+invocados em disparos (`gancho_msg` e `gancho_arquivo`).
 Neles, você pode adicionar código e fazer o repasse dos eventos
 via e-mail, SMS, Telegram, PushOver, etc.
 
@@ -84,7 +84,7 @@ Exemplo:
 
 Se você deseja repassar as mensagens e fotos de disparo de alarme para
 outros serviços (email, SMS, WhatsApp, etc.) você deve estender os
-scripts-gancho (`gancho\_msg` e `gancho\_arquivo`).
+scripts-gancho (`gancho_msg` e `gancho_arquivo`).
 
 O receptor tenta fazer o download de fotos de disparo assim que eles ocorrem.
 Se for necessário fazê-lo manualmente a posteriori, pode-se utilizar o script
@@ -123,20 +123,20 @@ O mesmo vale para a central de alarme: se ela ficar sem bateria, ou sem conexão
 pode demorar muito tempo até que o problema seja notado.
 
 Para auxiliar neste mister, o Receptor IP invoca dois ganchos adicionais:
-`gancho\_watchdog` e `gancho\_central`.
+`gancho_watchdog` e `gancho_central`.
 
-O script `gancho\_watchdog` é invocado religiosamente uma vez por hora, enquanto
+O script `gancho_watchdog` é invocado religiosamente uma vez por hora, enquanto
 o Receptor IP estiver rodando.
 
-Já o script `gancho\_central` só é invocado quando nenhuma central está conectada ao
+Já o script `gancho_central` só é invocado quando nenhuma central está conectada ao
 Receptor IP.
 
-Sugerimos que o script `gancho\_watchdog` seja conectado a um serviço como
+Sugerimos que o script `gancho_watchdog` seja conectado a um serviço como
 healthchecks.io. Este serviço é especializado em "notificações negativas", ou
 seja, ele avisa quando uma rotina periódica falha em bater o ponto.
 
-Para o script `gancho\_central`, sugerimos que ele envie uma notificação
-ao usuário, usando o mesmo método que o script `gancho\_msg`, pois a falta
+Para o script `gancho_central`, sugerimos que ele envie uma notificação
+ao usuário, usando o mesmo método que o script `gancho_msg`, pois a falta
 de conexão da central é tão preocupante quanto um disparo de alarme.
 
 ## Roadmap
