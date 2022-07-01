@@ -17,7 +17,7 @@ O programa também é capaz de fazer o download de fotos de disparos do sensor
 IVP-8000.
 
 Há potencial de extensão, que reside nos ganchos. Os ganchos são scripts
-invocados em disparos (`gancho_msg` e `gancho_arquivo`).
+invocados em disparos (`gancho_msg`, `gancho_arquivo` e outros).
 Neles, você pode adicionar código e fazer o repasse dos eventos
 via e-mail, SMS, Telegram, PushOver, etc.
 
@@ -36,19 +36,23 @@ Receptor, e recomendamos que você faça o mesmo!
 
 ## Limitações atuais
 
-No momento o receptor é apenas um programa de linha de comando, que 
-imprime o log na saída de terminal.
-
-O programa não tem pacote de instalação nem imagem Docker. No momento, é
-necessário que o usuário possua algum conhecimento de "devops" para fazer
-uso deste programa.
+No momento o receptor é apenas um programa de linha de comando.
+Não há pacote pronto de instalação nem imagem Docker. É
+necessário que o usuário possua algum conhecimento de "devops"
+para fazer uso deste programa.
 
 O Receptor não verifica a versão de Python instalada em seu sistema, mas
 deve ser razoavelmente atual (mínimo absoluto 3.5, recomendado 3.8 ou acima).
 
 Ao fazer a conexão de callback para download de fotos, o Receptor presume que
 o IP da central é o mesmo da conexão principal. Isto pode não funcionar se
-houver um roteador NAT no caminho (este é outro motivo pelo qual usamos VPN).
+houver um roteador NAT no caminho (é outro motivo pelo qual usamos VPN).
+
+O programa é voltado para o nosso caso de uso, onde uma (ou poucas) centrais
+conectam-se a ele. Certamente o código pode ser adaptado para uso profissional
+(digamos, para uma empresa de monitoramento), com centenas ou milhares de
+centrais conectadas, com o log e os eventos de cada uma sendo tratados de forma
+independente, etc. mas não é nossa prioridade.
 
 ## Como rodar
 
@@ -144,6 +148,7 @@ de conexão da central é tão preocupante quanto um disparo de alarme.
 
 - Testes unitários e de robustez.
 - Script de restart em caso de quebra
+- Prever caso de roteador NAT ou Docker (sem acesso direto ao IP da central)
 
 ## Motivação
 
