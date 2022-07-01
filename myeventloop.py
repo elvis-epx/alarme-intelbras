@@ -7,9 +7,10 @@ LOG_ERROR = 0
 LOG_WARN = 1
 LOG_INFO = 2
 LOG_DEBUG = 3
+LOG_DEBUG2 = 4
 
 class Log:
-    log_level = LOG_DEBUG
+    log_level = LOG_DEBUG2
     logfile = "None"
     is_daemon = False
 
@@ -81,6 +82,10 @@ class Log:
     def debug(*msg):
         Log.log(LOG_DEBUG, *msg)
 
+    @staticmethod
+    def debug2(*msg):
+        Log.log(LOG_DEBUG2, *msg)
+
 
 # background() credits: http://www.noah.org/python/daemonize.py
 
@@ -141,7 +146,7 @@ class Timeout:
             return False
 
         del Timeout.pending[id(chosen)]
-        Log.debug("= timeout %s" % chosen.label)
+        Log.debug2("= timeout %s" % chosen.label)
         chosen.callback(chosen)
         return True
 
@@ -165,7 +170,7 @@ class Timeout:
         self.callback = callback
         self.invalidated = False
         self._restart()
-        Log.debug("+ timeout %s %f" % (self.label, self.relative_to))
+        Log.debug2("+ timeout %s %f" % (self.label, self.relative_to))
 
     # "Invalidate" a timeout i.e. mark as unsuitable for further use
     # Used for assertion/debugging, not necessary (but useful) in client code
@@ -192,7 +197,7 @@ class Timeout:
         if self.invalidated:
             raise Exception("called Timeout.restart() on invalidated")
         self._restart()
-        Log.debug("> timeout %s %f" % (self.label, self.relative_to))
+        Log.debug2("> timeout %s %f" % (self.label, self.relative_to))
 
     # Restart with a different timeout
     def reset(self, relative_to):
@@ -208,7 +213,7 @@ class Timeout:
         if not self.alive():
             return False
         remaining_time = self.absolute_to - time.time()
-        Log.debug("- timeout %s (remaining %f)" % (self.label, remaining_time))
+        Log.debug2("- timeout %s (remaining %f)" % (self.label, remaining_time))
         del Timeout.pending[id(self)]
         return True
 
@@ -291,7 +296,7 @@ class Handler(ABC):
             raise Exception("called Handler.destroy() twice")
         self.destroyed_callback()
         self.destroyed = True
-        self.log_debug("destroyed")
+        self.log_debug2("destroyed")
         del Handler.items[id(self)]
         Timeout.cancel_and_inval_by_owner(self)
         try:
@@ -315,6 +320,9 @@ class Handler(ABC):
     def log_debug(self, *msg):
         Log.debug(self.label, *msg)
 
+    def log_debug2(self, *msg):
+        Log.debug2(self.label, *msg)
+
     # Creates a timeout owned by this Handler
     # (automatically cancelled upon Handler.destroy())
     def timeout(self, label, relative_to, callback):
@@ -332,7 +340,7 @@ class EventLoop:
     def loop(self):
         while self.cycle():
             pass
-        Log.warn("Exiting")
+        Log.debug2("Exiting")
 
     # override to change behavior
     def started_cycle(self):
@@ -341,7 +349,7 @@ class EventLoop:
     # override to change behavior
     def before_select(self, crd, cwr, cex, next_to, to_label):
         if to_label:
-            Log.debug("Next timeout %f %s" % (next_to, to_label))
+            Log.debug2("Next timeout %f %s" % (next_to, to_label))
 
     def cycle(self):
         self.started_cycle()
@@ -352,7 +360,7 @@ class EventLoop:
         next_to, to_label = Timeout.next_relative()
 
         if not crd and not cwr and not cex and not to_label:
-            Log.warn("No remaining tasks")
+            Log.debug2("No remaining tasks")
             return False
 
         self.before_select(crd, cwr, cex, next_to, to_label)

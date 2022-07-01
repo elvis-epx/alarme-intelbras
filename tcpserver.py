@@ -2,7 +2,7 @@
 
 import socket, time, datetime
 from abc import ABC, abstractmethod
-from myeventloop import Timeout, Handler, EventLoop, Log, LOG_INFO, LOG_DEBUG
+from myeventloop import Timeout, Handler, EventLoop
 
 class TCPServerHandler(Handler):
     def __init__(self, addr, sock):
@@ -14,7 +14,7 @@ class TCPServerHandler(Handler):
         try:
             data = self.fd.recv(4096)
         except socket.error as err:
-            self.log_debug("exception reading sk", err)
+            self.log_warn("exception reading sk", err)
             self.destroy()
             return
 
@@ -50,7 +50,7 @@ class TCPServerHandler(Handler):
         try:
             sent = self.fd.send(bytearray(self.send_buf[0:4096]))
         except socket.error as err:
-            self.log_debug("exception writing sk", err)
+            self.log_warn("exception writing sk", err)
             self.destroy()
             return 0
 
