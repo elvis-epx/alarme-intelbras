@@ -2,11 +2,11 @@
 
 import sys
 
-from myeventloop import Timeout, Log, LOG_INFO, LOG_DEBUG
+from myeventloop import Timeout, Log
 from tratador import *
 from tratador_fotos import *
 
-Log.set_level(LOG_INFO)
+Log.set_level(Log.INFO)
 
 ipaddr = sys.argv[1]             # Endereço IP da central
 cport = int(sys.argv[2]) or 9009 # Porta da central de alarme

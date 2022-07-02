@@ -3,37 +3,63 @@
 import time, select, datetime, os, signal
 from abc import ABC, abstractmethod
 
-LOG_ERROR = 0
-LOG_WARN = 1
-LOG_INFO = 2
-LOG_DEBUG = 3
-LOG_DEBUG2 = 4
-
 class Log:
-    log_level = LOG_DEBUG2
+    """
+    Utility class for logging.
+    """
+
+    ERROR = 0
+    WARN = 1
+    INFO = 2
+    DEBUG = 3
+    DEBUG2 = 4
+
+    log_level = DEBUG2
     logfile = "None"
     is_daemon = False
 
-    mail_level = LOG_INFO
+    mail_level = INFO
     mail_from = "None"
     mail_to = "None"
 
     @staticmethod
     def set_level(new_level):
+        """
+        Set logging level for stdout and file
+        Arguments:
+            new_level: Log.{ERROR,WARN,INFO,DEBUG,DEBUG2}
+        """
         Log.log_level = new_level
 
     @staticmethod
     def set_mail(mail_level, mail_from, mail_to):
+        """
+        Set logging level for e-mail
+        Arguments:
+            mail_level: Log.{ERROR,WARN,INFO,DEBUG,DEBUG2}
+            mail_from:  Sender address
+            mail_to:    Recipient address
+        """
         Log.mail_level = mail_level
         Log.mail_from = mail_from
         Log.mail_to = mail_to
 
     @staticmethod
     def set_file(logfile):
+        """
+        Set file name for log writing.
+        By default, does not write logs to file.
+        Arguments:
+            logfile: The file name, or "None" (as string) if none.
+        """
         Log.logfile = logfile
 
     @staticmethod
     def daemonize():
+        """
+        Indicates the logs should not be sent to stdout.
+        Typically called by background() global method.
+        """
         Log.is_daemon = True
 
     @staticmethod
@@ -57,6 +83,7 @@ class Log:
         if level <= Log.mail_level and Log.mail_from != 'None' and Log.mail_to != 'None':
             Log.mail(msgw)
 
+    @staticmethod
     def mail(msg):
         # credit: http://www.thinkspot.net/sheila/article.php?story=20040822174141155
         mailbody = "From: %s\r\nTo: %s\r\nSubject: vmonitor\r\n\r\n%s\r\n" % \
@@ -68,28 +95,56 @@ class Log:
 
     @staticmethod
     def error(*msg):
-        Log.log(LOG_ERROR, *msg)
+        """
+        Logs error message
+        Arguments:
+            msg: list of strings, or objects convertable to strings
+        """
+        Log.log(Log.ERROR, *msg)
 
     @staticmethod
     def warn(*msg):
-        Log.log(LOG_WARN, *msg)
+        """
+        Logs warn message
+        Arguments:
+            msg: list of strings, or objects convertable to strings
+        """
+        Log.log(Log.WARN, *msg)
 
     @staticmethod
     def info(*msg):
-        Log.log(LOG_INFO, *msg)
+        """
+        Logs info message
+        Arguments:
+            msg: list of strings, or objects convertable to strings
+        """
+        Log.log(Log.INFO, *msg)
 
     @staticmethod
     def debug(*msg):
-        Log.log(LOG_DEBUG, *msg)
+        """
+        Logs debug message
+        Arguments:
+            msg: list of strings, or objects convertable to strings
+        """
+        Log.log(Log.DEBUG, *msg)
 
     @staticmethod
     def debug2(*msg):
-        Log.log(LOG_DEBUG2, *msg)
+        """
+        Logs framework debug message
+        Arguments:
+            msg: list of strings, or objects convertable to strings
+        """
+        Log.log(Log.DEBUG2, *msg)
 
 
 # background() credits: http://www.noah.org/python/daemonize.py
 
 def background():
+    """
+    Puts the program in background as a daemon (service).
+    """
     try:
         pid = os.fork()
         if pid > 0:
