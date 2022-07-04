@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from myeventloop import Log
+from .myeventloop import Log
 
 class UtilsProtocolo:
     def hexprint(self, buf):

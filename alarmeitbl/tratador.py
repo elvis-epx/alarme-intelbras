@@ -2,8 +2,8 @@
 
 import datetime, os, shlex
 
-from myeventloop.tcpserver import *
-from utils_proto import *
+from .myeventloop.tcpserver import *
+from .utils_proto import *
 
 class Tratador(TCPServerHandler, UtilsProtocolo):
     backoff_minimo = 0.125

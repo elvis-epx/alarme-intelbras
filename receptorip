@@ -2,9 +2,9 @@
 
 import sys, os
 
-from myeventloop import Timeout, Log
-from tratador import *
-from tratador_fotos import *
+from alarmeitbl.myeventloop import Timeout, Log
+from alarmeitbl.tratador import *
+from alarmeitbl.tratador_fotos import *
 
 Log.set_level(Log.INFO)
 Log.set_file("receptorip.log")

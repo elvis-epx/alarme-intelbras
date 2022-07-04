@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 import os
-from myeventloop import Timeout, Log
-from obtem_fotos import *
+from .myeventloop import Timeout, Log
+from .obtem_fotos import *
 
 # Tratador de fotos obtidas via eventos 0xb5. Desacoplado do tratador 
 # principal pois usa conexões separadas, e as fotos ficam armazenadas
