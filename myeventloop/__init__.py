@@ -105,7 +105,8 @@ class Log:
     @staticmethod
     def warn(*msg):
         """
-        Logs warn message
+        Logs warn message.
+        Within a Handler, use Handler.log_warn() instead.
         Arguments:
             msg: list of strings, or objects convertable to strings
         """
@@ -114,7 +115,8 @@ class Log:
     @staticmethod
     def info(*msg):
         """
-        Logs info message
+        Logs info message.
+        Within a Handler, use Handler.log_info() instead.
         Arguments:
             msg: list of strings, or objects convertable to strings
         """
@@ -123,7 +125,8 @@ class Log:
     @staticmethod
     def debug(*msg):
         """
-        Logs debug message
+        Logs debug message.
+        Within a Handler, use Handler.log_debug() instead.
         Arguments:
             msg: list of strings, or objects convertable to strings
         """
@@ -132,7 +135,8 @@ class Log:
     @staticmethod
     def debug2(*msg):
         """
-        Logs framework debug message
+        Logs framework debug message.
+        Within a Handler, use Handler.log_debug2() instead.
         Arguments:
             msg: list of strings, or objects convertable to strings
         """
@@ -170,10 +174,16 @@ def background():
 
 
 class Timeout:
+    """
+    Class that encapsulates deferred tasks, to be run later by the event loop.
+    It is generally better not to instantiate it directly, but by using
+    Timeout.new(), or Handler.timeout() if within a Handler.
+    """
     pending = {}
 
     @staticmethod
     def _next():
+        # Returns next timeout to be run
         to = time.time() + 86400
         chosen = None
         for candidate in Timeout.pending.values():
@@ -184,6 +194,7 @@ class Timeout:
 
     @staticmethod
     def next_absolute():
+        # Returns next timeout to be run, in absolute UNIX time.
         to, chosen = Timeout._next()
         if chosen:
             chosen = chosen.label
@@ -191,11 +202,13 @@ class Timeout:
 
     @staticmethod
     def next_relative():
+        # Returns next timeout to be run, in relative time.
         absolute_to, chosen = Timeout.next_absolute()
         return max(0, absolute_to - time.time()), chosen
  
     @staticmethod
     def handle():
+        # Run next due timeout, calling the task back, and cancel it
         to, chosen = Timeout._next()
         if not chosen or to > time.time():
             return False
@@ -207,18 +220,25 @@ class Timeout:
 
     @staticmethod
     def cancel_and_inval_by_owner(owner):
+        # Cancel and invalidate all timeouts for a given owner (typically a Handler)
         for candidate in list(Timeout.pending.values()):
             if owner is candidate.owner:
                 candidate.invalidate()
                 del Timeout.pending[id(candidate)]
 
-    # Creates a new Timeout without a specific owner
     @staticmethod
     def new(label, relative_to, callback):
+        """
+        Instantiates a new global Timeout, without an owner.
+        Arguments:
+            label: human-readable name of the timeout
+            relative_to: relative timeout, in seconds from now
+            callback: the task to be called back
+        """
         return Timeout(None, label, relative_to, callback)
 
-    # Typically, not to be used directly
     def __init__(self, owner, label, relative_to, callback):
+        # Not to be used directly
         self.owner = owner
         self.label = label
         self.relative_to = relative_to
@@ -227,15 +247,25 @@ class Timeout:
         self._restart()
         Log.debug2("+ timeout %s %f" % (self.label, self.relative_to))
 
-    # "Invalidate" a timeout i.e. mark as unsuitable for further use
-    # Used for assertion/debugging, not necessary (but useful) in client code
     def invalidate(self):
+        """
+        Invalidate a timeout, marking it unsuitable for any future use.
+        If client code tries to do anything, a exception will be raised.
+        Useful for assertion/debugging.
+
+        Called automatically when a Handler is destroyed and all timeouts
+        owned by the handler are cancelled.
+        """
         if self.invalidated:
             raise Exception("called Timeout.invalidate() twice")
         self.invalidated = True
 
-    # Remaining time to finish (regardless of being alive)
     def remaining(self):
+        """
+        Returns time in seconds until due to be run.
+        Note the timeout may have been cancelled, and this method does not
+        take this into consideration.
+        """
         if self.invalidated:
             raise Exception("called Timeout.remaining() on invalidated")
         return max(0, self.absolute_to - time.time())
@@ -246,23 +276,34 @@ class Timeout:
         self.absolute_to = time.time() + self.relative_to
         Timeout.pending[id(self)] = self
 
-    # Restart, with the same timeout
-    # Postpone if alive, rearm if dead
     def restart(self):
+        """
+        Restart timeout with the same original relative time.
+        If timeout is alive, postpones it.
+        If timeout is spent/cancelled, it is rearmed.
+        """
         if self.invalidated:
             raise Exception("called Timeout.restart() on invalidated")
         self._restart()
         Log.debug2("> timeout %s %f" % (self.label, self.relative_to))
 
-    # Restart with a different timeout
     def reset(self, relative_to):
+        """
+        Restart timeout with a different time.
+        If timeout is alive, it is cancelled and restarted.
+        If timeout is spent/cancelled, it is rearmed.
+        Arguments:
+            relative_to: time until run the callback.
+        """
         if self.invalidated:
             raise Exception("called Timeout.reset() on invalidated")
         self.relative_to = relative_to
         self.restart()
 
-    # Cancel timeout
     def cancel(self):
+        """
+        Cancel the timeout. It can still be restarted.
+        """
         if self.invalidated:
             raise Exception("called Timeout.cancel() on invalidated")
         if not self.alive():
@@ -273,12 +314,20 @@ class Timeout:
         return True
 
     def alive(self):
+        """
+        Returns whether the timeout is active.
+        """
         if self.invalidated:
             raise Exception("called Timeout.alive() on invalidated")
         return id(self) in Timeout.pending
 
 
 class Handler(ABC):
+    """
+    Abstract class that encapsulates a file descriptor.
+    Create a derived class and fill in your implementation.
+    """
+
     items = {}
 
     @staticmethod
@@ -289,14 +338,27 @@ class Handler(ABC):
                 fds.append(handler.fd)
         return fds 
 
-    # You may override this if you don't want to handle reads
-    # but typically all sockets are selected for read
     def is_readable(self):
+        """
+        Indicates whether the file descriptor should be selected for reading.
+        The base implementation always returns True.
+
+        Override it if you need to return False in any situation.
+        Do not override if you use one of the ready-made handlers for
+        TCP and UDP supplied by this framework.
+        """
         return True
 
-    # You must override and implement this
     @abstractmethod
     def read_callback(self):
+        """
+        Called back by event loop when the file descriptor is ready for reading.
+        You must override this method and receive the data.
+
+        If you inherit your handler from TCPServerHandler, TCPClientHandler or
+        UDPServerHandler, you should override recv_callback() instead. See the
+        documentation of these classes.
+        """
         pass
 
     @staticmethod
@@ -307,12 +369,27 @@ class Handler(ABC):
                 fds.append(handler.fd)
         return fds 
 
-    # Override if you need to do buffered write
     def is_writable(self):
+        """
+        Indicates whether the file descriptor should be selected for
+        non-blocking writing. The base implementation always returns False.
+
+        Override it if you want to use non-blocking writes, meaning you need
+        to return True when apropriate.
+        Do not override if you use one of the ready-made handlers for
+        TCP and UDP supplied by this framework.
+        """
         return False
 
-    # Override if you need to do buffered write
     def write_callback(self):
+        """
+        Called back by event loop when the file descriptor is ready for writing.
+        Override this if you want to do non-blocking writes.
+
+        If you inherit your handler from TCPServerHandler, TCPClientHandler or
+        UDPServerHandler, you should override send_callback() instead. See the
+        documentation of these classes.
+        """
         pass
 
     @staticmethod
@@ -323,12 +400,26 @@ class Handler(ABC):
                 fds.append(handler.fd)
         return fds 
 
-    # Override if you want to handle exceptions
     def is_exceptional(self):
+        """
+        Indicates whether the file descriptor should be selected for
+        non-blocking exceptionhan handling. The base implementation always
+        returns False.
+
+        Override it if you want to use non-blocking exceptional handling
+        (e.g. TCP OOB), meaning you need to return True when apropriate.
+        """
         return False
 
     # Override if you need to handle "exceptional" sockets (e.g. OOB) 
     def exceptional_callback(self):
+        """
+        Called back by event loop when the file descriptor is ready for 
+        exceptional handling. The default implementation destroys the
+        Handler.
+
+        Override this if you want to do non-blocking exceptional handling.
+        """
         self.destroy()
 
     @staticmethod
@@ -339,14 +430,28 @@ class Handler(ABC):
         return None
 
     def __init__(self, label, fd, fd_exceptions):
+        """
+        Creates a Handler that encapsulates a file descriptor.
+        Arguments:
+            label: name used to prefix logging
+            fd: file descriptor to be encapsulated
+            fd_exceptions: list of Exception classes expected for the
+                           file descriptor type, that are gracefully
+                           handled.
+        """
         self.label = label
         self.fd = fd
         self.fd_exceptions = fd_exceptions
         self.destroyed = False
         Handler.items[id(self)] = self
 
-    # extend if you need to do more upon destruction
     def destroy(self):
+        """
+        Destroys the handler and closes the file descriptor.
+
+        Extend this method if you need to run code at destruction phase,
+        and overriding destroyed_callback() does not suffice.
+        """
         if self.destroyed:
             raise Exception("called Handler.destroy() twice")
         self.destroyed_callback()
@@ -359,54 +464,101 @@ class Handler(ABC):
         except self.fd_exceptions:
             pass
 
-    # Override if you need to know this is going to be destroyed
     def destroyed_callback(self):
+        """
+        Called just before destruction. Override this method if you need to
+        be called back upon handler destruction.
+        """
         pass
 
     def log_error(self, *msg):
+        """
+        Logs error message, prefixing the handler label.
+        """
         Log.error(self.label, *msg)
 
     def log_warn(self, *msg):
+        """
+        Logs warn message, prefixing the handler label.
+        """
         Log.warn(self.label, *msg)
 
     def log_info(self, *msg):
+        """
+        Logs info message, prefixing the handler label.
+        """
         Log.info(self.label, *msg)
 
     def log_debug(self, *msg):
+        """
+        Logs debug message, prefixing the handler label.
+        """
         Log.debug(self.label, *msg)
 
     def log_debug2(self, *msg):
+        """
+        Logs framework debug message, prefixing the handler label.
+        """
         Log.debug2(self.label, *msg)
 
-    # Creates a timeout owned by this Handler
-    # (automatically cancelled upon Handler.destroy())
     def timeout(self, label, relative_to, callback):
+        """
+        Creates a timeout owned by this Handler. Timeouts created this way
+        are automatically cancelled and invalidated when the handler is
+        destroyed.
+
+        Arguments:
+            label: a human-readable label for the Timeout
+            relative_to: time in seconds into the future
+            callback: the function to be called back after the time
+        """
         if self.destroyed:
             raise Exception("called Handler.timeout() after destroy()")
         return Timeout(self, label, relative_to, callback)
 
 
 class EventLoop:
+    """
+    Class that represents a program-wide event loop. This class may be
+    extended, but it is expected that a single event loop is running at
+    any given time.
+    """
+
     def __init__(self):
+        """
+        Instantiates the event loop.
+        """
         # typically used in TCP code to avoid unexpected signal
         # when a socket is written but was RSTed by the remote side
         signal.signal(signal.SIGPIPE, signal.SIG_IGN)
 
     def loop(self):
+        """
+        Runs forever until there are no Handlers or Timeouts pending.
+        """
         while self.cycle():
             pass
         Log.debug2("Exiting")
 
-    # override to change behavior
     def started_cycle(self):
+        """
+        Called at the beginning of every event loop cycle.
+        Override if you need to do something at this moment, or
+        print some debugging message.
+        """
         pass
 
-    # override to change behavior
     def before_select(self, crd, cwr, cex, next_to, to_label):
+        """
+        Called just before select() in every event loop.
+        Override if you need to do something at this moment, like printing
+        a message or changing the lists of file descriptors.
+        """
         if to_label:
             Log.debug2("Next timeout %f %s" % (next_to, to_label))
 
     def cycle(self):
+        # The main event loop cycle
         self.started_cycle()
 
         crd = Handler.readable_fds()

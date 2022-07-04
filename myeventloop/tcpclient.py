@@ -2,10 +2,23 @@
 
 import socket, time, datetime
 from abc import ABC, abstractmethod
-from myeventloop import Timeout, Handler, EventLoop
+from . import Timeout, Handler, EventLoop
 
 class TCPClientHandler(Handler):
+    """
+    Handler specialization to create, encapsulate and handle active TCP
+    connections.
+
+    This is an abstract class, and there are methods you are required
+    to override to complete the implementation.
+    """
     def __init__(self, addr):
+        """
+        Instantiate TCP active connection, create the socket and
+        start connection process.
+        Arguments:
+            addr: address/port tuple of the server to connect to
+        """
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         super().__init__("client %s:%d" % addr, sock, socket.error)
 
@@ -35,25 +48,41 @@ class TCPClientHandler(Handler):
         self.recv_buf += data
         self.recv_callback(data)
 
-    # Called when connection receives new data
-    # You must override this
     @abstractmethod
     def recv_callback(self, latest):
+        """
+        Override this abstract method to receive data from TCP connection.
+
+        This class adds all new data to Handler.read_buf variable, so you
+        don't need to handle buffering yourself. (And you should drain
+        read_buf as data is processed, to save memory.)
+
+        Arguments:
+            latest: new data octets just received
+        """
         pass
 
-    # Called when connection is up, or failed
-    # When ok is False, Handler is destroyed right after return,
-    # so don't count on further communication or timeouts tied to
-    # this Handler (delegate work to ownerless Timeouts if necessary).
-    #
-    # You must override this
     @abstractmethod
     def connection_callback(self, ok):
+        """
+        Called when connection is up, or has failed.
+        Override if you need to handle this event.
+    
+        Arguments:
+            ok: True if connection up, False if failed
+    
+        When ok is False, this Handler is destroyed right after this method
+        returns, so don't count on further communication or timeouts tied to
+        this Handler. Delegate work to global Timeouts if necessary.
+        """
         pass
 
-    # Called when connection is half-closed i.e. recv() returns 0
-    # Override if your protocol uses shutdown() to communicate EOM
     def shutdown_callback(self):
+        """
+        Called when connection is half-closed i.e. recv() returns 0
+        Override if you need to know the moment it happens e.g. your
+        protocol client uses shutdown() to communicate EOM.
+        """
         self.destroy()
 
     def is_readable(self):
@@ -65,8 +94,14 @@ class TCPClientHandler(Handler):
     def write_callback(self):
         self.send_callback()
 
-    # Use this as a shortcut to add data to send stream queue
     def send(self, data):
+        """
+        Method to append data to the output buffer, making the socket
+        selectable for writing (the sending is not immediate).
+
+        Arguments:
+            data: bytes to send
+        """
         self.send_buf += data
 
     def send_callback(self):

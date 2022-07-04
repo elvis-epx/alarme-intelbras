@@ -2,7 +2,7 @@
 
 import datetime, os, shlex
 
-from tcpserver import *
+from myeventloop.tcpserver import *
 from utils_proto import *
 
 class Tratador(TCPServerHandler, UtilsProtocolo):

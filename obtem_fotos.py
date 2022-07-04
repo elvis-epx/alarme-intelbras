@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import time
-from tcpclient import *
+from myeventloop.tcpclient import *
 from utils_proto import *
 
 # Agente que obtem fotos de um evento de sensor com câmera
