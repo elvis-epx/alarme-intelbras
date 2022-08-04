@@ -14,7 +14,7 @@ listados na documentação (arme, desarme, disparo de zona, fechamento de
 zona, etc.), reportando mensagens legíveis.
 
 O programa também é capaz de fazer o download de fotos de disparos do sensor
-IVP-8000.
+IVP-8000 Pet Cam.
 
 Há potencial de extensão, que reside nos ganchos. Os ganchos são scripts
 invocados em disparos (`gancho_msg`, `gancho_arquivo` e outros).
@@ -44,10 +44,6 @@ para fazer uso deste programa.
 O Receptor não verifica a versão de Python instalada em seu sistema, mas
 deve ser razoavelmente atual (mínimo absoluto 3.5, recomendado 3.8 ou acima).
 
-Ao fazer a conexão de callback para download de fotos, o Receptor presume que
-o IP da central é o mesmo da conexão principal. Isto pode não funcionar se
-houver um roteador NAT no caminho (é outro motivo pelo qual usamos VPN).
-
 O programa é voltado para o nosso caso de uso, onde uma (ou poucas) centrais
 conectam-se a ele. Certamente o código pode ser adaptado para uso profissional
 (digamos, para uma empresa de monitoramento), com centenas ou milhares de
@@ -59,7 +55,7 @@ independente, etc. mas não é nossa prioridade.
 Invoque o programa via linha de comando
 
 ```
-./receptorip <porta> <porta central> <senha> <tamanho senha>
+./receptorip <porta> <IP central> <porta central> <senha> <tamanho senha>
 ```
 
 "Porta" é a porta TCP/IP em que o Receptor IP aceita conexão.
@@ -67,14 +63,17 @@ Se passado o valor 0, ouve na porta default 9009. (Pode-se usar
 qualquer número de porta, desde que a respectiva configuração seja atualizada
 na central.)
 
+"IP central" é o endereço TCP/IP (IPv4) da central.
+Se passado o valor ``auto``, detecta automaticamente.
+Este parâmetro é utilizado apenas para obter fotos de um disparo de zona
+do sensor IVP-8000 Pet Cam.
+
 "Porta central" é a porta TCP/IP em que a central aceita conexão.
-Se passado o valor 0, usa a porta default 9009. Esta porta é utilizada
-para conexões de callback, utilizadas apenas obter fotos de um disparo de zona
-do sensor IVP-8000.
+Se passado o valor 0, usa a porta default 9009. O uso é o mesmo do "IP central".
 
 "Senha" é a senha de acesso remoto (usuário 98), a mesma utilizada
 para acesso à central via app AMT Mobile. Utilizada apenas para obter
-fotos do sensor IVP-8000. Informe um número qualquer se não deseja fazer
+fotos do sensor IVP-8000 Pet Cam. Informe um número qualquer se não deseja fazer
 download de fotos.
 
 "Tamanho senha" é o tamanho da senha acima. Informe 4 ou 6, ou zero se
@@ -83,7 +82,7 @@ não deseja que seja feito download de fotos.
 Exemplo:
 
 ```
-./receptorip 9010 0 123456 6
+./receptorip 9010 auto 0 123456 6
 ```
 
 Se você deseja repassar as mensagens e fotos de disparo de alarme para
@@ -100,7 +99,7 @@ Se for necessário fazê-lo manualmente a posteriori, pode-se utilizar o script
 Os primeiros parâmetros têm o mesmo significado dos passados para o 
 Receptor IP, já elencados antes. O índice da foto é informado juntamente
 com a mensagem de disparo. O número da foto começa em 0. No caso do sensor
-IVP-8000, duas fotos são tiradas por disparo (números de foto 0 e 1).
+IVP-8000 Pet Cam, duas fotos são tiradas por disparo (números de foto 0 e 1).
 
 Exemplo de uso:
 
@@ -148,7 +147,6 @@ de conexão da central é tão preocupante quanto um disparo de alarme.
 
 - Testes unitários e de robustez.
 - Script de restart em caso de quebra
-- Prever caso de roteador NAT ou Docker (sem acesso direto ao IP da central)
 - Uso do MAC da central como identificação principal
 - Permitir conexão dupla (mesma central conectada por dois caminhos diferentes), com consolidação dos eventos vindos do mesmo MAC
 

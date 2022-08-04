@@ -11,8 +11,6 @@ class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
         super().__init__((ip_addr, cport))
         self.log_info("Iniciando obtencao de foto %d:%d" % (indice, nrfoto))
         self.conn_timeout = self.timeout("conn_timeout", 15, self.conn_timeout)
-        self.ip_addr = ip_addr
-        self.cport = cport
         self.indice = indice
         self.nrfoto = nrfoto
         self.senha = senha
@@ -27,8 +25,7 @@ class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
 
     def destroyed_callback(self):
         # Informa observador sobre status final da tarefa
-        self.observer.resultado_foto(self.ip_addr, self.cport, \
-                                     self.indice, self.nrfoto, \
+        self.observer.resultado_foto(self.indice, self.nrfoto, \
                                      self.status, self.arquivo)
 
     def conn_timeout(self, task):

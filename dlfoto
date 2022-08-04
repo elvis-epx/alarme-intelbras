@@ -15,7 +15,7 @@ tam_senha = int(sys.argv[4])     # Tamanho da senha (4 ou 6 dígitos)
 indice = int(sys.argv[5])        # Índice da foto (informado no disparo)
 nrfoto = int(sys.argv[6])        # Número da foto (total informado no disparo)
 
-t = TratadorDeFotos(cport, senha, tam_senha)
+t = TratadorDeFotos("auto", cport, senha, tam_senha)
 t.enfileirar(ipaddr, indice, nrfoto)
 t.imediato()
 

@@ -19,11 +19,12 @@ Timeout.new("watchdog", 15, watchdog)
 
 host = "0.0.0.0"
 port = int(sys.argv[1]) or 9009  # Porta deste Receptor IP
-cport = int(sys.argv[2]) or 9009 # Porta da central de alarme
-senha = int(sys.argv[3])         # Senha de acesso remoto (usuário 98)
-tam_senha = int(sys.argv[4])     # Tamanho da senha (4 ou 6 dígitos)
+caddr = sys.argv[2]              # Endereco da central de alarme
+cport = int(sys.argv[3]) or 9009 # Porta da central de alarme
+senha = int(sys.argv[4])         # Senha de acesso remoto (usuário 98)
+tam_senha = int(sys.argv[5])     # Tamanho da senha (4 ou 6 dígitos)
 
-Tratador.tratador_de_fotos = TratadorDeFotos(cport, senha, tam_senha)
+Tratador.tratador_de_fotos = TratadorDeFotos(caddr, cport, senha, tam_senha)
 
 ev = TCPServerEventLoop((host, port), TCPListener, Tratador)
 

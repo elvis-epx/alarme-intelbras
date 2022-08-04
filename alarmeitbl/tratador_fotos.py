@@ -14,7 +14,8 @@ from .obtem_fotos import *
 # o programa é reiniciado.
 
 class TratadorDeFotos:
-    def __init__(self, cport, senha, tam_senha):
+    def __init__(self, caddr, cport, senha, tam_senha):
+        self.caddr = caddr
         self.cport = cport
         self.senha = senha
         self.tam_senha = tam_senha
@@ -22,10 +23,10 @@ class TratadorDeFotos:
         self.task = None
 
     # Recebe nova foto de algum Tratador para a fila
-    def enfileirar(self, ip_addr, indice, nrfoto):
+    def enfileirar(self, ip_addr_cli, indice, nrfoto):
         if self.tam_senha <= 0:
             return
-        self.fila.append([ip_addr, indice, nrfoto, 10])
+        self.fila.append([ip_addr_cli, indice, nrfoto, 10])
         if not self.task:
             # Fotos de sensor 8000 demoram para gravar (NAK 0x28 = foto não gravada)
             self.task = Timeout.new("trata_foto", 20, self.obtem_foto)
@@ -39,7 +40,13 @@ class TratadorDeFotos:
             self.task = None
             return
 
-        ip_addr, indice, nrfoto, tentativas = self.fila[0]
+        ip_addr_cli, indice, nrfoto, tentativas = self.fila[0]
+
+        # Usar endereço da central detectado ou manualmente especificado?
+        ip_addr = ip_addr_cli
+        if self.caddr.lower().strip() != "auto":
+            ip_addr = self.caddr
+
         Log.info("tratador de fotos: obtendo %s:%d:%d tentativas %d" % \
                       (ip_addr, indice, nrfoto, tentativas))
 
@@ -51,21 +58,21 @@ class TratadorDeFotos:
         p.close()
 
     # observer chamado quando ObtemFotosDeEvento finaliza
-    def resultado_foto(self, ip_addr, cport, indice, nrfoto, status, arquivo):
+    def resultado_foto(self, indice, nrfoto, status, arquivo):
         if status == 0:
-            Log.info("Fotos indice %s:%d:%d: sucesso" % (ip_addr, indice, nrfoto))
+            Log.info("Fotos indice %d:%d: sucesso" % (indice, nrfoto))
             Log.info("Arquivo de foto %s" % arquivo)
             self.msg_para_gancho_arquivo(arquivo)
             del self.fila[0]
         elif status == 2:
-            Log.info("Fotos indice %s:%d:%d: erro fatal" % (ip_addr, indice, nrfoto))
+            Log.info("Fotos indice %d:%d: erro fatal" % (indice, nrfoto))
             del self.fila[0]
         else:
             self.fila[0][3] -= 1
             if self.fila[0][3] <= 0:
-                Log.info("Fotos indice %s:%d:%d: tentativas esgotadas" % (ip_addr, indice, nrfoto))
+                Log.info("Fotos indice %d:%d: tentativas esgotadas" % (indice, nrfoto))
                 del self.fila[0]
             else:
-                Log.info("Fotos indice %s:%d:%d: erro temporario" % (ip_addr, indice, nrfoto))
+                Log.info("Fotos indice %d:%d: erro temporario" % (indice, nrfoto))
 
         self.task.restart()
