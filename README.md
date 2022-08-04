@@ -145,10 +145,12 @@ de conexão da central é tão preocupante quanto um disparo de alarme.
 
 ## Roadmap
 
-- Testes unitários e de robustez.
-- Script de restart em caso de quebra
+- Usar arquivo de configuração
+- Implementar opção de aceitar no máximo uma conexão de cada vez
 - Uso do MAC da central como identificação principal
+- Script de restart em caso de quebra
 - Permitir conexão dupla (mesma central conectada por dois caminhos diferentes), com consolidação dos eventos vindos do mesmo MAC
+- Testes unitários e de robustez.
 
 ## Motivação
 
