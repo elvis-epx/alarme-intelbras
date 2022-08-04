@@ -163,7 +163,6 @@ envia o log de erros por e-mail. (E se o log revelar um bug, por favor avise a g
 - Usar arquivo de configuração
 - Implementar opção de aceitar no máximo uma conexão de cada vez
 - Uso do MAC da central como identificação principal
-- Script de restart em caso de quebra
 - Permitir conexão dupla (mesma central conectada por dois caminhos diferentes), com consolidação dos eventos vindos do mesmo MAC
 - Testes unitários e de robustez.
 
