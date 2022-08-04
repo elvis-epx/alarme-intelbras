@@ -143,6 +143,21 @@ Para o script `gancho_central`, sugerimos que ele envie uma notificação
 ao usuário, usando o mesmo método que o script `gancho_msg`, pois a falta
 de conexão da central é tão preocupante quanto um disparo de alarme.
 
+## Supervisor do Receptor IP
+
+O aplicativo `receptorip` é construído e testado para ser robusto.
+Porém, devido a algum imprevisto, ou mesmo algum bug, ele pode parar
+inesperadamente.
+
+Sendo assim, o Receptor IP deve ser monitorado por um supervisor
+que reinicie o programa automaticamente quando necessário. Sendo um
+evento inesperado, ele o ideal é que ele seja notificado por e-mail
+ou outro meio qualquer.
+
+Você pode usar o `systemd` para isso, mas um simples script também resolve.
+Incluímos um modelo `supervisor-monitorip` junto com o código-fonte, que
+envia o log de erros por e-mail. (E se o log revelar um bug, por favor avise a gente!)
+
 ## Roadmap
 
 - Usar arquivo de configuração
