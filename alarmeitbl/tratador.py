@@ -270,7 +270,13 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
             self.log_info("identificacao central conta %d mac %s" % (conta, macaddr_s))
             if not Tratador.valida_central(macaddr_s):
                 self.log_info("central nao autorizada")
-                # deixa sem resposta
+                self.ignorar = True
+                return
+            # Testa novamente maxconn pois há uma "janela" de tempo entre conexão e
+            # identificação onde mais conexões podem ter sido aceitas
+            if not Tratador.valida_maxconn():
+                self.log_info("numero maximo de conexoes atingido - conexao ignorada")
+                self.ignorar = True
                 return
 
             self.central_identificada = True
