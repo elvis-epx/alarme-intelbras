@@ -55,56 +55,96 @@ independente, etc. mas não é nossa prioridade.
 Invoque o programa via linha de comando
 
 ```
-./receptorip <porta> <IP central> <porta central> <senha> <tamanho senha>
+./receptorip <arquivo de configuração>
 ```
-
-"Porta" é a porta TCP/IP em que o Receptor IP aceita conexão.
-Se passado o valor 0, ouve na porta default 9009. (Pode-se usar
-qualquer número de porta, desde que a respectiva configuração seja atualizada
-na central.)
-
-"IP central" é o endereço TCP/IP (IPv4) da central.
-Se passado o valor ``auto``, detecta automaticamente.
-Este parâmetro é utilizado apenas para obter fotos de um disparo de zona
-do sensor IVP-8000 Pet Cam.
-
-"Porta central" é a porta TCP/IP em que a central aceita conexão.
-Se passado o valor 0, usa a porta default 9009. O uso é o mesmo do "IP central".
-
-"Senha" é a senha de acesso remoto (usuário 98), a mesma utilizada
-para acesso à central via app AMT Mobile. Utilizada apenas para obter
-fotos do sensor IVP-8000 Pet Cam. Informe um número qualquer se não deseja fazer
-download de fotos.
-
-"Tamanho senha" é o tamanho da senha acima. Informe 4 ou 6, ou zero se
-não deseja que seja feito download de fotos.
-
-Exemplo:
-
-```
-./receptorip 9010 auto 0 123456 6
-```
-
-Se você deseja repassar as mensagens e fotos de disparo de alarme para
-outros serviços (email, SMS, WhatsApp, etc.) você deve estender os
-scripts-gancho (`gancho_msg` e `gancho_arquivo`).
-
-O receptor tenta fazer o download de fotos de disparo assim que eles ocorrem.
-Se for necessário fazê-lo manualmente a posteriori, pode-se utilizar o script
-
-```
-./dlfoto <IP central> <porta central> <senha> <tam.senha> <indice> <nr.foto>
-```
-
-Os primeiros parâmetros têm o mesmo significado dos passados para o 
-Receptor IP, já elencados antes. O índice da foto é informado juntamente
-com a mensagem de disparo. O número da foto começa em 0. No caso do sensor
-IVP-8000 Pet Cam, duas fotos são tiradas por disparo (números de foto 0 e 1).
 
 Exemplo de uso:
 
 ```
-./dlfoto 192.168.0.16 0 123456 6 404 1
+./receptorip config.cfg
+```
+
+## Arquivo de configuração
+
+O arquivo de configuração ``config.cfg`` é fornecido como modelo. Os parâmetros
+contidos dele são os seguintes:
+
+``addr`` - interface de rede em que o Receptor IP aceitará conexões.
+Deve ser um endereço IPv4 válido. Use o endereço `0.0.0.0` se a interface
+é indiferente, ou se não tem certeza do endereço correto.
+
+``port`` - porta em que o Receptor IP aceitará conexões. Deve ser um número.
+Normalmente será `9009`.
+
+``caddr`` - endereço IP da central de alarme. Deve ser um endereço ou hostname válido,
+ou então `auto` para detecção automática.
+
+``cport`` - porta da central de alarme. Deve ser um número. Normalmente será 9009.
+
+``senha`` - senha de acesso remoto da central (usuário 98), a mesma utilizada
+para acesso via app AMT Mobile. Deve ser um número.
+
+``tamanho`` - tamanho da senha acima. Deve ser igual a `4` ou `6`.
+
+Todos os parâmetros são obrigatórios e devem ser sintaticamente corretos,
+porém `caddr`, `cport`, `senha` e `tamanho` são utilizados apenas para
+obter fotos de disparo de zona dos sensores IVP-8000 Pet Cam.
+Se não possui este sensor, ou não deseja que o Receptor IP puxe as fotos,
+informe um valor qualquer para a senha.
+
+## Download de fotos versus NAT
+
+Quando o Receptor IP recebe uma conexão da central de alarme, o endereço IP
+de origem é anotado. Se o parâmetro ``caddr`` for igual a ``auto``, esse
+mesmo endereço é utilizado para conectar-se à central na hora de fazer download
+de fotos de disparo do sensor.
+
+Porém, isto só funciona se o Receptor IP e a central estiveram na mesma rede
+ou inter-rede. Se a central estiver atrás de um roteador NAT, ou de um provedor
+CGNAT, a conexão no sentido inverso não funcionará.
+
+Nestes casos, será preciso usar alguma técnica para "furar o bloqueio",
+seja VPN, proxy reverso ou NAT reverso (também conhecido como port forwarding ou DMZ).
+
+O parâmetro ``caddr`` deve então ser preenchido com o endereço IP ou hostname
+através do qual o Receptor IP consiga chegar à central.
+
+Note que expor sua central à conexões vindas da Internet é um furo de segurança.
+Alguma providência adicional de segurança (VPN, firewall) deve ser adotada.
+
+## Scripts de gancho
+
+Se você deseja compartilhar as mensagens e fotos de disparo de alarme através
+de algum serviço (email, SMS, WhatsApp, etc.) você deve modificar os
+scripts-gancho (`gancho_msg` e `gancho_arquivo`).
+
+O script `gancho_msg` recebe e encaminha as mensagens de eventos.
+
+O script `gancho_arquivo` recebe e encaminha arquivos, mais especificamente
+as fotos capturadas pelo sensor IVP 8000 Pet Cam, se ele existir na sua
+instalação, e estiver devidamente configurado.
+
+## Download manual de fotos
+
+O receptor tenta fazer o download de fotos de disparo assim que eles ocorrem.
+Se for necessário fazê-lo manualmente a posteriori, use o script `dlfoto`:
+
+```
+./dlfoto <arquivo de configuração> <indice> <nr.foto>
+```
+
+O arquivo de configuração tem o mesmo formato do Receptor IP. Se estiver
+rodando `dlfoto` de uma máquina diferente de `receptorip`, ajuste as 
+configurações de acordo.
+
+O índice da foto é informado juntamente com a mensagem de disparo. O número
+da foto começa em 0. No caso do sensor IVP-8000 Pet Cam, duas fotos são
+tiradas por disparo (números de foto 0 e 1).
+
+Exemplo de uso:
+
+```
+./dlfoto config.cfg 404 1
 ```
 
 ## Log (registro de funcionamento)
