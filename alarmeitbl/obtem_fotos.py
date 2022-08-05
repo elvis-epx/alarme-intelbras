@@ -178,7 +178,7 @@ class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
             return
 
         self.log_info("Conexao foto: salvando imagem")
-        self.arquivo = "imagem%.6f.jpeg" % time.time()
+        self.arquivo = "imagem.%d.%d.%.6f.jpeg" % (indice, foto, time.time())
         f = open(self.arquivo, "wb")
         f.write(bytearray(jpeg_corrente))
         f.close()
