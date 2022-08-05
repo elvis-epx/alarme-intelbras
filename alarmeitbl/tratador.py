@@ -249,7 +249,6 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
         resposta = [0xfe]
         self.envia_curto(resposta)
 
-    # TODO verificar se a central é a esperada
     def identificacao_central(self, msg):
         if len(msg) != 7:
             self.log_warn("identificacao central: tamanho inesperado,", self.hexprint(msg))
@@ -257,8 +256,13 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
             canal = msg[0] # 'E' (0x45)=Ethernet, 'G'=GPRS, 'H'=GPRS2
             conta = self.from_bcd(msg[1:3])
             macaddr = msg[3:6]
-            macaddr_s = ":".join(["%02x" % i for i in macaddr])
+            macaddr_s = (":".join(["%02x" % i for i in macaddr])).lower()
             self.log_info("identificacao central conta %d mac %s" % (conta, macaddr_s))
+            if not Tratador.valida_central(macaddr_s):
+                self.log_info("central nao autorizada")
+                # deixa sem resposta
+                return
+
             if self.to_ident:
                 self.to_ident.cancel()
                 self.to_ident = None

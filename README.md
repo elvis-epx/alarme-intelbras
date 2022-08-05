@@ -86,11 +86,25 @@ para acesso via app AMT Mobile. Deve ser um número.
 
 ``tamanho`` - tamanho da senha acima. Deve ser igual a `4` ou `6`.
 
+``centrais`` - expressão regular que determina os IDs das centrais aceitas para conexão.
+
 Todos os parâmetros são obrigatórios e devem ser sintaticamente corretos,
 porém `caddr`, `cport`, `senha` e `tamanho` são utilizados apenas para
 obter fotos de disparo de zona dos sensores IVP-8000 Pet Cam.
 Se não possui este sensor, ou não deseja que o Receptor IP puxe as fotos,
 informe um valor qualquer para a senha.
+
+Exemplos de expressões para ``centrais``:
+
+``.*`` qualquer ID de central
+
+``aa:bb:cc`` apenas a central com ID `aa:bb:cc`. (O ID da central é um pedaço de endereço MAC, com dígitos hexa minúsculos.)
+
+``aa:bb:(cd|ef)`` aceita as centrais `aa:bb:cd` e `aa:bb:ef`.
+
+``aa:bb:cd|aa:bb:ef`` idem.
+
+Utilize o script ``testa_re`` para testar sua expressão e ver se dá match :)
 
 ## Download de fotos versus NAT
 

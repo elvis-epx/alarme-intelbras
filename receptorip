@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import sys, os, configparser
+import sys, os, configparser, re
 
 from alarmeitbl.myeventloop import Timeout, Log
 from alarmeitbl.tratador import *
@@ -39,8 +39,14 @@ caddr = ("" + config['caddr']).lower().strip()
 cport = int(config['cport'])
 senha = int(config['senha'])
 tam_senha = int(config['tamanho'])
+centrais = re.compile("" + config['centrais'])
 
 Tratador.tratador_de_fotos = TratadorDeFotos('receptorip', caddr, cport, senha, tam_senha)
+
+def valida_central(id_central):
+    return centrais.match(id_central)
+
+Tratador.valida_central = valida_central
 
 ev = TCPServerEventLoop((host, port), TCPListener, Tratador)
 
