@@ -45,7 +45,7 @@ class TratadorDeFotos:
 
         # Usar endereço da central detectado ou manualmente especificado?
         ip_addr = ip_addr_cli
-        if self.caddr.lower().strip() != "auto":
+        if self.caddr != "auto":
             ip_addr = self.caddr
 
         Log.info("tratador de fotos: obtendo %s:%d:%d tentativas %d" % \

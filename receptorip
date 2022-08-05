@@ -33,9 +33,9 @@ def watchdog(to_obj):
 Timeout.new("watchdog", 15, watchdog)
 
 config = parse_config()
-host = "" + config['addr']
+host = ("" + config['addr']).lower().strip()
 port = int(config['port'])
-caddr = "" + config['caddr']
+caddr = ("" + config['caddr']).lower().strip()
 cport = int(config['cport'])
 senha = int(config['senha'])
 tam_senha = int(config['tamanho'])

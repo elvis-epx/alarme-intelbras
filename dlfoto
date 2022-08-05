@@ -24,7 +24,7 @@ def parse_config():
 Log.set_level(Log.INFO)
 
 config = parse_config()
-ipaddr = "" + config['caddr']
+ipaddr = ("" + config['caddr']).lower().strip()
 if ipaddr == 'auto':
     print("Para este fim, a config. caddr deve conter um endereço IP explícito.")
     usage()
