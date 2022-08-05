@@ -18,7 +18,7 @@ IVP-8000 Pet Cam.
 
 Há potencial de extensão, que reside nos ganchos. Os ganchos são scripts
 invocados em disparos (`gancho_msg`, `gancho_arquivo` e outros).
-Neles, você pode adicionar código e fazer o repasse dos eventos
+Neles, você pode adicionar código e fazer o compartilhamento dos eventos
 via e-mail, SMS, Telegram, PushOver, etc.
 
 ## Plataforma e hardware de alarme
@@ -115,7 +115,7 @@ Alguma providência adicional de segurança (VPN, firewall) deve ser adotada.
 ## Scripts de gancho
 
 Se você deseja compartilhar as mensagens e fotos de disparo de alarme através
-de algum serviço (email, SMS, WhatsApp, etc.) você deve modificar os
+de algum serviço (email, SMS, WhatsApp, etc.) faça-o através dos
 scripts-gancho (`gancho_msg` e `gancho_arquivo`).
 
 O script `gancho_msg` recebe e encaminha as mensagens de eventos.
@@ -200,7 +200,6 @@ envia o log de erros por e-mail. (E se o log revelar um bug, por favor avise a g
 
 ## Roadmap
 
-- Usar arquivo de configuração
 - Implementar opção de aceitar no máximo uma conexão de cada vez
 - Uso do MAC da central como identificação principal
 - Permitir conexão dupla (mesma central conectada por dois caminhos diferentes), com consolidação dos eventos vindos do mesmo MAC
