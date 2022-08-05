@@ -1,7 +1,7 @@
 #!/bin/bash -x
 
 while true; do
-	./receptorip <parametros> 2>erros.txt
+	./receptorip config.cfg 2>erros.txt
 	# fazer algo com o arquivo erros.txt
 	# cat erros.txt | mail -s 'Receptor IP - quebra' email@dominio.com
 	sleep 60
