@@ -88,13 +88,20 @@ para acesso via app AMT Mobile. Deve ser um número.
 
 ``centrais`` - expressão regular que determina os IDs das centrais aceitas para conexão.
 
+``maxconn`` - número máximo de centrais conectadas e identificadas. Uma vez atingido esse número, conexões novas não são tratadas e acabam fechando por timeout.
+
+## Mais sobre as configurações de callback
+
 Todos os parâmetros são obrigatórios e devem ser sintaticamente corretos,
 porém `caddr`, `cport`, `senha` e `tamanho` são utilizados apenas para
 obter fotos de disparo de zona dos sensores IVP-8000 Pet Cam.
+
 Se não possui este sensor, ou não deseja que o Receptor IP puxe as fotos,
 informe um valor qualquer para a senha.
 
-Exemplos de expressões para ``centrais``:
+## Mais sobre autenticação da central
+
+Exemplos de expressões regulares válidas para ``centrais``:
 
 ``.*`` qualquer ID de central
 
@@ -105,6 +112,31 @@ Exemplos de expressões para ``centrais``:
 ``aa:bb:cd|aa:bb:ef`` idem.
 
 Utilize o script ``testa_re`` para testar sua expressão e ver se dá match :)
+
+## Mais sobre o número máximo de conexões
+
+Aparentemente, centrais com firmware versão anterior a 2.0.6 têm bugs relacionados
+ao Receptor IP. Problemas observados:
+
+a) tenta conectar com os Receptores 1 e 2, mesmo que o 2 esteja desativado.
+
+b) tenta conectar com o IP do Receptor 1 e também com o nome DNS do Receptor 1,
+mesmo que a configuração indique conectar apenas pelo IP ou apenas pelo nome.
+
+Esses bugs podem fazer a central criar várias conexões paralelas com o Receptor IP,
+gerando duplicação de eventos.
+
+Uma solução de contorno é cadastrar o Receptor 2 com um IP/porta inválido, mas
+aí a central reportará falhas de entrega de evento ao Receptor 1 (de vez em quando),
+por não conseguir falar com o Receptor 2.
+
+Mencionamos estes problemas nesta seção porque, se você configurar o Receptor IP
+para aceitar apenas 1 conexão, a central pode ficar tentando criar uma segunda
+conexão continuamente, o que pode ser confuso quando a não se conhece a causa.
+
+De todo modo, a solução ideal é fazer o update de firmware para 2.0.6, o que
+pode inclusive ser comandado pelo aplicativo de celular e remotamente (não é
+preciso estar na mesma rede da central).
 
 ## Download de fotos versus NAT
 
@@ -214,8 +246,6 @@ envia o log de erros por e-mail. (E se o log revelar um bug, por favor avise a g
 
 ## Roadmap
 
-- Implementar opção de aceitar no máximo uma conexão de cada vez
-- Uso do MAC da central como identificação principal
 - Permitir conexão dupla (mesma central conectada por dois caminhos diferentes), com consolidação dos eventos vindos do mesmo MAC
 - Testes unitários e de robustez.
 

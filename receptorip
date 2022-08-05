@@ -40,22 +40,31 @@ cport = int(config['cport'])
 senha = int(config['senha'])
 tam_senha = int(config['tamanho'])
 centrais = re.compile("" + config['centrais'])
+maxconn = int(config['maxconn'])
 
 Tratador.tratador_de_fotos = TratadorDeFotos('receptorip', caddr, cport, senha, tam_senha)
 
 def valida_central(id_central):
     return centrais.match(id_central)
 
+def centrais_conectadas():
+    n = 0
+    for h in Handler.items.values():
+        if isinstance(h, Tratador):
+            if h.central_identificada:
+               n += 1
+    return n
+
+def valida_maxconn():
+    return centrais_conectadas() < maxconn
+
 Tratador.valida_central = valida_central
+Tratador.valida_maxconn = valida_maxconn
 
 ev = TCPServerEventLoop((host, port), TCPListener, Tratador)
 
 def central_nao_conectada(to_obj):
-    centrais_conectadas = 0
-    for h in Handler.items.values():
-        if isinstance(h, Tratador):
-            centrais_conectadas += 1
-    if not centrais_conectadas:
+    if not centrais_conectadas():
         Log.info("nenhuma central conectada")
         p = os.popen("./gancho_central", 'w')
         p.close()

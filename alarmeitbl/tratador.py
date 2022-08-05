@@ -100,6 +100,7 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
         self.log_info("inicio")
         self.backoff = Tratador.backoff_minimo
 
+        self.central_identificada = False
         self.to_ident = self.timeout("ident", 120, self.timeout_identificacao)
         self.to_comm = self.timeout("comm", 600, self.timeout_comunicacao)
         self.to_processa = None
@@ -262,7 +263,14 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
                 self.log_info("central nao autorizada")
                 # deixa sem resposta
                 return
+            if not Tratador.valida_maxconn():
+                self.log_info("numero maximo de conexoes atingido")
+                # deixa sem resposta
+                return
 
+            self.central_identificada = True
+
+            self.central_identificada = True
             if self.to_ident:
                 self.to_ident.cancel()
                 self.to_ident = None
