@@ -100,6 +100,7 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
         self.log_info("inicio")
         self.backoff = Tratador.backoff_minimo
 
+        self.ignorar = False
         self.central_identificada = False
         self.to_ident = self.timeout("ident", 120, self.timeout_identificacao)
         self.to_comm = self.timeout("comm", 600, self.timeout_comunicacao)
@@ -108,6 +109,10 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
         self.to_backoff = None
 
         self.ip_addr = addr[0]
+
+        if not Tratador.valida_maxconn():
+            self.log_info("numero maximo de conexoes atingido - conexao ignorada")
+            self.ignorar = True
 
     def timeout_comunicacao(self, _):
         self.log_info("timeout de comunicacao")
@@ -137,6 +142,10 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
         self._envia(resposta)
 
     def recv_callback(self, _):
+        if self.ignorar:
+            self.recv_buf = []
+            return
+
         self.log_debug("evento")
         self.log_debug("buf =", self.hexprint(self.recv_buf))
         self.to_comm.restart()
@@ -261,10 +270,6 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
             self.log_info("identificacao central conta %d mac %s" % (conta, macaddr_s))
             if not Tratador.valida_central(macaddr_s):
                 self.log_info("central nao autorizada")
-                # deixa sem resposta
-                return
-            if not Tratador.valida_maxconn():
-                self.log_info("numero maximo de conexoes atingido")
                 # deixa sem resposta
                 return
 
