@@ -14,7 +14,8 @@ from .obtem_fotos import *
 # o programa é reiniciado.
 
 class TratadorDeFotos:
-    def __init__(self, caddr, cport, senha, tam_senha):
+    def __init__(self, prog, caddr, cport, senha, tam_senha):
+        self.prog = prog
         self.caddr = caddr
         self.cport = cport
         self.senha = senha
@@ -62,7 +63,8 @@ class TratadorDeFotos:
         if status == 0:
             Log.info("Fotos indice %d:%d: sucesso" % (indice, nrfoto))
             Log.info("Arquivo de foto %s" % arquivo)
-            self.msg_para_gancho_arquivo(arquivo)
+            if self.prog == 'receptorip':
+                self.msg_para_gancho_arquivo(arquivo)
             del self.fila[0]
         elif status == 2:
             Log.info("Fotos indice %d:%d: erro fatal" % (indice, nrfoto))

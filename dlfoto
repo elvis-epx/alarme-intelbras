@@ -34,7 +34,7 @@ tam_senha = int(config['tamanho'])
 indice = int(sys.argv[2])
 nrfoto = int(sys.argv[3])
 
-t = TratadorDeFotos("auto", cport, senha, tam_senha)
+t = TratadorDeFotos('dlfoto', "auto", cport, senha, tam_senha)
 t.enfileirar(ipaddr, indice, nrfoto)
 t.imediato()
 

@@ -40,7 +40,7 @@ cport = int(config['cport'])
 senha = int(config['senha'])
 tam_senha = int(config['tamanho'])
 
-Tratador.tratador_de_fotos = TratadorDeFotos(caddr, cport, senha, tam_senha)
+Tratador.tratador_de_fotos = TratadorDeFotos('receptorip', caddr, cport, senha, tam_senha)
 
 ev = TCPServerEventLoop((host, port), TCPListener, Tratador)
 
