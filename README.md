@@ -113,6 +113,12 @@ Exemplos de expressões regulares válidas para ``centrais``:
 
 Utilize o script ``testa_re`` para testar sua expressão e ver se dá match :)
 
+As configurações ``centrais`` e ``maxconn`` são um mecanismo básico
+de filtragem contra conexões espúrias, para um Receptor IP rodando na nuvem e exposto
+à Internet. Porém, é totalmente desaconselhado contar apenas com isso
+para sua segurança! O ideal é usar VPN; uma solução temporária razoável seria
+filtrar pela faixa de IPs do provedor que fornece conectividade à central de alarme.
+
 ## Mais sobre o número máximo de conexões
 
 Aparentemente, centrais com firmware versão anterior a 2.0.6 têm bugs relacionados
