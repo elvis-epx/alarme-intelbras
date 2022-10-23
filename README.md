@@ -208,7 +208,7 @@ central, etc.)
 O arquivo é fechado a cada linha gravada, então um script periódico pode renomeá-lo
 e manipulá-lo a qualquer momento, sem precisar parar o monitor. (Assim que outra
 mensagem de log tiver de ser gravada, o programa criará um arquivo novo com o mesmo
-nome: `receptorip.log`.)
+nome.)
 
 ## Ganchos de monitoramento
 
@@ -239,20 +239,20 @@ de conexão da central é tão preocupante quanto um disparo de alarme.
 
 O aplicativo `receptorip` é construído e testado para ser robusto.
 Porém, devido a algum imprevisto, ou mesmo algum bug, ele pode parar
-inesperadamente.
+inesperadamente. Alguma espécie de supervisor deve ser empregado para
+reiniciar o Receptor IP quando isto acontecer, de preferência notificando
+por e-mail para que a causa-raiz seja descoberta e consertada.
 
-Sendo assim, o Receptor IP deve ser monitorado por um supervisor
-que reinicie o programa automaticamente quando necessário. Sendo um
-evento inesperado, ele o ideal é que ele seja notificado por e-mail
-ou outro meio qualquer.
-
-Você pode usar o `systemd` para isso, mas um simples script também resolve.
+Você pode usar o `systemd` como supervisor, mas um simples script também resolve.
 Incluímos um modelo `supervisor-monitorip` junto com o código-fonte, que
 envia o log de erros por e-mail. (E se o log revelar um bug, por favor avise a gente!)
 
 ## Roadmap
 
-- Permitir conexão dupla (mesma central conectada por dois caminhos diferentes), com consolidação dos eventos vindos do mesmo MAC
+- Permitir conexão dupla (mesma central conectada por dois caminhos diferentes), com consolidação dos eventos vindos do mesmo MAC.
+- Suporte a muitas centrais de instalações/clientes diferentes.
+- Integração com MQTT (já pode ser feita hoje mosquitto\_sub nos scripts-gancho, a ideia é que seja uma integração mais estreita, uma vez que MQTT é o padrão de fato para IoT e automação residencial).
+- Suporte a outras centrais que usam o mesmo protocolo e.g. AMT-1016.
 - Testes unitários e de robustez.
 
 ## Motivação
@@ -263,10 +263,10 @@ o Receptor IP -- um software desenvolvido pela Intelbras -- a fim de receber
 os eventos de alarme.
 
 Porém, existem casos em que pode ser útil usar um "Receptor IP"
-alternativo, por exemplo:
+alternativo:
 
 a) numa área onde nenhuma empresa de segurança possa atender, porém
-os eventos ainda poderiam ser reportados para uma rede de vizinhos.
+os eventos ainda poderiam ser compartilhados numa rede de vizinhos.
 
 b) quando for desejável armazenar e/ou tratar os eventos de alarme
 de forma sistemática e automatizada, salvando dados na nuvem ou
@@ -278,14 +278,13 @@ a central para eliminar essas fotos. Um Receptor IP rodando na nuvem
 garante que as fotos estarão salvas.
 
 c) A central AMT-8000 não suporta envio de SMS no firmware mais
-recente. Se SMS for absolutamente necessário, o nosso programa pode
-ser usado para repassar os disparos a um serviço SMS, ou integrar
-com WhatsApp/Telegram. A nuvem da Amazon possui o serviço SNS para
-facilitar esse tipo de integração.
+recente. Nosso programa poderia ser usado para repassar os disparos
+a um serviço SMS. Existem muitos serviços SMS pagos, e a própria Amazon
+oferece o serviço SNS.
 
 (Lembrando que uma central de alarme pode reportar eventos a dois
-Receptores IP, então é possível reportar ao Receptor IP original
-e ao alternativo ao mesmo tempo.)
+Receptores IP, então é possível reportar a uma central de monitoramento
+e também ao receptor alternativo ao mesmo tempo.)
 
 d) uma central de alarme poderia ser usada em projetos IoT não 
 necessariamente relacionados com segurança patrimonial. É um
@@ -293,7 +292,10 @@ hardware barato, de boa qualidade e fácil de encontrar.
 
 e) o Receptor IP da Intelbras é um software Windows, feito para
 empresas de monitoramento que acompanham inúmeros clientes ao
-mesmo tempo. A nossa alternativa rodaria facilmente num Raspberry Pi Zero.
+mesmo tempo. A nossa alternativa funciona no Linux, viabilizando seu
+uso na nuvem e também em SBCs tipo Raspberry Pi.
+
+f) integração com automação residencial (Home Assistant e outros).
 
 Uma última motivação para este projeto, mais pessoal, é conhecer mais de perto
 esse ecossistema das centrais de alarme. Os protocolos são verdadeiras 
