@@ -260,33 +260,35 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
         self.envia_curto(resposta)
 
     def identificacao_central(self, msg):
+        resposta = [0xfe]
+
         if len(msg) != 7:
             self.log_warn("identificacao central: tamanho inesperado,", self.hexprint(msg))
-        else:
-            canal = msg[0] # 'E' (0x45)=Ethernet, 'G'=GPRS, 'H'=GPRS2
-            conta = self.from_bcd(msg[1:3])
-            macaddr = msg[3:6]
-            macaddr_s = (":".join(["%02x" % i for i in macaddr])).lower()
-            self.log_info("identificacao central conta %d mac %s" % (conta, macaddr_s))
-            if not Tratador.valida_central(macaddr_s):
-                self.log_info("central nao autorizada")
-                self.ignorar = True
-                return
-            # Testa novamente maxconn pois há uma "janela" de tempo entre conexão e
-            # identificação onde mais conexões podem ter sido aceitas
-            if not Tratador.valida_maxconn():
-                self.log_info("numero maximo de conexoes atingido - conexao ignorada")
-                self.ignorar = True
-                return
+            self.envia_curto(resposta)
 
-            self.central_identificada = True
+        canal = msg[0] # 'E' (0x45)=Ethernet, 'G'=GPRS, 'H'=GPRS2
+        conta = self.from_bcd(msg[1:3])
+        macaddr = msg[3:6]
+        macaddr_s = (":".join(["%02x" % i for i in macaddr])).lower()
+        self.log_info("identificacao central conta %d mac %s" % (conta, macaddr_s))
 
-            self.central_identificada = True
-            if self.to_ident:
-                self.to_ident.cancel()
-                self.to_ident = None
+        if not Tratador.valida_central(macaddr_s):
+            self.log_info("central nao autorizada")
+            self.ignorar = True
+            return
 
-        resposta = [0xfe]
+        # Testa novamente maxconn pois há uma "janela" de tempo entre conexão e
+        # identificação onde mais conexões podem ter sido aceitas
+        if not Tratador.valida_maxconn():
+            self.log_info("numero maximo de conexoes atingido - conexao ignorada")
+            self.ignorar = True
+            return
+
+        self.central_identificada = True
+        if self.to_ident:
+            self.to_ident.cancel()
+            self.to_ident = None
+
         self.envia_curto(resposta)
 
     def solicita_data_hora(self, msg):
