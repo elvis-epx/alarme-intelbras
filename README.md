@@ -223,8 +223,9 @@ Para auxiliar neste mister, o Receptor IP invoca dois ganchos adicionais:
 O script `gancho_watchdog` é invocado religiosamente uma vez por hora, enquanto
 o Receptor IP estiver rodando.
 
-Já o script `gancho_central` só é invocado quando nenhuma central está conectada ao
-Receptor IP.
+Já o script `gancho_central` é invocado quando nenhuma central está conectada ao
+Receptor IP (e quando o problema foi resolvido). O script recebe um parâmetro
+igual a 1 quando o problema é detectado, e 0 quando o problema é resolvido.
 
 Sugerimos que o script `gancho_watchdog` seja conectado a um serviço como
 [healthchecks.io](https://healthchecks.io). Este serviço é especializado em

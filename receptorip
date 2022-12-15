@@ -65,10 +65,17 @@ ev = TCPServerEventLoop((host, port), TCPListener, Tratador)
 
 def central_nao_conectada(to_obj):
     if not centrais_conectadas():
+        central_nao_conectada.alarme = 1
         Log.info("nenhuma central conectada")
-        p = os.popen("./gancho_central", 'w')
+        p = os.popen("./gancho_central 1", 'w')
         p.close()
+    elif central_nao_conectada.alarme > 0:
+        central_nao_conectada.alarme = 0
+        p = os.popen("./gancho_central 0", 'w')
+        p.close()
+
     to_obj.restart()
+central_nao_conectada.alarme = 0
 
 Timeout.new("central_nc", 3600, central_nao_conectada)
 

@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Gancho para evento de central *não* conectada.
+# Gancho para evento de central não conectada.
 #
 # Em geral, espera-se que uma central de alarme esteja conectada
 # o tempo todo ao Receptor IP (a central tem bateria e pode ter
@@ -11,5 +11,13 @@
 # Por ser sintoma de problema sério, sugerimos que este evento
 # seja encaminhado usando o mesmo canal utilizado para disparos
 # de alarme.
+#
+# Parâmetro $1: 1 para central não conectada, 0 quando o problema
+#               deixou de existir (i.e. a central reconectou)
 
+if [ "$1" = "1" ]; then
+    echo "Nenhuma central conectada" >> gancho_central.txt
+else
+    echo "Problema resolvido" >> gancho_central.txt
+fi
 date >> gancho_central.txt
