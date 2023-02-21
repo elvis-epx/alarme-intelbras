@@ -309,6 +309,10 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
         p = os.popen("./gancho_msg %s" % shlex.quote(msgw), 'w')
         p.close()
 
+    def ev_para_gancho(self, codigo, particao, zona, qualificador):
+        p = os.popen("./gancho_ev %d %d %d %d" % (codigo, particao, zona, qualificador), 'w')
+        p.close()
+
     def evento_alarme(self, msg, com_foto):
         compr = com_foto and 20 or 17
         if len(msg) != compr:
@@ -328,6 +332,8 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
             checksum = msg[16] # truque do protocolo de reposicionar o checksum
             indice = msg[17] * 256 + msg[18]
             nr_fotos = msg[19]
+
+        self.ev_para_gancho(codigo, particao, zona, qualificador)
 
         desconhecido = True
         if tipo_msg == 18 and codigo in Tratador.eventos_contact_id:

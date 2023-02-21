@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# Gancho para códigos de eventos. Os números são passados como parâmetros
+# de linha de comando:
+#
+# $1: código do evento
+# $2: partição
+# $3: zona
+# $4: qualificador
+#
+# Consulte a documentação da Intelbras e/ou o início do arquivo alarmeitbl/tratador.py
+# para conhecer os possíveis códigos de eventos, e em que eventos o qualificador
+# deve ser observado, bem como seu significado. Exemplos:
+#
+# Evento 130 (disparo): qualificador 1 (abertura/disparo) ou 3 (restauro/desligamento).
+# Evento 404 (ativação remota): qualif. 3 (ativação) ou 1 (desativação do alarme).
+# Evento 625 (data/hora atualizada): nenhum qualificador
+
+echo "$1 $2 $3 $4" >> gancho_ev.txt

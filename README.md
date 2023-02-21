@@ -17,7 +17,7 @@ O programa também é capaz de fazer o download de fotos de disparos do sensor
 IVP-8000 Pet Cam.
 
 Há potencial de extensão, que reside nos ganchos. Os ganchos são scripts
-invocados em disparos (`gancho_msg`, `gancho_arquivo` e outros).
+invocados em disparos (`gancho_msg`, `gancho_ev`, `gancho_arquivo` e outros).
 Neles, você pode adicionar código e fazer o compartilhamento dos eventos
 via e-mail, SMS, Telegram, PushOver, etc.
 
@@ -168,9 +168,13 @@ Alguma providência adicional de segurança (VPN, firewall) deve ser adotada.
 
 Se você deseja compartilhar as mensagens e fotos de disparo de alarme através
 de algum serviço (email, SMS, WhatsApp, etc.) faça-o através dos
-scripts-gancho (`gancho_msg` e `gancho_arquivo`).
+scripts-gancho (`gancho_msg`, `gancho_ev` e `gancho_arquivo`).
 
 O script `gancho_msg` recebe e encaminha as mensagens de eventos.
+
+O script `gancho_ev` recebe e encaminha os códigos numéricos de eventos. Para
+conhecer os códigos, consulte a documentação da Intelbras ou o início do arquivo
+`alarmeitbl/tratador.py`.
 
 O script `gancho_arquivo` recebe e encaminha arquivos, mais especificamente
 as fotos capturadas pelo sensor IVP 8000 Pet Cam, se ele existir na sua
