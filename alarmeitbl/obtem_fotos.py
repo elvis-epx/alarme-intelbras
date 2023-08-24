@@ -6,6 +6,8 @@ from .utils_proto import *
 
 # Agente que obtem fotos de um evento de sensor com câmera
 
+# TODO refactoring/consolidar com proto_utils.py e comandos.py
+
 class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
     def __init__(self, ip_addr, cport, indice, nrfoto, senha, tam_senha, observer):
         super().__init__((ip_addr, cport))

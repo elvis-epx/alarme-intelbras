@@ -71,3 +71,57 @@ class UtilsProtocolo:
     # Decodifica um buffer de 2 octetos para inteiro de 16 bits
     def parse_be16(self, buf):
         return buf[0] * 256 + buf[1]
+
+    def pacote_isecnet2(self, cmd, payload):
+        # ID da central, sempre zero
+        dst_id = self.be16(0x0000)
+        # ID nosso, pode ser qualquer número, devolvido nos pacotes de retorno
+        # Possivelmente uma relíquia de canais seriais onde múltiplos receptores
+        # ouvem as mensagens, e dst_id ajudaria a identificar o recipiente
+        src_id = self.be16(0x8fff)
+        length = self.be16(len(payload) + 2)
+        cmd_enc = self.be16(cmd)
+        pacote = dst_id + src_id + length + cmd_enc + payload
+        pacote = pacote + [ self.checksum(pacote) ]
+        return pacote
+
+    def pacote_isecnet2_auth(self, senha, tam_senha):
+        # 0x02 software de monitoramento, 0x03 mobile app
+        sw_type = [ 0x02 ]
+        senha = self.contact_id_encode(senha, tam_senha)
+        sw_ver = [ 0x10 ]  # nibble.nibble (0x10 = 1.0)
+        payload = sw_type + senha + sw_ver
+        return self.pacote_isecnet2(0xf0f0, payload)
+
+    # Retorna o comprimento de um pacote, se houver um pacote completo no buffer
+    # Se não, retorna 0
+    def pacote_isecnet2_completo(self, data):
+        # Um pacote tem tamanho mínimo 9 (src_id, dst_id, len, cmd, checksum)
+        if len(data) < 9:
+            return 0
+        compr = 6 + self.parse_be16(data[4:6]) + 1
+        if len(data) < compr:
+            return 0
+        return compr
+
+    # Consiste um pacote do protocolo ISECNet2
+    def pacote_isecnet2_correto(self, pct):
+        compr_liquido = self.parse_be16(pct[4:6])
+        if compr_liquido < 2:
+            # Um pacote deveria ter no minimo um comando
+            return False
+        # Algoritmo de checksum tem propriedade interessante:
+        # checksum de pacote sufixado com checksum resulta em 0
+        return self.checksum(pct) == 0x00
+    
+    # Interpreta um pacote do protocolo ISECNet2
+    def pacote_isecnet2_parse(self, pct):
+        compr_liquido = self.parse_be16(pct[4:6])
+        compr_payload = compr_liquido - 2
+        cmd = self.parse_be16(pct[6:8])
+        payload = pct[8:8+compr_payload]
+        return cmd, payload
+
+    def pacote_isecnet2_bye(self):
+        return self.pacote_isecnet2(0xf0f1, [])
+
