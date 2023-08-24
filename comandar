@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+
+import sys, configparser
+
+from alarmeitbl.myeventloop import Timeout, Log
+from alarmeitbl.comandos import *
+
+def usage():
+    print("Modo de usar: %s <arq. configuração> <comando> [param]" % sys.argv[0])
+    print()
+    print("Comandos disponíveis: ativar, desativar, statusparcial,")
+    print("                      statuscompleto, desligasirene,")
+    print("                      ligasirene")
+    print()
+    print("Os comandos ativar e desativar aceitam um parâmetro adicional")
+    print("  partição 1 até 4, ou omitir para atuar em todas partições.")
+    sys.exit(1)
+
+def parse_config():
+    if len(sys.argv) < 3:
+        usage()
+
+    cfgfile = configparser.ConfigParser()
+    cfgfile.read(sys.argv[1])
+    if 'receptorip' not in cfgfile:
+        usage()
+    cfg = cfgfile['receptorip']
+    return cfg
+
+'''
+tratadores = {'ativar': AtivarCentral,
+            'desativar': DesativarCentral,
+            'statusparcial': StatusParcial,
+            'statuscompleto': StatusCompleto,
+            'desligasirene': DesligaSirene,
+            'ligasirene': LigaSirene}
+'''
+tratadores = { 'desativar': DesativarCentral }
+
+Log.set_level(Log.DEBUG)
+
+config = parse_config()
+ipaddr = ("" + config['caddr']).lower().strip()
+if ipaddr == 'auto':
+    print("Para este fim, a config. caddr deve conter um endereço IP explícito.")
+    usage()
+cport = int(config['cport'])
+senha = int(config['senha'])
+tam_senha = int(config['tamanho'])
+
+comando = sys.argv[2]
+if comando not in tratadores:
+    usage()
+
+if len(sys.argv) > 3 and comando not in ('ativar', 'desativar'):
+    usage()
+
+particao = None
+if len(sys.argv) == 4:
+    try:
+        particao = int(sys.argv[3])
+    except ValueError:
+        particao = -1
+    if particao < 1 or particao > 4:
+        usage()
+
+tratador = tratadores[comando](ipaddr, cport, senha, tam_senha, particao, None)
+
+ev = EventLoop()
+ev.loop()
