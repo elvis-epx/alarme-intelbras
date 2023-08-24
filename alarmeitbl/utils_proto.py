@@ -71,3 +71,23 @@ class UtilsProtocolo:
     # Decodifica um buffer de 2 octetos para inteiro de 16 bits
     def parse_be16(self, buf):
         return buf[0] * 256 + buf[1]
+
+    # Codifica um número de tamanho fixo (geralmente uma senha) no formato ISECMobile
+    def isecmobile_senha(self, number, length):
+        number = abs(number)
+        buf = []
+        for i in range(0, length):
+            digit = number % 10
+            buf = [digit + 0x30] + buf
+            number //= 10
+        return buf
+
+    # Codifica um pacote no formato ISECMobile
+    def encode_isecmobile(self, cmd, senha, tamsenha, extra):
+        return [ 0x21 ] + self.isecmobile_senha(senha, tamsenha) + cmd + extra + [ 0x21 ]
+
+    # Codifica um pacote no formato ISECNet
+    def encode_isecnet(self, cmd, senha, tamsenha, extra):
+        pct = self.encode_isecmobile(cmd, senha, tamsenha, extra)
+        pct = [ 0xe9 ] + pct
+        return [ len(pct) ] + pct + [ self.checksum(pct) ]
