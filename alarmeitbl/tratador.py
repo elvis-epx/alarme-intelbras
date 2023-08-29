@@ -73,8 +73,8 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
             'aber': "Desativacao remota",
              },
         407: {
-            'rest': "Ativacao remota II",
-            'aber': "Desativacao remota II",
+            'rest': "Ativacao remota app",
+            'aber': "Desativacao remota app",
              },
         408: {'*': "Ativacao por uma tecla"},
         410: {'*': "Acesso remoto"},
