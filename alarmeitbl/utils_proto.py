@@ -85,9 +85,3 @@ class UtilsProtocolo:
     # Codifica um pacote no formato ISECMobile
     def encode_isecmobile(self, cmd, senha, tamsenha, extra):
         return [ 0x21 ] + self.isecmobile_senha(senha, tamsenha) + cmd + extra + [ 0x21 ]
-
-    # Codifica um pacote no formato ISECNet
-    def encode_isecnet(self, cmd, senha, tamsenha, extra):
-        pct = self.encode_isecmobile(cmd, senha, tamsenha, extra)
-        pct = [ 0xe9 ] + pct
-        return [ len(pct) ] + pct + [ self.checksum(pct) ]

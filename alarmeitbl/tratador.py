@@ -126,20 +126,20 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
         self.log_warn("timeout de identificacao")
         self.destroy()
 
-    def _envia(self, resposta):
-        self.send(bytearray(resposta))
-        self.log_debug("enviada resposta", self.hexprint(resposta))
+    def _envia(self, pct):
+        self.send(bytearray(pct))
+        self.log_debug("enviado pacote", self.hexprint(pct))
 
     def enquadrar(self, dados):
         dados = [len(dados)] + dados
         return dados + [ self.checksum(dados) ]
 
-    def envia_longo(self, resposta):
-        resposta = self.enquadrar(resposta)
-        self._envia(resposta)
+    def envia_longo(self, pct):
+        resposta = self.enquadrar(pct)
+        self._envia(pct)
 
-    def envia_curto(self, resposta):
-        self._envia(resposta)
+    def envia_curto(self, pct):
+        self._envia(pct)
 
     def recv_callback(self, _):
         if self.ignorar:
@@ -250,6 +250,8 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
             self.evento_alarme(msg, False)
         elif tipo == 0xb5:
             self.evento_alarme(msg, True)
+        elif tipo == 0xe9:
+            self.resposta_comando(msg)
         else:
             self.log_warn("solicitacao desconhecida %02x payload =" % tipo, self.hexprint(msg))
             self.resposta_generica(msg)
@@ -258,6 +260,16 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
     def resposta_generica(self, msg):
         resposta = [0xfe]
         self.envia_curto(resposta)
+
+    # FIXME teste; remover ou adaptar
+    def envia_comando(self):
+        # Comando E9 seguido por pacot de dados no formato ISECMobile
+        pct = [0xe9, 0x21, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x44, 0x21]
+        self.envia_longo(pct)
+
+    def resposta_comando(self, msg):
+        # TODO repassar a quem de direito
+        self.log_warn("resposta a comando", self.hexprint(msg))
 
     def identificacao_central(self, msg):
         resposta = [0xfe]
@@ -290,6 +302,8 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
             self.to_ident = None
 
         self.envia_curto(resposta)
+        # FIXME teste; remover
+        self.timeout("testecomando", 30, self.envia_comando)
 
     def solicita_data_hora(self, msg):
         self.log_debug("solicitacao de data/hora pela central")
