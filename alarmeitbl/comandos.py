@@ -4,6 +4,9 @@ import time
 from .myeventloop.tcpclient import *
 from .utils_proto import *
 
+# Envio de comandos diretamente do cliente para a central de alarme
+# usando o novo protocolo ISECNet2 (o mesmo do download de fotos)
+
 class ComandarCentral(TCPClientHandler, UtilsProtocolo):
     def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra):
         super().__init__((ip_addr, cport))
@@ -94,7 +97,34 @@ class ComandarCentral(TCPClientHandler, UtilsProtocolo):
             return
 
         self.log_info("Autenticacao ok")
-        self.envia_comando()
+        self.envia_comando_in()
+
+    def envia_comando(self, cmd, payload, tratador_in):
+        pct = self.pacote_isecnet2(cmd, payload)
+        self.send(pct)
+
+        self.cmd = cmd
+        self.tratador = self.resposta_comando
+        self.tratador_in = tratador_in
+
+        self.conn_timeout.restart()
+
+    def resposta_comando(self, cmd, payload):
+        if cmd == 0xf0fd:
+            self.nak(payload)
+            return
+
+        if cmd == 0xf0f7:
+            self.log_info("Erro central ocupada")
+            self.destroy()
+            return
+
+        if cmd != self.cmd:
+            self.log_info("Resposta inesperada %04x" % cmd)
+            self.destroy()
+            return
+
+        self.tratador_in(payload)
 
     def despedida(self):
         self.log_debug("Despedindo")
@@ -120,35 +150,17 @@ class DesativarCentral(ComandarCentral):
         super().__init__(observer, ip_addr, cport, senha, tam_senha, extra)
         self.particao = extra[0]
 
-    def envia_comando(self):
+    def envia_comando_in(self):
         # byte 1: particao (0x01 = 1, 0xff = todas ou sem particao)
         # byte 2: 0x00 desarmar, 0x01 armar, 0x02 stay
         if self.particao is None:
             payload = [ 0xff, 0x00 ]
         else:
             payload = [ self.particao, 0x00 ]
-        pct = self.pacote_isecnet2(0x401e, payload)
-        self.send(pct)
-        self.tratador = self.resposta_comando
-        self.conn_timeout.restart()
+        self.envia_comando(0x401e, payload, self.resposta_comando_in)
 
-    def resposta_comando(self, cmd, payload):
-        if cmd == 0xf0fd:
-            self.nak(payload)
-            return
-
-        if cmd == 0xf0f7:
-            self.log_info("Erro central ocupada")
-            self.destroy()
-            return
-
-        if cmd != 0x401e:
-            self.log_info("Resposta inesperada %04x" % cmd)
-            self.destroy()
-            return
-
+    def resposta_comando_in(self, payload):
         # FIXME interpretar payload
-
         self.despedida()
 
 
@@ -157,33 +169,15 @@ class AtivarCentral(ComandarCentral):
         super().__init__(observer, ip_addr, cport, senha, tam_senha, extra)
         self.particao = extra[0]
 
-    def envia_comando(self):
+    def envia_comando_in(self):
         # byte 1: particao (0x01 = 1, 0xff = todas ou sem particao)
         # byte 2: 0x00 desarmar, 0x01 armar, 0x02 stay
         if self.particao is None:
             payload = [ 0xff, 0x01 ]
         else:
             payload = [ self.particao, 0x01 ]
-        pct = self.pacote_isecnet2(0x401e, payload)
-        self.send(pct)
-        self.tratador = self.resposta_comando
-        self.conn_timeout.restart()
+        self.envia_comando(0x401e, payload, self.resposta_comando_in)
 
-    def resposta_comando(self, cmd, payload):
-        if cmd == 0xf0fd:
-            self.nak(payload)
-            return
-
-        if cmd == 0xf0f7:
-            self.log_info("Erro central ocupada")
-            self.destroy()
-            return
-
-        if cmd != 0x401e:
-            self.log_info("Resposta inesperada %04x" % cmd)
-            self.destroy()
-            return
-
+    def resposta_comando_in(self, payload):
         # FIXME interpretar payload
-
         self.despedida()
