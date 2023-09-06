@@ -63,7 +63,19 @@ if len(sys.argv) == 7:
     if particao < 1 or particao > 254:
         usage()
 
-tratador = tratadores[comando](None, ipaddr, cport, senha, tam_senha, [particao])
+class Observer:
+    def __init__(self):
+        pass
+
+    def resultado(self, status):
+        if status:
+            print("Resultado: erro")
+            sys.exit(status)
+
+observer = Observer()
+
+tratador = tratadores[comando](observer, ipaddr, cport, senha, tam_senha, [particao])
 
 ev = EventLoop()
 ev.loop()
+print("Resultado: sucesso")

@@ -160,7 +160,6 @@ class DesativarCentral(ComandarCentral):
         self.envia_comando(0x401e, payload, self.resposta_comando_in)
 
     def resposta_comando_in(self, payload):
-        # FIXME interpretar payload
         self.despedida()
 
 
@@ -179,5 +178,4 @@ class AtivarCentral(ComandarCentral):
         self.envia_comando(0x401e, payload, self.resposta_comando_in)
 
     def resposta_comando_in(self, payload):
-        # FIXME interpretar payload
         self.despedida()
