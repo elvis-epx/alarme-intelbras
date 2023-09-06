@@ -17,3 +17,18 @@
 # Evento 625 (data/hora atualizada): nenhum qualificador
 
 echo "$1 $2 $3 $4" >> gancho_ev.txt
+
+# Exemplo de possível integração básica com MQTT
+
+if [ "$1" -eq 401 ] || [ "$1" -eq 403 ] || [ "$1" -eq 404 ] || [ "$1" -eq 407 ]; then
+       TOPICO="stat/AlarmeCasa5432/Estado"
+       MSG="$4"
+
+       if [ "$4" -eq 3 ]; then
+               MSG="Ativado"
+       elif [ "$4" -eq 1 ]; then
+               MSG="Desativado"
+       fi
+
+        timelimit -t 60 -T 65 mosquitto_pub -h 127.0.0.1 -t "$TOPICO" -m "$MSG"
+fi
