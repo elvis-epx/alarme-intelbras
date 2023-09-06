@@ -252,13 +252,19 @@ Você pode usar o `systemd` como supervisor, mas um simples script também resol
 Incluímos um modelo `supervisor-monitorip` junto com o código-fonte, que
 envia o log de erros por e-mail. (E se o log revelar um bug, por favor avise a gente!)
 
-## Roadmap
+## Comandar a central
 
-- Permitir conexão dupla (mesma central conectada por dois caminhos diferentes), com consolidação dos eventos vindos do mesmo MAC.
-- Suporte a muitas centrais de instalações/clientes diferentes.
-- Integração com MQTT (já pode ser feita hoje mosquitto\_sub nos scripts-gancho, a ideia é que seja uma integração mais estreita, uma vez que MQTT é o padrão de fato para IoT e automação residencial).
-- Suporte a outras centrais que usam o mesmo protocolo e.g. AMT-1016.
-- Testes unitários e de robustez.
+Pode-se enviar comandos ou consultas diretamente à central, independente da conexão
+da central com o Receptor IP. Usando esse caminho, podemos por exemplo ativar ou desativar
+a central programaticamente e remotamente.
+
+O utilitário `comandar`, ainda em desenvolvimento, pode ser usado para enviar comandos
+à central. Todos os parâmetros (endereço IP da central, senha) devem ser passados como
+parâmetros de linha de comando.
+
+O protocolo ISECNet v2, utilizado nesses comandos, é o mesmo utilizado para download de 
+fotos do sensor IVP 8000 Pet Cam, e acreditamos que seja implementado apenas pela
+central AMT 8000.
 
 ## Motivação
 
