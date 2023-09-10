@@ -6,7 +6,7 @@ from .utils_proto import *
 
 # Agente que obtem fotos de um evento de sensor com câmera
 
-# TODO refactoring/consolidar com proto_utils.py e comandos.py
+# TODO refactoring/consolidar com comandos.py
 
 class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
     def __init__(self, ip_addr, cport, indice, nrfoto, senha, tam_senha, observer):
@@ -46,33 +46,9 @@ class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
             return
         self.autenticacao()
 
-    # Cria um pacote válido do protocolo de obtenção de fotos
-    def pacote_foto(self, cmd, payload):
-        # ID da central, sempre zero
-        dst_id = self.be16(0x0000)
-        # ID nosso, pode ser qualquer número, devolvido nos pacotes de retorno
-        # Possivelmente uma relíquia de canais seriais onde múltiplos receptores
-        # ouvem as mensagens, e dst_id ajudaria a identificar o recipiente
-        src_id = self.be16(0x8fff)
-        length = self.be16(len(payload) + 2)
-        cmd_enc = self.be16(cmd)
-        pacote = dst_id + src_id + length + cmd_enc + payload
-        pacote = pacote + [ self.checksum(pacote) ]
-        return pacote
-
-    # Cria um pacote de autenticação para o protocolo de fotos
-    # No protocolo de fotos, a autenticação deve preceder o download
-    def pacote_foto_auth(self, senha, tam_senha):
-        # 0x02 software de monitoramento, 0x03 mobile app
-        sw_type = [ 0x02 ]
-        senha = self.contact_id_encode(senha, tam_senha)
-        sw_ver = [ 0x10 ]  # nibble.nibble (0x10 = 1.0)
-        payload = sw_type + senha + sw_ver
-        return self.pacote_foto(0xf0f0, payload)
-
     def autenticacao(self):
         self.log_debug("Conexao foto: auth")
-        pct = self.pacote_foto_auth(self.senha, self.tam_senha)
+        pct = self.pacote_isecnet2_auth(self.senha, self.tam_senha)
         self.send(pct)
 
         self.tratador = self.resposta_autenticacao
@@ -114,7 +90,7 @@ class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
     # Cria um pacote de requisição de fragmento de foto
     def pacote_foto_req(self, indice, foto, fragmento):
         payload = self.be16(indice) + [ foto, fragmento ]
-        return self.pacote_foto(0x0bb0, payload)
+        return self.pacote_isecnet2(0x0bb0, payload)
 
     def obtem_fragmento_foto(self, fragmento_corrente, jpeg_corrente):
         self.log_debug("Conexao foto: obtendo fragmento %d" % fragmento_corrente)
@@ -187,13 +163,9 @@ class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
 
         self.despedida()
 
-    # Cria um pacote de desconexão
-    def pacote_foto_bye(self):
-        return self.pacote_foto(0xf0f1, [])
-
     def despedida(self):
         self.log_debug("Conexao foto: despedindo")
-        pct = self.pacote_foto_bye()
+        pct = self.pacote_isecnet2_bye()
         self.send(pct)
 
         self.tratador = None
@@ -274,51 +246,22 @@ class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
     # fe    Comando inválido
     # ff    Erro não especificado (não documentado mas observado se checksum ou tamanho pacote errado)
 
-    # Retorna o comprimento de um pacote, se houver um pacote completo no buffer
-    # Se não, retorna 0
-    def pacote_foto_completo(self, data):
-        # Um pacote tem tamanho mínimo 9 (src_id, dst_id, len, cmd, checksum)
-        if len(data) < 9:
-            return 0
-        compr = 6 + self.parse_be16(data[4:6]) + 1
-        if len(data) < compr:
-            return 0
-        return compr
-
-    # Consiste um pacote do protocolo de foto
-    def pacote_foto_correto(self, pct):
-        compr_liquido = self.parse_be16(pct[4:6])
-        if compr_liquido < 2:
-            # Um pacote deveria ter no minimo um comando
-            return False
-        # Algoritmo de checksum tem propriedade interessante:
-        # checksum de pacote sufixado com checksum resulta em 0
-        return self.checksum(pct) == 0x00
-
-    # Interpreta um pacote do protocolo de foto
-    def pacote_foto_parse(self, pct):
-        compr_liquido = self.parse_be16(pct[4:6])
-        compr_payload = compr_liquido - 2
-        cmd = self.parse_be16(pct[6:8])
-        payload = pct[8:8+compr_payload]
-        return cmd, payload
-
     def recv_callback(self, latest):
         self.log_debug("Conexao foto: recv", self.hexprint(latest))
 
-        compr = self.pacote_foto_completo(self.recv_buf)
+        compr = self.pacote_isecnet2_completo(self.recv_buf)
         if not compr:
             self.log_debug("Conexao foto: incompleto")
             return
 
         pct, self.recv_buf = self.recv_buf[:compr], self.recv_buf[compr:]
 
-        if not self.pacote_foto_correto(pct):
+        if not self.pacote_isecnet2_correto(pct):
             self.log_info("Conexao foto: pacote incorreto, desistindo")
             self.destroy()
             return
 
-        cmd, payload = self.pacote_foto_parse(pct)
+        cmd, payload = self.pacote_isecnet2_parse(pct)
         self.log_debug("Conexao foto: resposta %04x" % cmd)
 
         if not self.tratador:
