@@ -8,9 +8,7 @@ from alarmeitbl.comandos import *
 def usage():
     print("Modo de usar: %s <ipaddr> <porta> <senha> <tam. senha> <comando> [param]" % sys.argv[0])
     print()
-    print("Comandos disponíveis: ativar, desativar, statusparcial,")
-    print("                      statuscompleto, desligasirene,")
-    print("                      ligasirene")
+    print("Comandos disponíveis:", ", ".join(tratadores.keys()))
     print()
     print("Os comandos ativar e desativar aceitam um parâmetro adicional")
     print("  partição 1 até 254, ou omitir para atuar em todas partições.")
@@ -25,15 +23,13 @@ def parse_config():
     cfg = cfgfile['receptorip']
     return cfg
 
-'''
-tratadores = {'ativar': AtivarCentral,
-            'desativar': DesativarCentral,
-            'statusparcial': StatusParcial,
-            'statuscompleto': StatusCompleto,
-            'desligasirene': DesligaSirene,
-            'ligasirene': LigaSirene}
-'''
-tratadores = { 'desativar': DesativarCentral, 'ativar': AtivarCentral }
+tratadores = { 'desativar': DesativarCentral,
+                'ativar': AtivarCentral,
+                'desligarsirene': DesligarSirene,
+                'cancelarzona': CancelarZona,
+                'reativarzona': ReativarZona,
+                'status': SolicitarStatus,
+                'limpardisparo': LimparDisparo }
 
 Log.set_level(Log.DEBUG)
 
@@ -49,9 +45,6 @@ tam_senha = int(sys.argv[4])
 
 comando = sys.argv[5]
 if comando not in tratadores:
-    usage()
-
-if len(sys.argv) > 6 and comando not in ('ativar', 'desativar'):
     usage()
 
 particao = None

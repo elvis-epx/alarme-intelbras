@@ -40,6 +40,7 @@ class ComandarCentral(TCPClientHandler, UtilsProtocolo):
     def autenticacao(self):
         self.log_debug("Autenticacao")
         pct = self.pacote_isecnet2_auth(self.senha, self.tam_senha)
+        self.log_debug("Send", self.hexprint(pct))
         self.send(pct)
         self.tratador = self.resposta_autenticacao
         self.conn_timeout.restart()
@@ -101,6 +102,7 @@ class ComandarCentral(TCPClientHandler, UtilsProtocolo):
 
     def envia_comando(self, cmd, payload, tratador_in):
         pct = self.pacote_isecnet2(cmd, payload)
+        self.log_debug("Send", self.hexprint(pct))
         self.send(pct)
 
         self.cmd = cmd
@@ -119,7 +121,7 @@ class ComandarCentral(TCPClientHandler, UtilsProtocolo):
             self.destroy()
             return
 
-        if cmd != self.cmd:
+        if cmd != self.cmd and cmd != 0xf0fe:
             self.log_info("Resposta inesperada %04x" % cmd)
             self.destroy()
             return
@@ -129,6 +131,7 @@ class ComandarCentral(TCPClientHandler, UtilsProtocolo):
     def despedida(self):
         self.log_debug("Despedindo")
         pct = self.pacote_isecnet2_bye()
+        self.log_debug("Send", self.hexprint(pct))
         self.send(pct)
 
         self.tratador = None
@@ -170,3 +173,71 @@ class DesativarCentral(AtivarDesativarCentral):
 class AtivarCentral(AtivarDesativarCentral):
     def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra):
         super().__init__(observer, ip_addr, cport, senha, tam_senha, extra, 0x01)
+
+
+class DesligarSirene(ComandarCentral):
+    def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra):
+        super().__init__(observer, ip_addr, cport, senha, tam_senha, extra)
+        self.particao = extra[0]
+
+    def envia_comando_in(self):
+        if self.particao is None:
+            payload = [ 0xff ]
+        else:
+            payload = [ self.particao]
+        self.envia_comando(0x4019, payload, self.resposta_comando_in)
+
+    def resposta_comando_in(self, payload):
+        self.despedida()
+
+
+class LimparDisparo(ComandarCentral):
+    def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra):
+        super().__init__(observer, ip_addr, cport, senha, tam_senha, extra)
+
+    def envia_comando_in(self):
+        self.envia_comando(0x4013, [], self.resposta_comando_in)
+
+    def resposta_comando_in(self, payload):
+        self.despedida()
+
+
+class CancelarZona(ComandarCentral):
+    def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra):
+        super().__init__(observer, ip_addr, cport, senha, tam_senha, extra)
+        self.particao = extra[0]
+
+    def envia_comando_in(self):
+        if not self.particao or self.particao < 1 or self.particao > 254:
+            raise Exception("Partição precisa ser especificada.")
+        payload = [ self.particao, 0x01 ]
+        self.envia_comando(0x4013, payload, self.resposta_comando_in)
+
+    def resposta_comando_in(self, payload):
+        self.despedida()
+
+class ReativarZona(ComandarCentral):
+    def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra):
+        super().__init__(observer, ip_addr, cport, senha, tam_senha, extra)
+        self.particao = extra[0]
+
+    def envia_comando_in(self):
+        if not self.particao or self.particao < 1 or self.particao > 254:
+            raise Exception("Partição precisa ser especificada.")
+        payload = [ self.particao, 0x00 ]
+        self.envia_comando(0x4013, payload, self.resposta_comando_in)
+
+    def resposta_comando_in(self, payload):
+        self.despedida()
+
+
+class SolicitarStatus(ComandarCentral):
+    def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra):
+        super().__init__(observer, ip_addr, cport, senha, tam_senha, extra)
+
+    def envia_comando_in(self):
+        self.envia_comando(0x0b4a, [], self.resposta_comando_in)
+
+    def resposta_comando_in(self, payload):
+        # TODO interpretar retorno
+        self.despedida()
