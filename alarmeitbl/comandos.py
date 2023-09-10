@@ -239,5 +239,15 @@ class SolicitarStatus(ComandarCentral):
         self.envia_comando(0x0b4a, [], self.resposta_comando_in)
 
     def resposta_comando_in(self, payload):
-        # TODO interpretar retorno
+        print()
+        print("*******************************************")
+        if payload[0] == 0x01:
+            print("Central AMT-8000")
+        else:
+            print("Central de tipo desconhecido")
+        print("Versão de firmware %d.%d.%d" % tuple(payload[2:5]))
+        # TODO interpretar mais campos
+        print("*******************************************")
+        print()
+
         self.despedida()
