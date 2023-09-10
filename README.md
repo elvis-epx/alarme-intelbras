@@ -266,6 +266,11 @@ O protocolo ISECNet v2, utilizado nesses comandos, é o mesmo utilizado para dow
 fotos do sensor IVP 8000 Pet Cam, e acreditamos que seja implementado apenas pela
 central AMT 8000.
 
+(O ISECNet também pode trafegar de forma multiplexada sobre a conexão entre central e
+o Receptor IP, evitando a necessidade de abrir nova conexão TCP/IP com a central. Não
+implementamos essa modalidade, mas ela existe, e poderia ser útil em alguns casos de uso
+e.g. quando a central está atrás de um NAT ou CGNAT e não pode receber conexões.)
+
 ## Motivação
 
 Num caso de uso típico, uma pessoa contrata uma empresa de segurança,
