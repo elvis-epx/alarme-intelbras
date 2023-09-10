@@ -145,37 +145,28 @@ class ComandarCentral(TCPClientHandler, UtilsProtocolo):
         self.destroy()
 
 
-class DesativarCentral(ComandarCentral):
-    def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra):
+class AtivarDesativarCentral(ComandarCentral):
+    def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra, subcmd):
         super().__init__(observer, ip_addr, cport, senha, tam_senha, extra)
         self.particao = extra[0]
+        self.subcmd = subcmd
 
     def envia_comando_in(self):
         # byte 1: particao (0x01 = 1, 0xff = todas ou sem particao)
         # byte 2: 0x00 desarmar, 0x01 armar, 0x02 stay
         if self.particao is None:
-            payload = [ 0xff, 0x00 ]
+            payload = [ 0xff, self.subcmd ]
         else:
-            payload = [ self.particao, 0x00 ]
+            payload = [ self.particao, self.subcmd ]
         self.envia_comando(0x401e, payload, self.resposta_comando_in)
 
     def resposta_comando_in(self, payload):
         self.despedida()
 
-
-class AtivarCentral(ComandarCentral):
+class DesativarCentral(AtivarDesativarCentral):
     def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra):
-        super().__init__(observer, ip_addr, cport, senha, tam_senha, extra)
-        self.particao = extra[0]
+        super().__init__(observer, ip_addr, cport, senha, tam_senha, extra, 0x00)
 
-    def envia_comando_in(self):
-        # byte 1: particao (0x01 = 1, 0xff = todas ou sem particao)
-        # byte 2: 0x00 desarmar, 0x01 armar, 0x02 stay
-        if self.particao is None:
-            payload = [ 0xff, 0x01 ]
-        else:
-            payload = [ self.particao, 0x01 ]
-        self.envia_comando(0x401e, payload, self.resposta_comando_in)
-
-    def resposta_comando_in(self, payload):
-        self.despedida()
+class AtivarCentral(AtivarDesativarCentral):
+    def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra):
+        super().__init__(observer, ip_addr, cport, senha, tam_senha, extra, 0x01)
