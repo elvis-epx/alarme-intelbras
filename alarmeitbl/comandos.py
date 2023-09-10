@@ -239,15 +239,52 @@ class SolicitarStatus(ComandarCentral):
         self.envia_comando(0x0b4a, [], self.resposta_comando_in)
 
     def resposta_comando_in(self, payload):
+        # Documentação é base 1
+        payload = [0] + payload
         print()
         print("*******************************************")
-        if payload[0] == 0x01:
+        if payload[1] == 0x01:
             print("Central AMT-8000")
         else:
             print("Central de tipo desconhecido")
         print("Versão de firmware %d.%d.%d" % tuple(payload[2:5]))
+        print("Status geral: ")
+        armado = {0x00: "Desarmado", 0x01: "Partição(ões) armada(s)", 0x11: "Todas partições armadas"}
+        print("\t" + armado[((payload[21] >> 5) & 0x03)])
+        print("\tZonas em alarme:", (payload[21] & 0x8) and "Sim" or "Não")
+        print("\tZonas canceladas:", (payload[21] & 0x10) and "Sim" or "Não")
+        print("\tTodas zonas fechadas:", (payload[21] & 0x4) and "Sim" or "Não")
+        print("\tSirene:", (payload[21] & 0x2) and "Sim" or "Não")
+        print("\tProblemas:", (payload[21] & 0x1) and "Sim" or "Não")
+        for particao in range(0, 17):
+            habilitado = payload[22 + particao] & 0x80
+            if not habilitado:
+                continue
+            print("Partição %02d:" % particao)
+            print("\tStay:", (payload[22 + particao] & 0x40) and "Sim" or "Não")
+            print("\tDelay de saída:", (payload[22 + particao] & 0x20) and "Sim" or "Não")
+            print("\tPronto para armar:", (payload[22 + particao] & 0x10) and "Sim" or "Não")
+            print("\tAlame ocorreu:", (payload[22 + particao] & 0x08) and "Sim" or "Não")
+            print("\tEm alarme:", (payload[22 + particao] & 0x04) and "Sim" or "Não")
+            print("\tArmado modo stay:", (payload[22 + particao] & 0x02) and "Sim" or "Não")
+            print("\tArmado:", (payload[22 + particao] & 0x01) and "Sim" or "Não")
+        print("Zonas abertas:", self.bits_para_numeros(payload[39:47]))
+        print("Zonas em alarme:", self.bits_para_numeros(payload[47:55]))
+        # print("Zonas ativas:", self.bits_para_numeros(payload[55:63], inverso=True))
+        print("Zonas em bypass:", self.bits_para_numeros(payload[55:63]))
+        print("Sirenes ligadas:", self.bits_para_numeros(payload[63:65]))
+
         # TODO interpretar mais campos
         print("*******************************************")
         print()
 
         self.despedida()
+
+    def bits_para_numeros(self, octetos, inverso=False):
+        lista = []
+        for i, octeto in enumerate(octetos):
+            for j in range(0, 8):
+                bit = octeto & (1 << j)
+                if (bit and not inverso) or (not bit and inverso):
+                    lista.append("%d" % (1 + j + i * 8))
+        return ", ".join(lista)
