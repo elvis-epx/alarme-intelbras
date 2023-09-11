@@ -24,8 +24,10 @@ class ComandarCentral(TCPClientHandler, UtilsProtocolo):
             self.observer.resultado(self.status)
 
     def conn_timeout(self, task):
-        self.status = 1
         self.log_info("Timeout")
+        if self.status != 0:
+            # se status == 0, provavelmente já completou a tarefa e o timeout é na despedida
+            self.status = 1
         self.destroy()
 
     def connection_callback(self, ok):
@@ -144,7 +146,9 @@ class ComandarCentral(TCPClientHandler, UtilsProtocolo):
         if len(payload) != 1:
             self.log_info("NAK invalido")
         else:
+            motivo = payload[0]
             self.log_info("NAK motivo %02x" % motivo)
+            self.status = 1
         self.destroy()
 
 

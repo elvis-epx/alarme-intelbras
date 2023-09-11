@@ -6,8 +6,6 @@ from .comandos import ComandarCentral
 
 # Agente que obtem fotos de um evento de sensor com câmera
 
-# TODO refactoring/consolidar com comandos.py
-
 class ObtemFotosDeEvento(ComandarCentral):
     def __init__(self, ip_addr, cport, indice, nrfoto, senha, tam_senha, observer):
         extra = [indice, nrfoto]
@@ -22,29 +20,11 @@ class ObtemFotosDeEvento(ComandarCentral):
 
         self.tratador = None
 
-    # override
+    # override completo
     def destroyed_callback(self):
         # Informa observador sobre status final da tarefa
         self.observer.resultado_foto(self.indice, self.nrfoto, \
                                      self.status, self.arquivo)
-
-    # override
-    def conn_timeout(self, task):
-        if self.status != 0:
-            # reporta erro não-fatal, exceto se status = 0 (download completo)
-            self.status = 1
-        self.log_info("Timeout conexao foto")
-        self.destroy()
-
-    # override
-    def connection_callback(self, ok):
-        self.conn_timeout.cancel()
-        if not ok:
-            self.status = 1 # erro não-fatal
-            self.log_info("Conexao foto falhou")
-            # destroy() executado pelo chamador
-            return
-        self.autenticacao()
 
     def envia_comando_in(self):
         self.fragmento_corrente = 1 # Fragmento 1 sempre existe
@@ -100,17 +80,6 @@ class ObtemFotosDeEvento(ComandarCentral):
         f.close()
 
         self.despedida()
-
-    def nak(self, payload):
-        if len(payload) != 1:
-            self.log_info("Conexao foto: NAK invalido")
-        else:
-            # NAK comum = 0x28 significando que foto ainda não foi transferida do sensor
-            # Por isso consideramos NAK um erro não-fatal, poderia refinar por motivo
-            motivo = payload[0]
-            self.log_info("Conexao foto: NAK motivo %02x" % motivo)
-            self.status = 1 # erro não-fatal
-        self.destroy()
 
     # Motivos NAK (nem todos se aplicam a download de fotos):
     # 00    Mensagem Ok (Por que NAK então? ACK = cmd 0xf0fe)
