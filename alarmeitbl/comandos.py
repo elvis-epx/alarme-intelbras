@@ -10,7 +10,7 @@ from .utils_proto import *
 class ComandarCentral(TCPClientHandler, UtilsProtocolo):
     def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra):
         super().__init__((ip_addr, cport))
-        self.log_info("Inicio")
+        self.log_debug("Inicio")
         self.observer = observer
         self.conn_timeout = self.timeout("conn_timeout", 15, self.conn_timeout)
         self.senha = senha
@@ -97,7 +97,7 @@ class ComandarCentral(TCPClientHandler, UtilsProtocolo):
             self.destroy()
             return
 
-        self.log_info("Autenticacao ok")
+        self.log_debug("Autenticacao ok")
         self.envia_comando_in()
 
     def envia_comando(self, cmd, payload, tratador_in):
