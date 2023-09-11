@@ -249,7 +249,7 @@ class SolicitarStatus(ComandarCentral):
             print("Central de tipo desconhecido")
         print("Versão de firmware %d.%d.%d" % tuple(payload[2:5]))
         print("Status geral: ")
-        armado = {0x00: "Desarmado", 0x01: "Partição(ões) armada(s)", 0x11: "Todas partições armadas"}
+        armado = {0x00: "Desarmado", 0x01: "Partição(ões) armada(s)", 0x03: "Todas partições armadas"}
         print("\t" + armado[((payload[21] >> 5) & 0x03)])
         print("\tZonas em alarme:", (payload[21] & 0x8) and "Sim" or "Não")
         print("\tZonas canceladas:", (payload[21] & 0x10) and "Sim" or "Não")
