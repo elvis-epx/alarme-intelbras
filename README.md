@@ -254,21 +254,21 @@ envia o log de erros por e-mail. (E se o log revelar um bug, por favor avise a g
 
 ## Comandar a central
 
-Pode-se enviar comandos ou consultas diretamente à central, independente da conexão
-da central com o Receptor IP. Usando esse caminho, podemos por exemplo ativar ou desativar
-a central programaticamente e remotamente.
+Pode-se enviar comandos ou consultas diretamente à central, independente da conexão da mesma
+com o Receptor IP. Nem mesmo precisa haver um Receptor IP configurado. Usando essa modalidade
+de controle, podemos e.g. ativar ou desativar a central programaticamente.
 
 O utilitário `comandar`, ainda em desenvolvimento, pode ser usado para enviar comandos
 à central. Todos os parâmetros (endereço IP da central, senha) devem ser passados como
-parâmetros de linha de comando.
+parâmetros de linha de comando; ele não faz uso do arquivo de configuração.
 
 O protocolo ISECNet v2, utilizado nesses comandos, é o mesmo utilizado para download de 
 fotos do sensor IVP 8000 Pet Cam, e acreditamos que seja implementado apenas pela
 central AMT 8000.
 
-(O ISECNet também pode trafegar de forma multiplexada sobre a conexão entre central e
+(Nota: O ISECNet também pode trafegar de forma multiplexada através da conexão entre a central e
 o Receptor IP, evitando a necessidade de abrir nova conexão TCP/IP com a central. Não
-implementamos essa modalidade, mas ela existe, e poderia ser útil em alguns casos de uso
+implementamos essa modalidade, mas ela existe, e pode ser útil em alguns casos de uso
 e.g. quando a central está atrás de um NAT ou CGNAT e não pode receber conexões.)
 
 ## Motivação
