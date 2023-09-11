@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
 
 import time
-from .myeventloop.tcpclient import *
 from .utils_proto import *
+from .comandos import ComandarCentral
 
 # Agente que obtem fotos de um evento de sensor com câmera
 
 # TODO refactoring/consolidar com comandos.py
 
-class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
+class ObtemFotosDeEvento(ComandarCentral):
     def __init__(self, ip_addr, cport, indice, nrfoto, senha, tam_senha, observer):
-        super().__init__((ip_addr, cport))
+        extra = [indice, nrfoto]
+        super().__init__(observer, ip_addr, cport, senha, tam_senha, extra)
         self.log_info("Iniciando obtencao de foto %d:%d" % (indice, nrfoto))
-        self.conn_timeout = self.timeout("conn_timeout", 15, self.conn_timeout)
         self.indice = indice
         self.nrfoto = nrfoto
-        self.senha = senha
-        self.tam_senha = tam_senha
-        self.observer = observer
         self.arquivo = ""
 
         # Se destruído com esse status, reporta erro fatal
@@ -25,11 +22,13 @@ class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
 
         self.tratador = None
 
+    # override
     def destroyed_callback(self):
         # Informa observador sobre status final da tarefa
         self.observer.resultado_foto(self.indice, self.nrfoto, \
                                      self.status, self.arquivo)
 
+    # override
     def conn_timeout(self, task):
         if self.status != 0:
             # reporta erro não-fatal, exceto se status = 0 (download completo)
@@ -37,6 +36,7 @@ class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
         self.log_info("Timeout conexao foto")
         self.destroy()
 
+    # override
     def connection_callback(self, ok):
         self.conn_timeout.cancel()
         if not ok:
@@ -46,86 +46,23 @@ class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
             return
         self.autenticacao()
 
-    def autenticacao(self):
-        self.log_debug("Conexao foto: auth")
-        pct = self.pacote_isecnet2_auth(self.senha, self.tam_senha)
-        self.send(pct)
+    def envia_comando_in(self):
+        self.fragmento_corrente = 1 # Fragmento 1 sempre existe
+        self.jpeg_corrente = []
+        self.obtem_fragmento_foto()
 
-        self.tratador = self.resposta_autenticacao
-        self.conn_timeout.restart()
+    def obtem_fragmento_foto(self):
+        self.log_debug("Conexao foto: obtendo fragmento %d" % self.fragmento_corrente)
+        payload = self.be16(self.indice) + [ self.nrfoto, self.fragmento_corrente ]
+        self.envia_comando(0x0bb0, payload, self.resposta_comando_in)
 
-    def resposta_autenticacao(self, cmd, payload):
-        if cmd == 0xf0fd:
-            self.nak(payload)
-            return
-
-        if cmd != 0xf0f0:
-            self.log_info("Conexao foto: resp inesperada %04x" % cmd)
-            self.destroy()
-            return
-
-        if len(payload) != 1:
-            self.log_info("Conexao foto: resp auth invalida")
-            self.destroy()
-            return
-
-        resposta = payload[0]
-        # Possíveis respostas:
-        # 01 = senha incorreta
-        # 02 = versão software incorreta
-        # 03 = painel chamará de volta (?)
-        # 04 = aguardando permissão de usuário (?)
-        if resposta > 0:
-            self.log_info("Conexao foto: auth falhou motivo %d" % resposta)
-            self.destroy()
-            return
-
-        self.log_info("Conexao foto: autenticado")
-        self.inicia_obtencao_fotos()
-
-    def inicia_obtencao_fotos(self):
-        # Fragmento 1 sempre existe
-        self.obtem_fragmento_foto(1, [])
-
-    # Cria um pacote de requisição de fragmento de foto
-    def pacote_foto_req(self, indice, foto, fragmento):
-        payload = self.be16(indice) + [ foto, fragmento ]
-        return self.pacote_isecnet2(0x0bb0, payload)
-
-    def obtem_fragmento_foto(self, fragmento_corrente, jpeg_corrente):
-        self.log_debug("Conexao foto: obtendo fragmento %d" % fragmento_corrente)
-        pct = self.pacote_foto_req(self.indice, self.nrfoto, fragmento_corrente)
-        self.send(pct)
-
-        def tratador(cmd, payload):
-            self.resposta_fragmento(cmd, payload, fragmento_corrente, jpeg_corrente)
-
-        self.tratador = tratador
-        self.conn_timeout.restart()
-
-    def resposta_fragmento(self, cmd, payload, fragmento_corrente, jpeg_corrente):
-        if cmd == 0xf0fd:
-            self.nak(payload)
-            return
-
-        if cmd == 0xf0f7:
-            # Código não documentado retornado pela central após lentidão
-            # Possivelmente sinaliza central ocupada
-            self.status = 1 # erro não-fatal
-            self.destroy()
-            return
-
-        if cmd != 0x0bb0:
-            self.log_info("Conexao foto: resp inesperada %04x" % cmd)
-            self.destroy()
-            return
-
+    def resposta_comando_in(self, payload):
         if len(payload) < 6:
             self.log_info("Conexao foto: resp frag muito curta")
             self.destroy()
             return
 
-        self.log_debug("Conexao foto: resposta fragmento %d" % fragmento_corrente)
+        self.log_debug("Conexao foto: resposta fragmento %d" % self.fragmento_corrente)
 
         indice = self.parse_be16(payload[0:2])
         foto = payload[2]
@@ -144,35 +81,25 @@ class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
             self.destroy()
             return
 
-        if fragmento != fragmento_corrente:
+        if fragmento != self.fragmento_corrente:
             self.log_info("Conexao foto: frag corrente invalido")
             self.destroy()
             return
 
-        jpeg_corrente += fragmento_jpeg
+        self.jpeg_corrente += fragmento_jpeg
 
         if fragmento < nr_fragmentos:
-            self.obtem_fragmento_foto(fragmento + 1, jpeg_corrente)
+            self.fragmento_corrente += 1
+            self.obtem_fragmento_foto()
             return
 
         self.log_info("Conexao foto: salvando imagem")
         self.arquivo = "imagem.%d.%d.%.6f.jpeg" % (indice, foto, time.time())
         f = open(self.arquivo, "wb")
-        f.write(bytearray(jpeg_corrente))
+        f.write(bytearray(self.jpeg_corrente))
         f.close()
 
         self.despedida()
-
-    def despedida(self):
-        self.log_debug("Conexao foto: despedindo")
-        pct = self.pacote_isecnet2_bye()
-        self.send(pct)
-
-        self.tratador = None
-        # Reportar sucesso ao observador
-        self.status = 0
-        self.conn_timeout.restart()
-        # Resposta esperada: central fechar conexão
 
     def nak(self, payload):
         if len(payload) != 1:
@@ -245,29 +172,3 @@ class ObtemFotosDeEvento(TCPClientHandler, UtilsProtocolo):
     # 38    Firmware corrompido
     # fe    Comando inválido
     # ff    Erro não especificado (não documentado mas observado se checksum ou tamanho pacote errado)
-
-    def recv_callback(self, latest):
-        self.log_debug("Conexao foto: recv", self.hexprint(latest))
-
-        compr = self.pacote_isecnet2_completo(self.recv_buf)
-        if not compr:
-            self.log_debug("Conexao foto: incompleto")
-            return
-
-        pct, self.recv_buf = self.recv_buf[:compr], self.recv_buf[compr:]
-
-        if not self.pacote_isecnet2_correto(pct):
-            self.log_info("Conexao foto: pacote incorreto, desistindo")
-            self.destroy()
-            return
-
-        cmd, payload = self.pacote_isecnet2_parse(pct)
-        self.log_debug("Conexao foto: resposta %04x" % cmd)
-
-        if not self.tratador:
-            self.log_info("Conexao foto: sem tratador")
-            self.destroy()
-            return
-
-        self.conn_timeout.cancel()
-        self.tratador(cmd, payload)
