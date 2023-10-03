@@ -236,8 +236,6 @@ reiniciar o Receptor IP quando isto acontecer, de preferência notificando
 por e-mail para que a causa-raiz seja descoberta e consertada.
 
 Você pode usar o `systemd` como supervisor, mas um simples script também resolve.
-Incluímos um modelo `supervisor-monitorip` junto com o código-fonte, que
-envia o log de erros por e-mail. (E se o log revelar um bug, por favor avise a gente!)
 
 ## Comandar a central
 
