@@ -86,9 +86,23 @@ para acesso via app AMT Mobile. Deve ser um número.
 
 ``tamanho`` - tamanho da senha acima. Deve ser igual a `4` ou `6`.
 
+``folder_dlfoto`` - pasta em que serão gravadas as fotos obtidas de sensores IVP-8000 Pet Cam.
+
 ``centrais`` - expressão regular que determina os IDs das centrais aceitas para conexão.
 
 ``maxconn`` - número máximo de centrais conectadas e identificadas. Uma vez atingido esse número, conexões novas não são tratadas e acabam fechando por timeout.
+
+``logfile`` - arquivo de log (que também é ecoado no stdout). Informar ``None`` se não quiser que o log seja gravado em um arquivo.
+
+``gancho_msg`` - script invocado com mensagens humanamente legíveis de eventos.
+
+``gancho_ev`` - script invocado com dados numéricos de eventos.
+
+``gancho_arquivo`` - script invocado quando uma foto é obtida do IVP-8000 Pet Cam.
+
+``gancho_central`` - script invocado quando nenhuma central está conectada ao programa, para fins de detecção de falha de rede ou central sem comunicação.
+
+``gancho_watchdog`` - script invocado a cada 1h para fins de watchdog.
 
 ## Mais sobre as configurações de callback
 
