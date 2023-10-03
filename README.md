@@ -257,8 +257,10 @@ Como somos da velha guarda, não somos muito fãs de Docker. Nossa sugestão de 
 ## Comandar a central
 
 Pode-se enviar comandos ou consultas diretamente à central, independente da conexão da mesma
-com o Receptor IP. Nem mesmo precisa haver um Receptor IP configurado. Usando essa modalidade
-de controle, podemos e.g. ativar ou desativar a central programaticamente.
+com o Receptor IP. Nem mesmo precisa haver um Receptor IP configurado.
+
+Usando essa modalidade de controle, podemos e.g. ativar ou desativar a central programaticamente,
+o que pode ser extremamente útil quando associado a automação residencial.
 
 O utilitário `comandar`, ainda em desenvolvimento, pode ser usado para enviar comandos
 à central. Todos os parâmetros (endereço IP da central, senha) devem ser passados como
