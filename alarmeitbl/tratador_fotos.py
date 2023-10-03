@@ -14,8 +14,9 @@ from .obtem_fotos import *
 # o programa é reiniciado.
 
 class TratadorDeFotos:
-    def __init__(self, gancho, caddr, cport, senha, tam_senha):
+    def __init__(self, gancho, folder, caddr, cport, senha, tam_senha):
         self.gancho = gancho
+        self.folder = folder
         self.caddr = caddr
         self.cport = cport
         self.senha = senha
@@ -52,7 +53,7 @@ class TratadorDeFotos:
                       (ip_addr, indice, nrfoto, tentativas))
 
         ObtemFotosDeEvento(ip_addr, self.cport, indice, nrfoto, \
-                            self.senha, self.tam_senha, self)
+                            self.senha, self.tam_senha, self, self.folder)
 
     def msg_para_gancho_arquivo(self, arquivo):
         p = os.popen(self.gancho + " " + arquivo, 'w')

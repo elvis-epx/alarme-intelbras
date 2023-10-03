@@ -7,13 +7,14 @@ from .comandos import ComandarCentral
 # Agente que obtem fotos de um evento de sensor com câmera
 
 class ObtemFotosDeEvento(ComandarCentral):
-    def __init__(self, ip_addr, cport, indice, nrfoto, senha, tam_senha, observer):
+    def __init__(self, ip_addr, cport, indice, nrfoto, senha, tam_senha, observer, folder):
         extra = [indice, nrfoto]
         super().__init__(observer, ip_addr, cport, senha, tam_senha, extra)
         self.log_info("Iniciando obtencao de foto %d:%d" % (indice, nrfoto))
         self.indice = indice
         self.nrfoto = nrfoto
         self.arquivo = ""
+        self.folder = folder
 
         # Se destruído com esse status, reporta erro fatal
         self.status = 2
@@ -74,7 +75,8 @@ class ObtemFotosDeEvento(ComandarCentral):
             return
 
         self.log_info("Conexao foto: salvando imagem")
-        self.arquivo = "imagem.%d.%d.%.6f.jpeg" % (indice, foto, time.time())
+        self.arquivo = self.folder + "/" + \
+                "imagem.%d.%d.%.6f.jpeg" % (indice, foto, time.time())
         f = open(self.arquivo, "wb")
         f.write(bytearray(self.jpeg_corrente))
         f.close()

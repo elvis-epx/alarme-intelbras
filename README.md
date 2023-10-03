@@ -93,7 +93,7 @@ para acesso via app AMT Mobile. Deve ser um número.
 ## Mais sobre as configurações de callback
 
 Todos os parâmetros são obrigatórios e devem ser sintaticamente corretos,
-porém `caddr`, `cport`, `senha` e `tamanho` são utilizados apenas para
+porém `caddr`, `cport`, `senha`, `tamanho` e `folder_dlfoto` são utilizados apenas para
 obter fotos de disparo de zona dos sensores IVP-8000 Pet Cam.
 
 Se não possui este sensor, ou não deseja que o Receptor IP puxe as fotos,
