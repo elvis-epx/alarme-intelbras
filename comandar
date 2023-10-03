@@ -4,24 +4,18 @@ import sys
 
 from alarmeitbl.myeventloop import Timeout, Log
 from alarmeitbl.comandos import *
+from alarmeitbl.tratador_fotos import *
 
 def usage():
-    print("Modo de usar: %s <ipaddr> <porta> <senha> <tam. senha> <comando> [param]" % sys.argv[0])
+    print("Modo de usar: %s <ipaddr> <porta> <senha> <tam. senha> <comando> [params]" % sys.argv[0])
     print()
     print("Comandos disponíveis:", ", ".join(tratadores.keys()))
     print()
-    print("Os comandos ativar e desativar aceitam um parâmetro adicional")
-    print("  partição 1 até 254, ou omitir para atuar em todas partições.")
+    print("ativar/desativar: parametro opcional de particao (omitir para todas particoes)")
+    print("idem para desligarsirene")
+    print("cancelarzona/reativarzona: parametro obrigatorio de zona")
+    print("dlfoto: parametros obrigatorios de indice e foto")
     sys.exit(1)
-
-def parse_config():
-
-    cfgfile = configparser.ConfigParser()
-    cfgfile.read(sys.argv[1])
-    if 'receptorip' not in cfgfile:
-        usage()
-    cfg = cfgfile['receptorip']
-    return cfg
 
 tratadores = { 'desativar': DesativarCentral,
                 'ativar': AtivarCentral,
@@ -29,7 +23,8 @@ tratadores = { 'desativar': DesativarCentral,
                 'cancelarzona': CancelarZona,
                 'reativarzona': ReativarZona,
                 'status': SolicitarStatus,
-                'limpardisparo': LimparDisparo }
+                'limpardisparo': LimparDisparo,
+                'dlfoto': None }
 
 Log.set_level(Log.DEBUG)
 
@@ -46,6 +41,18 @@ tam_senha = int(sys.argv[4])
 comando = sys.argv[5]
 if comando not in tratadores:
     usage()
+
+if comando == 'dlfoto':
+    if len(sys.argv) < 8:
+        usage()
+    indice = int(sys.argv[6])
+    nrfoto = int(sys.argv[7])
+    t = TratadorDeFotos(None, "auto", cport, senha, tam_senha)
+    t.enfileirar(ipaddr, indice, nrfoto)
+    t.imediato()
+    ev = EventLoop()
+    ev.loop()
+    sys.exit(0)
 
 particao = None
 if len(sys.argv) == 7:

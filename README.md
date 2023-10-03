@@ -170,6 +170,10 @@ Se você deseja compartilhar as mensagens e fotos de disparo de alarme através
 de algum serviço (email, SMS, WhatsApp, etc.) faça-o através dos
 scripts-gancho (`gancho_msg`, `gancho_ev` e `gancho_arquivo`).
 
+A localização dos diversos scripts de gancho é especificada no arquivo de configuração.
+Todos devem existir e ser executáveis; use scripts inócuos para ganchos que você
+não utilize.
+
 O script `gancho_msg` recebe e encaminha as mensagens de eventos.
 
 O script `gancho_ev` recebe e encaminha os códigos numéricos de eventos. Para
@@ -183,25 +187,8 @@ instalação, e estiver devidamente configurado.
 ## Download manual de fotos
 
 O receptor tenta fazer o download de fotos de disparo assim que eles ocorrem.
-Se for necessário fazê-lo manualmente a posteriori, use o script `dlfoto`:
-
-```
-./dlfoto <arquivo de configuração> <indice> <nr.foto>
-```
-
-O arquivo de configuração tem o mesmo formato do Receptor IP. Se estiver
-rodando `dlfoto` de uma máquina diferente de `receptorip`, ajuste as 
-configurações de acordo.
-
-O índice da foto é informado juntamente com a mensagem de disparo. O número
-da foto começa em 0. No caso do sensor IVP-8000 Pet Cam, duas fotos são
-tiradas por disparo (números de foto 0 e 1).
-
-Exemplo de uso:
-
-```
-./dlfoto config.cfg 404 1
-```
+Se for necessário fazê-lo manualmente a posteriori, use o script `comandar`,
+abordado mais adiante.
 
 ## Log (registro de funcionamento)
 
@@ -270,6 +257,13 @@ central AMT 8000.
 o Receptor IP, evitando a necessidade de abrir nova conexão TCP/IP com a central. Não
 implementamos essa modalidade, mas ela existe, e pode ser útil em alguns casos de uso
 e.g. quando a central está atrás de um NAT ou CGNAT e não pode receber conexões.)
+
+### Download manual de fotos
+
+Para fazer download de uma foto, devem ser informados dois números: índice e número
+da foto. O índice da foto é informado na mensagem de disparo. O número da foto começa
+em 0. No caso do sensor IVP-8000 Pet Cam, duas fotos são tiradas por disparo (números
+de foto 0 e 1).
 
 ## Motivação
 

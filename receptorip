@@ -24,14 +24,6 @@ def parse_config():
 Log.set_level(Log.INFO)
 Log.set_file("receptorip.log")
 
-def watchdog(to_obj):
-    Log.info("receptor em funcionamento")
-    p = os.popen("./gancho_watchdog", 'w')
-    p.close()
-    to_obj.reset(3600)
-
-Timeout.new("watchdog", 15, watchdog)
-
 config = parse_config()
 host = ("" + config['addr']).lower().strip()
 port = int(config['port'])
@@ -42,7 +34,21 @@ tam_senha = int(config['tamanho'])
 centrais = re.compile("" + config['centrais'])
 maxconn = int(config['maxconn'])
 
-Tratador.tratador_de_fotos = TratadorDeFotos('receptorip', caddr, cport, senha, tam_senha)
+gancho_arquivo = config['gancho_arquivo']
+gancho_central = config['gancho_central']
+gancho_ev = config['gancho_ev']
+gancho_msg = config['gancho_msg']
+gancho_watchdog = config['gancho_watchdog']
+
+def watchdog(to_obj):
+    Log.info("receptor em funcionamento")
+    p = os.popen(gancho_watchdog, 'w')
+    p.close()
+    to_obj.reset(3600)
+
+Timeout.new("watchdog", 15, watchdog)
+
+Tratador.tratador_de_fotos = TratadorDeFotos(gancho_arquivo, caddr, cport, senha, tam_senha)
 
 def valida_central(id_central):
     return centrais.match(id_central)
@@ -61,6 +67,12 @@ def valida_maxconn():
 Tratador.valida_central = valida_central
 Tratador.valida_maxconn = valida_maxconn
 
+Tratador.gancho_arquivo = gancho_arquivo
+Tratador.gancho_central = gancho_central
+Tratador.gancho_ev = gancho_ev
+Tratador.gancho_msg = gancho_msg
+Tratador.gancho_watchdog = gancho_watchdog
+
 ev = TCPServerEventLoop((host, port), TCPListener, Tratador)
 
 def central_nao_conectada(to_obj):
@@ -68,12 +80,12 @@ def central_nao_conectada(to_obj):
         if central_nao_conectada.alarme <= 0:
             central_nao_conectada.alarme = 1
             Log.info("nenhuma central conectada")
-            p = os.popen("./gancho_central 1", 'w')
+            p = os.popen(gancho_central + " 1", 'w')
             p.close()
     else:
         if central_nao_conectada.alarme > 0:
             central_nao_conectada.alarme = 0
-            p = os.popen("./gancho_central 0", 'w')
+            p = os.popen(gancho_central + " 0", 'w')
             p.close()
 
     to_obj.restart()

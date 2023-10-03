@@ -306,11 +306,11 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
         for item in msg:
             msgw += " "
             msgw += str(item)
-        p = os.popen("./gancho_msg %s" % shlex.quote(msgw), 'w')
+        p = os.popen(Tratador.gancho_msg + " " + shlex.quote(msgw), 'w')
         p.close()
 
     def ev_para_gancho(self, codigo, particao, zona, qualificador):
-        p = os.popen("./gancho_ev %d %d %d %d" % (codigo, particao, zona, qualificador), 'w')
+        p = os.popen("%s %d %d %d %d" % (Tratador.gancho_ev, codigo, particao, zona, qualificador), 'w')
         p.close()
 
     def evento_alarme(self, msg, com_foto):

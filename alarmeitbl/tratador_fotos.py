@@ -14,8 +14,8 @@ from .obtem_fotos import *
 # o programa é reiniciado.
 
 class TratadorDeFotos:
-    def __init__(self, prog, caddr, cport, senha, tam_senha):
-        self.prog = prog
+    def __init__(self, gancho, caddr, cport, senha, tam_senha):
+        self.gancho = gancho
         self.caddr = caddr
         self.cport = cport
         self.senha = senha
@@ -32,7 +32,7 @@ class TratadorDeFotos:
             # Fotos de sensor 8000 demoram para gravar (NAK 0x28 = foto não gravada)
             self.task = Timeout.new("trata_foto", 20, self.obtem_foto)
 
-    # Reduz tempo de timeout (caso de uso: dlfoto)
+    # Reduz tempo de timeout (caso de uso: comando CLI)
     def imediato(self):
         self.task.reset(0.1)
 
@@ -55,7 +55,7 @@ class TratadorDeFotos:
                             self.senha, self.tam_senha, self)
 
     def msg_para_gancho_arquivo(self, arquivo):
-        p = os.popen("./gancho_arquivo %s" % arquivo, 'w')
+        p = os.popen(self.gancho + " " + arquivo, 'w')
         p.close()
 
     # observer chamado quando ObtemFotosDeEvento finaliza
@@ -63,7 +63,7 @@ class TratadorDeFotos:
         if status == 0:
             Log.info("Fotos indice %d:%d: sucesso" % (indice, nrfoto))
             Log.info("Arquivo de foto %s" % arquivo)
-            if self.prog == 'receptorip':
+            if self.gancho:
                 self.msg_para_gancho_arquivo(arquivo)
             del self.fila[0]
         elif status == 2:
