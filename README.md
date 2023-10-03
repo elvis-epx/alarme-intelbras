@@ -192,14 +192,10 @@ abordado mais adiante.
 
 ## Log (registro de funcionamento)
 
-O Receptor IP grava o log no arquivo `receptorip.log`. Esse registro inclui mensagens
+O Receptor IP pode gravar o log em um arquivo apontado pelo parâmetro `logfile`
+da configuração. A configuração default é `receptorip.log`. Esse registro inclui mensagens
 de disparo, e também algumas mensagens administrativas (conexão e desconexão da
 central, etc.)
-
-O arquivo é fechado a cada linha gravada, então um script periódico pode renomeá-lo
-e manipulá-lo a qualquer momento, sem precisar parar o monitor. (Assim que outra
-mensagem de log tiver de ser gravada, o programa criará um arquivo novo com o mesmo
-nome.)
 
 ## Ganchos de monitoramento
 

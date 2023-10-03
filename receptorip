@@ -21,9 +21,6 @@ def parse_config():
     cfg = cfgfile['receptorip']
     return cfg
 
-Log.set_level(Log.INFO)
-Log.set_file("receptorip.log")
-
 config = parse_config()
 host = ("" + config['addr']).lower().strip()
 port = int(config['port'])
@@ -33,6 +30,10 @@ senha = int(config['senha'])
 tam_senha = int(config['tamanho'])
 centrais = re.compile("" + config['centrais'])
 maxconn = int(config['maxconn'])
+logfile = config["logfile"]
+
+Log.set_level(Log.INFO)
+Log.set_file(logfile)
 
 gancho_arquivo = config['gancho_arquivo']
 gancho_central = config['gancho_central']
