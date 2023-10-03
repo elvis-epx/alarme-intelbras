@@ -237,7 +237,7 @@ Para o script `gancho_central`, sugerimos que ele envie uma notificação
 ao usuário, usando o mesmo método que o script `gancho_msg`, pois a falta
 de conexão da central é tão preocupante quanto um disparo de alarme.
 
-## Supervisor do Receptor IP
+## Supervisão e deploy
 
 O aplicativo `receptorip` é construído e testado para ser robusto.
 Porém, devido a algum imprevisto, ou mesmo algum bug, ele pode parar
@@ -245,7 +245,14 @@ inesperadamente. Alguma espécie de supervisor deve ser empregado para
 reiniciar o Receptor IP quando isto acontecer, de preferência notificando
 por e-mail para que a causa-raiz seja descoberta e consertada.
 
-Você pode usar o `systemd` como supervisor, mas um simples script também resolve.
+Como somos da velha guarda, não somos muito fãs de Docker. Nossa sugestão de deploy
+é a seguinte:
+
+- Usar o [PyInstaller](https://pyinstaller.org/en/stable/) para transformar os scripts ``receptorip`` e (se necessário) o ``comandar`` em executáveis de arquivo único, que podem ser copiados para ``/usr/local/bin``.
+
+- Posicionar o arquivo de configuração e os scripts de gancho numa pasta em ``/etc``. Uma máquina na nuvem pode ter backup automático, ou você pode fazer backup do ``/etc``, o que garante que sua configuração está preservada.
+
+- Usar o `systemd` como meio de iniciar e supervisionar o serviço `receptorip`. Pessoalmente, uso um script intermediário que envia um e-mail caso o `receptorip` quebre.
 
 ## Comandar a central
 
