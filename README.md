@@ -104,14 +104,11 @@ para acesso via app AMT Mobile. Deve ser um número.
 
 ``gancho_watchdog`` - script invocado a cada 1h para fins de watchdog.
 
-## Mais sobre as configurações de callback
+Todos os parâmetros são obrigatórios e devem ser sintaticamente corretos, mesmo que não sejam utilizados no seu caso.
 
-Todos os parâmetros são obrigatórios e devem ser sintaticamente corretos,
-porém `caddr`, `cport`, `senha`, `tamanho` e `folder_dlfoto` são utilizados apenas para
-obter fotos de disparo de zona dos sensores IVP-8000 Pet Cam.
-
-Se não possui este sensor, ou não deseja que o Receptor IP puxe as fotos,
-informe um valor qualquer para a senha.
+Os parâmetros `caddr`, `cport`, `senha`, `tamanho` e `folder_dlfoto` são relevantes apenas para obter fotos 
+capturadas pelos sensores IVP-8000 Pet Cam. Se você não possui esse sensor, os valores não importam. Se deseja que
+o receptor IP não obtenha as fotos, informe uma senha incorreta.
 
 ## Mais sobre autenticação da central
 
@@ -129,8 +126,10 @@ Utilize o script ``testa_re`` para testar sua expressão e ver se dá match :)
 
 As configurações ``centrais`` e ``maxconn`` são um mecanismo básico
 de filtragem contra conexões espúrias, para um Receptor IP rodando na nuvem e exposto
-à Internet. Porém, é totalmente desaconselhado contar apenas com isso
-para sua segurança! O ideal é usar VPN; uma solução temporária razoável seria
+à Internet.
+
+Porém, é totalmente desaconselhado contar apenas com isso
+para sua segurança! O ideal é usar VPN. Uma solução temporária razoável seria
 filtrar pela faixa de IPs do provedor que fornece conectividade à central de alarme.
 
 ## Mais sobre o número máximo de conexões
@@ -155,38 +154,32 @@ para aceitar apenas 1 conexão, a central pode ficar tentando criar uma segunda
 conexão continuamente, o que pode ser confuso quando a não se conhece a causa.
 
 De todo modo, a solução ideal é fazer o update de firmware para 2.0.6, o que
-pode inclusive ser comandado pelo aplicativo de celular e remotamente (não é
-preciso estar na mesma rede da central).
+pode inclusive ser comandado pelo app de configuração AMT Remoto Mobile.
 
 ## Download de fotos versus NAT
 
 Quando o Receptor IP recebe uma conexão da central de alarme, o endereço IP
 de origem é anotado. Se o parâmetro ``caddr`` for igual a ``auto``, esse
-mesmo endereço é utilizado para conectar-se à central na hora de fazer download
-de fotos de disparo do sensor.
+mesmo endereço é utilizado para fazer o callback à central na hora de obter as fotos
+do sensor IVP 8000 Pet Cam.
 
-Porém, isto só funciona se o Receptor IP e a central estiveram na mesma rede
-ou inter-rede. Se a central estiver atrás de um roteador NAT, ou de um provedor
-CGNAT, a conexão no sentido inverso não funcionará.
-
-Nestes casos, será preciso usar alguma técnica para "furar o bloqueio",
-seja VPN, proxy reverso ou NAT reverso (também conhecido como port forwarding ou DMZ).
-
-O parâmetro ``caddr`` deve então ser preenchido com o endereço IP ou hostname
-através do qual o Receptor IP consiga chegar à central.
+Porém, isto não funcionará se o Receptor IP e a central estiverem em lados opostos
+de um roteador NAT e/ou de um provedor CGNAT. Será preciso usar alguma técnica para
+"furar o bloqueio", seja VPN, IP quente fixo, NAT reverso, etc.  O parâmetro ``caddr``
+deve ser preenchido com o endereço IP ou hostname através do qual se possa conectar à central.
 
 Note que expor sua central à conexões vindas da Internet é um furo de segurança.
-Alguma providência adicional de segurança (VPN, firewall) deve ser adotada.
+Alguma providência adicional (VPN, firewall) deve ser adotada.
 
 ## Scripts de gancho
 
-Se você deseja compartilhar as mensagens e fotos de disparo de alarme através
+Se você deseja compartilhar as mensagens e fotos de disparo através
 de algum serviço (email, SMS, WhatsApp, etc.) faça-o através dos
 scripts-gancho (`gancho_msg`, `gancho_ev` e `gancho_arquivo`).
 
 A localização dos diversos scripts de gancho é especificada no arquivo de configuração.
 Todos devem existir e ser executáveis; use scripts inócuos para ganchos que você
-não utilize.
+não precise utilizar.
 
 O script `gancho_msg` recebe e encaminha as mensagens de eventos.
 
@@ -195,21 +188,7 @@ conhecer os códigos, consulte a documentação da Intelbras ou o início do arq
 `alarmeitbl/tratador.py`.
 
 O script `gancho_arquivo` recebe e encaminha arquivos, mais especificamente
-as fotos capturadas pelo sensor IVP 8000 Pet Cam, se ele existir na sua
-instalação, e estiver devidamente configurado.
-
-## Download manual de fotos
-
-O receptor tenta fazer o download de fotos de disparo assim que eles ocorrem.
-Se for necessário fazê-lo manualmente a posteriori, use o script `comandar`,
-abordado mais adiante.
-
-## Log (registro de funcionamento)
-
-O Receptor IP pode gravar o log em um arquivo apontado pelo parâmetro `logfile`
-da configuração. A configuração default é `receptorip.log`. Esse registro inclui mensagens
-de disparo, e também algumas mensagens administrativas (conexão e desconexão da
-central, etc.)
+as fotos capturadas pelo sensor IVP 8000 Pet Cam.
 
 ## Ganchos de monitoramento
 
@@ -245,35 +224,41 @@ inesperadamente. Alguma espécie de supervisor deve ser empregado para
 reiniciar o Receptor IP quando isto acontecer, de preferência notificando
 por e-mail para que a causa-raiz seja descoberta e consertada.
 
-Como somos da velha guarda, não somos muito fãs de Docker. Nossa sugestão de deploy
-é a seguinte:
+Como somos da velha guarda, não somos muito fãs de Docker. Se serve de sugestão,
+a forma que nós mesmos rodamos nosso Receptor IP na nuvem é a seguinte:
 
-- Usar o [PyInstaller](https://pyinstaller.org/en/stable/) para transformar os scripts ``receptorip`` e (se necessário) o ``comandar`` em executáveis de arquivo único, que podem ser copiados para ``/usr/local/bin``.
+- Usamos o [PyInstaller](https://pyinstaller.org/en/stable/) para transformar os scripts ``receptorip`` e (se necessário) o ``comandar`` em executáveis de arquivo único, que podem ser copiados para ``/usr/local/bin`` e usados como se fossem utilitários Unix comuns.
 
-- Posicionar o arquivo de configuração e os scripts de gancho numa pasta em ``/etc``. Uma máquina na nuvem pode ter backup automático, ou você pode fazer backup do ``/etc``, o que garante que sua configuração está preservada.
+- Posicionar o arquivo de configuração e os scripts de gancho numa pasta em ``/etc``.
 
-- Usar o `systemd` como meio de iniciar e supervisionar o serviço `receptorip`. Pessoalmente, uso um script intermediário que envia um e-mail caso o `receptorip` quebre.
+- Usar o `systemd` como meio de iniciar e supervisionar o serviço `receptorip`.
 
-## Comandar a central
+## Enviar comandos à central
 
-Pode-se enviar comandos ou consultas diretamente à central, independente da conexão da mesma
-com o Receptor IP. Nem mesmo precisa haver um Receptor IP configurado. Usando essa modalidade
-de controle, podemos e.g. ativar ou desativar a central programaticamente.
+O Receptor IP apenas recebe eventos da central. Em algumas situações, pode ser interessante
+enviar comandos à central. Por exemplo, ativar ou desativar o alarme de forma integrada com a
+automação residencial.
 
-O utilitário `comandar`, ainda em desenvolvimento, pode ser usado para enviar comandos
-à central. Todos os parâmetros (endereço IP da central, senha) devem ser passados como
-parâmetros de linha de comando; ele não faz uso do arquivo de configuração.
+Para esse fim, oferecemos o script `comandar`.
 
-O protocolo ISECNet v2, utilizado nesses comandos, é o mesmo utilizado para download de 
-fotos do sensor IVP 8000 Pet Cam, e acreditamos que seja implementado apenas pela
-central AMT 8000.
+- Este script funciona de forma independente do Receptor IP, nem faz uso do arquivo de configuração. Você não precisa ter um Receptor IP funcionando para fazer uso deste script.
+
+- Todos os parâmetros (endereço IP da central, senha) devem ser passados como parâmetros de linha de comando.
+
+- Rode o script sem parâmetros para obter um texto de ajuda, bem como a lista de comandos suportados.
+
+- O utilitário ainda está em desenvolvimento, ou seja, ainda estamos adicionando comandos e recursos.
+
+- O protocolo ISECNet v2, utilizado nesses comandos, é o mesmo utilizado para download de fotos do sensor IVP 8000 Pet Cam, e acreditamos que seja implementado apenas pela central AMT 8000.
 
 (Nota: O ISECNet também pode trafegar de forma multiplexada através da conexão entre a central e
 o Receptor IP, evitando a necessidade de abrir nova conexão TCP/IP com a central. Não
-implementamos essa modalidade, mas ela existe, e pode ser útil em alguns casos de uso
-e.g. quando a central está atrás de um NAT ou CGNAT e não pode receber conexões.)
+implementamos essa modalidade, mas ela existe.)
 
 ### Download manual de fotos
+
+O receptor tenta fazer o download de fotos de disparo assim que eles ocorrem.
+Mas é possível também fazê-lo a posteriori usando o script `comandar` abordado logo acima.
 
 Para fazer download de uma foto, devem ser informados dois números: índice e número
 da foto. O índice da foto é informado na mensagem de disparo. O número da foto começa
