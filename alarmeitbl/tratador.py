@@ -61,22 +61,22 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
             'rest': "Recuperacao bateria baixa em componente sem fio {zona}"
              },
         401: {
-             'rest': "Ativacao manual",
-             'aber': "Desativacao manual"
+             'rest': "Ativacao manual P{particao}",
+             'aber': "Desativacao manual P{particao}"
              },
         403: {
-             'rest': "Ativacao automatica",
-             'aber': "Desativacao automatica"
+             'rest': "Ativacao automatica P{particao}",
+             'aber': "Desativacao automatica P{particao}"
              },
         404: {
-            'rest': "Ativacao remota",
-            'aber': "Desativacao remota",
+            'rest': "Ativacao remota P{particao}",
+            'aber': "Desativacao remota P{particao}",
              },
         407: {
-            'rest': "Ativacao remota app",
-            'aber': "Desativacao remota app",
+            'rest': "Ativacao remota app P{particao}",
+            'aber': "Desativacao remota app P{particao}",
              },
-        408: {'*': "Ativacao por uma tecla"},
+        408: {'*': "Ativacao por uma tecla P{particao}"},
         410: {'*': "Acesso remoto"},
         461: {'*': "Senha incorreta"},
         570: {
