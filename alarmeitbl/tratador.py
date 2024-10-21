@@ -79,6 +79,10 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
         408: {'*': "Ativacao por uma tecla P{particao}"},
         410: {'*': "Acesso remoto"},
         461: {'*': "Senha incorreta"},
+        533: {
+             'aber': "Adicao de zona {zona}",
+             'rest': "Remocao de zona {zona}"
+             },
         570: {
              'aber': "Bypass de zona {zona}",
              'rest': "Cancel bypass de zona {zona}"
