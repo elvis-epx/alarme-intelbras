@@ -209,13 +209,14 @@ class LimparDisparo(ComandarCentral):
 class CancelarZona(ComandarCentral):
     def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra):
         super().__init__(observer, ip_addr, cport, senha, tam_senha, extra)
-        self.particao = extra[0]
+        self.zona = extra[0]
 
     def envia_comando_in(self):
-        if not self.particao or self.particao < 1 or self.particao > 254:
-            raise Exception("Partição precisa ser especificada.")
-        payload = [ self.particao, 0x01 ]
-        self.envia_comando(0x4013, payload, self.resposta_comando_in)
+        # TODO Suportar todas as zonas (enviar 0xff)
+        if not self.zona or self.zona < 1 or self.zona > 254:
+            raise Exception("Zona precisa ser especificada.")
+        payload = [ self.zona - 1, 0x01 ]
+        self.envia_comando(0x401f, payload, self.resposta_comando_in)
 
     def resposta_comando_in(self, payload):
         self.despedida()
@@ -223,13 +224,14 @@ class CancelarZona(ComandarCentral):
 class ReativarZona(ComandarCentral):
     def __init__(self, observer, ip_addr, cport, senha, tam_senha, extra):
         super().__init__(observer, ip_addr, cport, senha, tam_senha, extra)
-        self.particao = extra[0]
+        self.zona = extra[0]
 
     def envia_comando_in(self):
-        if not self.particao or self.particao < 1 or self.particao > 254:
-            raise Exception("Partição precisa ser especificada.")
-        payload = [ self.particao, 0x00 ]
-        self.envia_comando(0x4013, payload, self.resposta_comando_in)
+        # TODO Suportar todas as zonas (enviar 0xff)
+        if not self.zona or self.zona < 1 or self.zona > 254:
+            raise Exception("Zona precisa ser especificada.")
+        payload = [ self.zona - 1, 0x00 ]
+        self.envia_comando(0x401f, payload, self.resposta_comando_in)
 
     def resposta_comando_in(self, payload):
         self.despedida()

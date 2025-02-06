@@ -54,13 +54,13 @@ if comando == 'dlfoto':
     ev.loop()
     sys.exit(0)
 
-particao = None
+particao_ou_zona = None
 if len(sys.argv) == 7:
     try:
-        particao = int(sys.argv[6])
+        particao_ou_zona = int(sys.argv[6])
     except ValueError:
-        particao = -1
-    if particao < 1 or particao > 254:
+        particao_ou_zona = -1
+    if particao_ou_zona < 1 or particao_ou_zona > 254:
         usage()
 
 class Observer:
@@ -74,7 +74,7 @@ class Observer:
 
 observer = Observer()
 
-tratador = tratadores[comando](observer, ipaddr, cport, senha, tam_senha, [particao])
+tratador = tratadores[comando](observer, ipaddr, cport, senha, tam_senha, [particao_ou_zona])
 
 ev = EventLoop()
 ev.loop()
