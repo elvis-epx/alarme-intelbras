@@ -60,7 +60,7 @@ class UtilsProtocolo:
         posicao = 1
         for nibbles in dados_rev:
             numero += (nibbles >> 4) * 10 * posicao
-            numero += (nibbles & 0x04) * posicao
+            numero += (nibbles & 0x0f) * posicao
             posicao *= 100
         return numero
     
