@@ -6,6 +6,99 @@ import (
     "slices"
 )
 
+var EventosContactID map[int]map[string]string
+
+func init() {
+    EventosContactID = map[int]map[string]string{
+        100: {"*": "Emergencia medica"},
+        110: {"*": "Alarme de incendio"},
+        120: {"*": "Panico"},
+        121: {"*": "Ativacao/desativacao sob coacao"},
+        122: {"*": "Panico silencioso"},
+        130: {
+            "aber": "Disparo de zona {zona}",
+            "rest": "Restauracao de zona {zona}",
+            },
+        133: {"*": "Disparo de zona 24h {zona}"},
+        146: {"*": "Disparo silencioso {zona}"},
+        301: {
+            "aber": "Falta de energia AC",
+            "rest": "Retorno de energia AC",
+            },
+        342: {
+            "aber": "Falta de energia AC em componente sem fio {zona}",
+            "rest": "Retorno energia AC em componente sem fio {zona}",
+            },
+        302: {
+            "aber": "Bateria do sistema baixa",
+            "rest": "Recuperacao bateria do sistema baixa",
+            },
+        305: {"*": "Reset do sistema"},
+        306: {"*": "Alteracao programacao"},
+        311: {
+            "aber": "Bateria ausente",
+            "rest": "Recuperacao bateria ausente",
+            },
+        351: {
+            "aber": "Corte linha telefonica",
+            "rest": "Restauro linha telefonica",
+            },
+        354: {"*": "Falha ao comunicar evento"},
+        147: {
+            "aber": "Falha de supervisao {zona}",
+            "rest": "Recuperacao falha de supervisao {zona}",
+            },
+        145: {
+            "aber": "Tamper em dispositivo expansor {zona}",
+            "rest": "Restauro tamper em dispositivo expansor {zona}",
+            },
+        383: {
+            "aber": "Tamper em sensor {zona}",
+            "rest": "Restauro tamper em sensor {zona}",
+            },
+        384: {
+            "aber": "Bateria baixa em componente sem fio {zona}",
+            "rest": "Recuperacao bateria baixa em componente sem fio {zona}",
+            },
+        401: {
+            "rest": "Ativacao manual P{particao}",
+            "aber": "Desativacao manual P{particao}",
+            },
+        403: {
+            "rest": "Ativacao automatica P{particao}",
+            "aber": "Desativacao automatica P{particao}",
+            },
+        404: {
+            "rest": "Ativacao remota P{particao}",
+            "aber": "Desativacao remota P{particao}",
+            },
+        407: {
+            "rest": "Ativacao remota app P{particao}",
+            "aber": "Desativacao remota app P{particao}",
+            },
+        408: {"*": "Ativacao por uma tecla P{particao}"},
+        410: {"*": "Acesso remoto"},
+        461: {"*": "Senha incorreta"},
+        533: {
+            "aber": "Adicao de zona {zona}",
+            "rest": "Remocao de zona {zona}",
+            },
+        570: {
+            "aber": "Bypass de zona {zona}",
+            "rest": "Cancel bypass de zona {zona}",
+            },
+        602: {"*": "Teste periodico"},
+        621: {"*": "Reset do buffer de eventos"},
+        601: {"*": "Teste manual"},
+        616: {"*": "Solicitacao de manutencao"},
+        422: {
+            "aber": "Acionamento de PGM {zona}",
+            "rest": "Desligamento de PGM {zona}",
+            },
+        625: {"*": "Data e hora reiniciados"},
+    }
+}
+
 // Calcula checksum de frame longo
 // Presume que "dados" contém o byte de comprimento mas não contém o byte de checksum
 func Checksum(dados []byte) byte {
