@@ -1,24 +1,27 @@
+package goalarmeitbl
+
 import (
-    "fmt"
     "net"
-    "os"
-    "time"
+    "io"
     "log"
     "slices"
 )
 
+type Delegate func (Event) bool
+
 type TCPClientHandler struct {
     Events chan Event
+    delegate Delegate
     RecvBuf []byte
 
     to_send chan []byte
     conn *net.TCPConn
 }
 
-func NewTCPClientHandler(addr string) *TCPClientHandler {
-    h := make(TCPClientHandler{make(chan Event), nil, make(chan []byte, 1), nil})
+func NewTCPClientHandler(addr string, delegate Delegate) *TCPClientHandler {
+    h := TCPClientHandler{make(chan Event), delegate, nil, make(chan []byte, 1), nil}
     go h.main(addr)
-    return h
+    return &h
 }
 
 // Main loop
@@ -34,39 +37,40 @@ loop:
             defer h.conn.Close()
             go h.recv()
             go h.send()
-            h.Events <- {"Connected", nil}
+            h.Events <- Event{"Connected", nil}
         case "connerr":
-            h.Events <- {"NotConnected", nil}
+            h.Events <- Event{"NotConnected", nil}
         case "recv":
             // from recv goroutine
-            h.recvbuf = slices.Concat(h.recvbuf, evt.Cargo)
-            h.Events <- {"Recv", nil}
+            h.RecvBuf = slices.Concat(h.RecvBuf, evt.Cargo)
+            h.Events <- Event{"Recv", nil}
         case "send":
             // forward to send goroutine
             h.to_send <- evt.Cargo
         case "err":
             // notify higher layers
-            h.Events <- {"Err", nil}
+            h.Events <- Event{"Err", nil}
         case "eof":
             // notify higher layers
-            h.Events <- {"Eof", nil}
+            h.Events <- Event{"Eof", nil}
         case "Bye":
             break loop
         default:
             // try to delegate handling 
-            if !h.event(evt) {
+            if !h.delegate(evt) {
                 log.Fatal("Unhandled event ", evt.Name)
             }
         }
     }
 }
 func (h *TCPClientHandler) connect(addr string) {
-    h.conn, err = net.Dial("tcp", addr)
+    conn, err := net.Dial("tcp", addr)
     if err != nil {
-        h.Events <- {"connerr", nil}
+        h.Events <- Event{"connerr", nil}
         return
     }
-    h.Events <- {"connected", nil}
+    h.conn = conn.(*net.TCPConn)
+    h.Events <- Event{"connected", nil}
 }
 
 // Data receiving goroutine
