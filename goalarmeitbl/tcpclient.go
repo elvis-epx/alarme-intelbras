@@ -5,110 +5,179 @@ import (
     "io"
     "log"
     "slices"
+    "sync"
 )
 
-type Delegate func (Event) bool
+// Handle is always called by the same goroutine,
+// so there will never be two concurrent calls to Handle()
+type TCPClientDelegate interface {
+    Handle(*TCPClient, Event) bool
+}
 
-type TCPClientHandler struct {
+type TCPClient struct {
     Events chan Event
-    delegate Delegate
+    delegate TCPClientDelegate
     RecvBuf []byte
 
+    wg sync.WaitGroup
     to_send chan []byte
+    stop_send chan struct{}
     conn *net.TCPConn
 }
 
-func NewTCPClientHandler(addr string, delegate Delegate) *TCPClientHandler {
-    h := TCPClientHandler{make(chan Event), delegate, nil, make(chan []byte, 1), nil}
+func NewTCPClient(addr string, delegate TCPClientDelegate) *TCPClient {
+    // TODO choose send channel buffer size
+    // Event channel capacity at least 2 in case both send() and recv() emit error events and main() has already exited
+    // to_send channel capacity at least 1 so main() does block on send()
+    // stop_send channel capacity at least 1 so main() does not block on send() when trying to exit
+
+    h := TCPClient{make(chan Event, 2), delegate, nil, sync.WaitGroup{}, make(chan []byte, 1), make(chan struct{}, 1), nil}
+    h.wg.Add(1)
     go h.main(addr)
     return &h
 }
 
 // Main loop
-func (h *TCPClientHandler) main(addr string) {
+func (h *TCPClient) main(addr string) {
+    defer h.wg.Done()
     go h.connect(addr)
 
 loop:
     for {
         evt := <-h.Events
-        log.Print("TCP handler: event ", evt.Name)
+        log.Print("TCPClient: event ", evt.Name)
+
         switch evt.Name {
+        case "bye":
+            break loop
         case "connected":
-            defer h.conn.Close()
+            defer func() {
+                h.stop_send <-struct{}{}
+                h.conn.Close()
+                // drain events to make room for possible send() and recv() final error events
+                for len(h.Events) > 0 {
+                    <-h.Events
+                }
+            }()
             go h.recv()
             go h.send()
-            h.Events <- Event{"Connected", nil}
+
+            if !h.delegate.Handle(h, Event{"Connected", nil}) {
+                log.Fatal("Unhandled event ", evt.Name)
+                break loop
+            }
         case "connerr":
-            h.Events <- Event{"NotConnected", nil}
+            if !h.delegate.Handle(h, Event{"NotConnected", nil}) {
+                log.Fatal("Unhandled event ", evt.Name)
+                break loop
+            }
         case "recv":
             // from recv goroutine
             h.RecvBuf = slices.Concat(h.RecvBuf, evt.Cargo)
-            h.Events <- Event{"Recv", nil}
+            if !h.delegate.Handle(h, Event{"Recv", nil}) {
+                log.Fatal("Unhandled event ", evt.Name)
+                break loop
+            }
         case "send":
             // forward to send goroutine
-            h.to_send <- evt.Cargo
+            h.to_send <-evt.Cargo
         case "err":
             // notify higher layers
-            h.Events <- Event{"Err", nil}
+            if !h.delegate.Handle(h, Event{"Err", nil}) {
+                log.Fatal("Unhandled event ", evt.Name)
+                break loop
+            }
         case "eof":
             // notify higher layers
-            h.Events <- Event{"Eof", nil}
-        case "Bye":
-            break loop
-        default:
-            // try to delegate handling 
-            if !h.delegate(evt) {
+            if !h.delegate.Handle(h, Event{"Eof", nil}) {
                 log.Fatal("Unhandled event ", evt.Name)
+                break loop
+            }
+        default:
+            if !h.delegate.Handle(h, evt) {
+                log.Fatal("Unhandled event ", evt.Name)
+                break loop
             }
         }
     }
 }
-func (h *TCPClientHandler) connect(addr string) {
+
+func (h *TCPClient) connect(addr string) {
     conn, err := net.Dial("tcp", addr)
     if err != nil {
-        h.Events <- Event{"connerr", nil}
+        h.Events <-Event{"connerr", nil}
         return
     }
     h.conn = conn.(*net.TCPConn)
-    h.Events <- Event{"connected", nil}
+    h.Events <-Event{"connected", nil}
 }
 
 // Data receiving goroutine
-func (h *TCPClientHandler) recv() {
+func (h *TCPClient) recv() {
     for {
         data := make([]byte, 1500)
         n, err := h.conn.Read(data)
         if err != nil {
             if err == io.EOF {
-                h.Events <- Event{"eof", nil}
+                log.Print("TCPClient: recv eof")
+                h.Events <-Event{"recv", nil}
             } else {
-                h.Events <- Event{"err", nil}
+                log.Print("TCPClient: recv err")
+                h.Events <-Event{"err", nil}
             }
             break
         }
-        log.Print("Received ", n)
-        h.Events <- Event{"recv", data[:n]}
+        log.Print("TCPClient: Received ", n)
+        h.Events <-Event{"recv", data[:n]}
     }
+    log.Print("TCPClient: goroutine recv stopped")
 }
 
 // Data sending goroutine
-func (h *TCPClientHandler) send() {
+func (h *TCPClient) send() {
+loop:
     for {
-        data := <- h.to_send
-
-        for len(data) > 0 {
-            log.Print("Sending ", len(data))
-            n, err := h.conn.Write(data)
-            if err != nil {
-                if err == io.EOF {
-                    h.Events <- Event{"eof", nil}
-                } else {
-                    h.Events <- Event{"err", nil}
-                }
-                break
+        select {
+        case <-h.stop_send:
+            break loop
+        case data := <-h.to_send:
+            if len(data) == 0 {
+                // voluntary closure of connection in tx direction
+                log.Print("TCPClient: Closing for tx")
+                h.conn.CloseWrite()
+                close(h.to_send) // make sure program panics if user tries to send anything else
+                break loop
             }
-            log.Print("Sent ", n)
-            data = data[n:]
+
+            for len(data) > 0 {
+                log.Print("TCPClient: Sending ", len(data))
+                n, err := h.conn.Write(data)
+                if err != nil {
+                    if err == io.EOF {
+                        log.Print("TCPClient: send eof")
+                        h.Events <-Event{"eof", nil}
+                    } else {
+                        log.Print("TCPClient: send err")
+                        h.Events <-Event{"err", nil}
+                    }
+                    break loop
+                }
+                log.Print("TCPClient: Sent ", n)
+                data = data[n:]
+            }
         }
     }
+    log.Print("TCPClient: goroutine send stopped")
+}
+
+func (h *TCPClient) Send(data []byte) {
+    h.Events <-Event{"send", data}
+}
+
+func (h *TCPClient) Bye() {
+    h.Events <-Event{"bye", nil}
+}
+
+func (h *TCPClient) Wait() {
+    h.wg.Wait()
 }
