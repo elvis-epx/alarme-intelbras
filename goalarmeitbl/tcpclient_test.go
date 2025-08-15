@@ -4,6 +4,7 @@ import (
     "testing"
     "log"
     "bytes"
+    "time"
     "net"
     "io"
 )
@@ -131,5 +132,61 @@ func TestTCPClient(t *testing.T) {
     d.t = t
 
     c := NewTCPClient(PORT, d)
+    c.Wait()
+}
+
+type TestDelegate2 struct {
+    t *testing.T
+}
+
+func (d *TestDelegate2) Handle(c *TCPClient, evt Event) bool {
+    log.Printf("test delegate 2: event %s", evt.Name)
+    switch evt.Name {
+        case "NotConnected":
+            c.Bye()
+            return true
+    }
+    return false
+}
+
+func TestTCPClient2(t *testing.T) {
+    d := new(TestDelegate2)
+    d.t = t
+
+    c := NewTCPClient(PORT, d)
+    c.Wait()
+}
+
+type TestDelegate3 struct {
+    t *testing.T
+    client *TCPClient
+}
+
+func (d *TestDelegate3) Handle(c *TCPClient, evt Event) bool {
+    log.Printf("test delegate 3: event %s", evt.Name)
+    switch evt.Name {
+        case "to":
+            // simulate connection failure
+            d.client.conn.Close()
+            return true
+        case "Connected":
+            return true
+        case "Err":
+            c.Bye()
+            return true
+    }
+    return false
+}
+
+func TestTCPClient3(t *testing.T) {
+    tcpserver()
+    d := new(TestDelegate3)
+    d.t = t
+
+    c := NewTCPClient(PORT, d)
+    d.client = c
+
+    NewTimeout(2 * time.Second, 0, c.Events, "to")
+
     c.Wait()
 }
