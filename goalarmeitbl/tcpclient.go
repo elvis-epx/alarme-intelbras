@@ -11,6 +11,8 @@ import (
 // Handle is always called by the same goroutine,
 // so there will never be two concurrent calls to Handle()
 type TCPClientDelegate interface {
+    // If handler may add more than one Event to the events channel, do this in a goroutine
+    // otherwise there may be a deadlock
     Handle(*TCPClient, Event) bool
 }
 
@@ -87,9 +89,15 @@ loop:
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
             }
-        case "eof":
+        case "sendeof":
             // notify higher layers
-            if !h.delegate.Handle(h, Event{"Eof", nil}) {
+            if !h.delegate.Handle(h, Event{"SendEof", nil}) {
+                log.Fatal("Unhandled event ", evt.Name)
+                break loop
+            }
+        case "recveof":
+            // notify higher layers
+            if !h.delegate.Handle(h, Event{"RecvEof", nil}) {
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
             }
@@ -120,7 +128,7 @@ func (h *TCPClient) recv() {
         if err != nil {
             if err == io.EOF {
                 log.Print("TCPClient: recv eof")
-                h.Events <-Event{"recv", nil}
+                h.Events <-Event{"recveof", nil}
             } else {
                 log.Print("TCPClient: recv err")
                 h.Events <-Event{"err", nil}
@@ -155,7 +163,7 @@ loop:
                 if err != nil {
                     if err == io.EOF {
                         log.Print("TCPClient: send eof")
-                        h.Events <-Event{"eof", nil}
+                        h.Events <-Event{"sendeof", nil}
                     } else {
                         log.Print("TCPClient: send err")
                         h.Events <-Event{"err", nil}
