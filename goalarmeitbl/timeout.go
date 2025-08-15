@@ -44,7 +44,7 @@ type TimeoutCallback func (*Timeout)
 func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string) (*Timeout) {
     timeout := Timeout{avgto, fudge, nil, false, time.Now(), cbch, cbchmsg, make(chan TimeoutControl), make(chan TimeoutInfo)}
     go timeout.handler()
-    timeout.restart()
+    defer timeout.Restart()
     return &timeout
 }
 
