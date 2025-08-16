@@ -4,20 +4,21 @@ import (
     "net"
     "io"
     "log"
-    "slices"
     "sync"
 )
 
 // Handle is always called by the same goroutine,
 // so there will never be two concurrent calls to Handle()
 type TCPClientDelegate interface {
+    // Callee should true only if the event was handled.
+    // Unhandled events panic the program to catch bugs
+    // Callee should handle at least Connected, NotConnected, Recv, Err, SendEof, RecvEof
     Handle(*TCPClient, Event) bool
 }
 
 type TCPClient struct {
     Events chan Event
     delegate TCPClientDelegate
-    RecvBuf []byte
 
     wg sync.WaitGroup
     to_send chan []byte
@@ -28,7 +29,7 @@ func NewTCPClient(addr string, delegate TCPClientDelegate) *TCPClient {
     // Event channel capacity at least 2 in case both send() and recv() emit error events but main() has already exited
     // to_send channel capacity at least 2 so user can call Send(non-empty) plus Send(empty) w/o blocking
 
-    h := TCPClient{make(chan Event, 2), delegate, nil, sync.WaitGroup{}, make(chan []byte, 2), nil}
+    h := TCPClient{make(chan Event, 2), delegate, sync.WaitGroup{}, make(chan []byte, 2), nil}
     h.wg.Add(1)
     go h.main(addr)
     return &h
@@ -82,8 +83,7 @@ loop:
 
         case "recv":
             // from recv goroutine
-            h.RecvBuf = slices.Concat(h.RecvBuf, evt.Cargo)
-            if !h.delegate.Handle(h, Event{"Recv", nil}) {
+            if !h.delegate.Handle(h, Event{"Recv", evt.Cargo}) {
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
             }
@@ -195,6 +195,8 @@ func (h *TCPClient) send() {
 
     log.Print("TCPClient: goroutine send stopped")
 }
+
+// Public interface
 
 // Send data
 // empty slice = shutdown connection for sending

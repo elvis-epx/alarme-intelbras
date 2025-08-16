@@ -4,6 +4,7 @@ import (
     "testing"
     "log"
     "bytes"
+    "slices"
     "time"
     "net"
     "io"
@@ -78,6 +79,7 @@ func tcpserver_handle(c net.Conn) {
 type TestDelegate struct {
     phase int
     t *testing.T
+    RecvBuf []byte
 }
 
 func (d *TestDelegate) Handle(c *TCPClient, evt Event) bool {
@@ -90,24 +92,25 @@ func (d *TestDelegate) Handle(c *TCPClient, evt Event) bool {
             c.Send([]byte("abcde\n"))
             return true
         case "Recv":
-            data := string(c.RecvBuf)
+            d.RecvBuf = slices.Concat(d.RecvBuf, evt.Cargo)
+            data := string(d.RecvBuf)
             log.Print("    received ", data)
             if d.phase == 0 && data == "bcdef\n" {
-                c.RecvBuf = nil
+                d.RecvBuf = nil
                 d.phase = 1
                 go func() {
                     c.Send([]byte("01234"))
                     c.Send([]byte("5\n"))
                 }()
             } else if d.phase == 1 && data == "123456\n" {
-                c.RecvBuf = nil
+                d.RecvBuf = nil
                 d.phase = 2
                 go func() {
                     c.Send([]byte("xy\n"))
                     c.Send(nil)
                 }()
             } else if d.phase == 2 && data == "yz\n" {
-                c.RecvBuf = nil
+                d.RecvBuf = nil
                 c.Bye()
             }
             return true
