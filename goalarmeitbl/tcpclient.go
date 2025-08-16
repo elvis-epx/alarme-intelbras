@@ -11,9 +11,6 @@ import (
 // Handle is always called by the same goroutine,
 // so there will never be two concurrent calls to Handle()
 type TCPClientDelegate interface {
-    // If handler adds more than one Event to the events channel 
-    // (e.g. by calling Send() more than once), do this in a goroutine
-    // otherwise there may be a deadlock
     Handle(*TCPClient, Event) bool
 }
 
@@ -28,11 +25,10 @@ type TCPClient struct {
 }
 
 func NewTCPClient(addr string, delegate TCPClientDelegate) *TCPClient {
-    // TODO choose send channel buffer size
-    // Event channel capacity at least 2 in case both send() and recv() emit error events and main() has already exited
-    // to_send channel capacity at least 1 so Send() does not block easily
+    // Event channel capacity at least 2 in case both send() and recv() emit error events but main() has already exited
+    // to_send channel capacity at least 2 so user can call Send(non-empty) plus Send(empty) w/o blocking
 
-    h := TCPClient{make(chan Event, 2), delegate, nil, sync.WaitGroup{}, make(chan []byte, 1), nil}
+    h := TCPClient{make(chan Event, 2), delegate, nil, sync.WaitGroup{}, make(chan []byte, 2), nil}
     h.wg.Add(1)
     go h.main(addr)
     return &h
@@ -40,7 +36,16 @@ func NewTCPClient(addr string, delegate TCPClientDelegate) *TCPClient {
 
 // Main loop
 func (h *TCPClient) main(addr string) {
-    defer h.wg.Done()
+    defer func() {
+        // drain outstanding events
+        // make room for possible send() and recv() final error events
+        for len(h.Events) > 0 {
+            <-h.Events
+        }
+        log.Print("TCPClient: #### goroutine main stopped")
+        h.wg.Done()
+    }()
+
     go h.connect(addr)
 
 loop:
@@ -58,11 +63,8 @@ loop:
                 h.conn.Close()
                 // stop send goroutine
                 h.to_send <-nil
-                // drain events to make room for possible send() and recv() final error events
-                for len(h.Events) > 0 {
-                    <-h.Events
-                }
             }()
+
             go h.recv()
             go h.send()
 
@@ -70,12 +72,14 @@ loop:
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
             }
+
         case "connerr":
             // from connect goroutine
             if !h.delegate.Handle(h, Event{"NotConnected", nil}) {
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
             }
+
         case "recv":
             // from recv goroutine
             h.RecvBuf = slices.Concat(h.RecvBuf, evt.Cargo)
@@ -83,24 +87,28 @@ loop:
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
             }
+
         case "err":
             // notify higher layers
             if !h.delegate.Handle(h, Event{"Err", nil}) {
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
             }
+
         case "sendeof":
             // notify higher layers
             if !h.delegate.Handle(h, Event{"SendEof", nil}) {
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
             }
+
         case "recveof":
             // notify higher layers
             if !h.delegate.Handle(h, Event{"RecvEof", nil}) {
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
             }
+
         default:
             if !h.delegate.Handle(h, evt) {
                 log.Fatal("Unhandled event ", evt.Name)
@@ -144,32 +152,44 @@ func (h *TCPClient) recv() {
 
 // Data sending goroutine
 func (h *TCPClient) send() {
+    active := true
+
     for {
         data := <-h.to_send
 
         if data == nil {
+            // exit goroutine
             break
-        } else if len(data) == 0 {
+        }
+
+        if !active {
+            continue
+        }
+
+        if len(data) == 0 {
             // voluntary closure of connection in tx direction
             log.Print("TCPClient: Closing for tx")
             h.conn.CloseWrite()
-        } else {
-            for len(data) > 0 {
-                log.Print("TCPClient: Sending ", len(data))
-                n, err := h.conn.Write(data)
-                if err != nil {
-                    if err == io.EOF {
-                        log.Print("TCPClient: send eof")
-                        h.Events <-Event{"sendeof", nil}
-                    } else {
-                        log.Print("TCPClient: send err")
-                        h.Events <-Event{"err", nil}
-                    }
-                    break
+            active = false
+            continue
+        }
+
+        for len(data) > 0 {
+            log.Print("TCPClient: Sending ", len(data))
+            n, err := h.conn.Write(data)
+            if err != nil {
+                if err == io.EOF {
+                    log.Print("TCPClient: send eof")
+                    h.Events <-Event{"sendeof", nil}
+                } else {
+                    log.Print("TCPClient: send err")
+                    h.Events <-Event{"err", nil}
                 }
-                log.Print("TCPClient: Sent ", n)
-                data = data[n:]
+                active = false
+                break
             }
+            log.Print("TCPClient: Sent ", n)
+            data = data[n:]
         }
     }
 
@@ -178,8 +198,11 @@ func (h *TCPClient) send() {
 
 // Send data
 // empty slice = shutdown connection for sending
+// Warning: the send queue channel has limited length and may block if called
+// several times in a row. Do this in a goroutine (or don't do this at all).
 func (h *TCPClient) Send(data []byte) {
     if data == nil {
+        // nil slice has another meaning and is used internally only
         data = []byte{}
     }
     // forward to send goroutine
@@ -187,8 +210,11 @@ func (h *TCPClient) Send(data []byte) {
 }
 
 // Close connection and free resources
+// Never blocks the caller
 func (h *TCPClient) Bye() {
-    h.Events <-Event{"bye", nil}
+    go func() {
+        h.Events <-Event{"bye", nil}
+    }()
 }
 
 // Wait until connection main loop is stopped
