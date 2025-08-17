@@ -18,6 +18,7 @@ type ObserverComando interface {
 type ComandoCentralSub interface {
     // É esperado que a subclasse conheça a estrutura ComandoCentral
     Autenticado()
+    Wait()
 }
 
 type ComandoCentral struct {
