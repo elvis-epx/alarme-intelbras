@@ -34,10 +34,25 @@ func main() {
 
     var c goalarmeitbl.ComandoCentralSub
 
+    extra := 0
+    if comando == "ativar" || comando == "desativar" {
+        if len(os.Args) > 5 {
+            extra, err = strconv.Atoi(os.Args[5])
+            if err != nil || extra > 255 || extra < 0 {
+                log.Fatal("Valor extra inválido")
+            }
+        }
+    }
+
+    // TODO use something more clever like reflection?
     if comando == "nulo" {
-        c = goalarmeitbl.NewComandoNulo(new(Observador), serveraddr, senha, tam_senha, 0)
+        c = goalarmeitbl.NewComandoNulo(new(Observador), serveraddr, senha, tam_senha)
     } else if comando == "status" {
-        c = goalarmeitbl.NewSolicitarStatus(new(Observador), serveraddr, senha, tam_senha, 0)
+        c = goalarmeitbl.NewSolicitarStatus(new(Observador), serveraddr, senha, tam_senha)
+    } else if comando == "ativar" {
+        c = goalarmeitbl.NewAtivarCentral(new(Observador), serveraddr, senha, tam_senha, extra)
+    } else if comando == "desativar" {
+        c = goalarmeitbl.NewDesativarCentral(new(Observador), serveraddr, senha, tam_senha, extra)
     }
     c.Wait()
 }

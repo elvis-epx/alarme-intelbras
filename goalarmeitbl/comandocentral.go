@@ -28,7 +28,6 @@ type ComandoCentral struct {
     timeout *Timeout
     senha int
     tam_senha int
-    extra int
     buffer []byte
 
     tratador TratadorResposta
@@ -36,7 +35,7 @@ type ComandoCentral struct {
     status int
 }
 
-func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serveraddr string, senha int, tam_senha int, extra int) *ComandoCentral {
+func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serveraddr string, senha int, tam_senha int) *ComandoCentral {
     comando := new(ComandoCentral)
     comando.tcp = NewTCPClient(serveraddr, comando)
     comando.sub = sub
@@ -44,7 +43,6 @@ func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serverad
     comando.timeout = NewTimeout(15 * time.Second, 0, comando.tcp.Events, "Timeout")
     comando.senha = senha
     comando.tam_senha = tam_senha
-    comando.extra = extra
     comando.status = 1 // erro
     log.Print("ComandoCentral: inicio")
     return comando

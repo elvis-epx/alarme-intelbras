@@ -7,6 +7,8 @@ import (
     "fmt"
 )
 
+// ComandoNulo (no-op)
+
 type ComandoNulo struct {
     Super *ComandoCentral
 }
@@ -19,13 +21,14 @@ func (comando *ComandoNulo) Wait() {
     comando.Super.Wait()
 }
 
-func NewComandoNulo(observer ObserverComando, serveraddr string, senha int, tam_senha int, extra int) *ComandoNulo {
+func NewComandoNulo(observer ObserverComando, serveraddr string, senha int, tam_senha int) *ComandoNulo {
     comando := new(ComandoNulo)
-    comando.Super = NewComandoCentral(comando, observer, serveraddr, senha, tam_senha, extra)
+    comando.Super = NewComandoCentral(comando, observer, serveraddr, senha, tam_senha)
     log.Print("ComandoNulo: inicio")
     return comando
 }
 
+// SolicitarStatus
 
 type SolicitarStatus struct {
     Super *ComandoCentral
@@ -69,7 +72,7 @@ func (comando *SolicitarStatus) RespostaStatus(cmd int, payload []byte) {
     log.Printf("Versão de firmware %d.%d.%d", payload[2], payload[3], payload[4])
     log.Print("Status geral: ")
     var armado = map[int]string{0x00: "Desarmado", 0x01: "Partição(ões) armada(s)", 0x03: "Todas partições armadas"}
-    log.Printf("\t" + armado[int(((payload[21] >> 5) & 0x03))])
+    log.Printf("\t %s", armado[int(((payload[21] >> 5) & 0x03))])
     log.Printf("\tZonas em alarme: %s", sim_nao(int(payload[21] & 0x8)))
     log.Printf("\tZonas canceladas: %s", sim_nao(int(payload[21] & 0x10)))
     log.Printf("\tTodas zonas fechadas: %s", sim_nao(int(payload[21] & 0x4)))
@@ -89,11 +92,11 @@ func (comando *SolicitarStatus) RespostaStatus(cmd int, payload []byte) {
         log.Printf("\tArmado modo stay: %s", sim_nao(int(payload[22 + particao] & 0x02)))
         log.Printf("\tArmado: %s", sim_nao(int(payload[22 + particao] & 0x01)))
     }
-    log.Printf("Zonas abertas:" + bits_para_numeros(payload[39:47], false))
-    log.Printf("Zonas em alarme:" + bits_para_numeros(payload[47:55], false))
-    // log.Printf("Zonas ativas:" + bits_para_numeros(payload[55:63], true))
-    log.Printf("Zonas em bypass:" + bits_para_numeros(payload[55:63], false))
-    log.Printf("Sirenes ligadas:" + bits_para_numeros(payload[63:65], false))
+    log.Printf("Zonas abertas: %s", bits_para_numeros(payload[39:47], false))
+    log.Printf("Zonas em alarme: %s", bits_para_numeros(payload[47:55], false))
+    // log.Printf("Zonas ativas: %s", bits_para_numeros(payload[55:63], true))
+    log.Printf("Zonas em bypass: %s", bits_para_numeros(payload[55:63], false))
+    log.Printf("Sirenes ligadas: %s", bits_para_numeros(payload[63:65], false))
 
     // TODO interpretar mais campos
     log.Print("*******************************************")
@@ -106,9 +109,79 @@ func (comando *SolicitarStatus) Wait() {
     comando.Super.Wait()
 }
 
-func NewSolicitarStatus(observer ObserverComando, serveraddr string, senha int, tam_senha int, extra int) *SolicitarStatus {
+func NewSolicitarStatus(observer ObserverComando, serveraddr string, senha int, tam_senha int) *SolicitarStatus {
     comando := new(SolicitarStatus)
-    comando.Super = NewComandoCentral(comando, observer, serveraddr, senha, tam_senha, extra)
+    comando.Super = NewComandoCentral(comando, observer, serveraddr, senha, tam_senha)
     log.Print("SolicitarStatus: inicio")
+    return comando
+}
+
+// DesativarCentral
+
+type DesativarCentral struct {
+    Super *ComandoCentral
+    particao int
+}
+
+func (comando *DesativarCentral) Autenticado() {
+    // byte 1: particao (0x01 = 1, 0xff = todas ou sem particao)
+    // byte 2: 0x00 desarmar, 0x01 armar, 0x02 stay
+    pacote := PacoteIsecNet2(0x401e, []byte{byte(comando.particao), 0x00})
+    comando.Super.EnviarPacote(pacote, comando.RespostaDesativarCentral)
+}
+
+func (comando *DesativarCentral) RespostaDesativarCentral(cmd int, payload []byte) {
+    comando.Super.Despedida()
+}
+
+func (comando *DesativarCentral) Wait() {
+    comando.Super.Wait()
+}
+
+func NewDesativarCentral(observer ObserverComando, serveraddr string, senha int, tam_senha int, particao int) *DesativarCentral {
+    comando := new(DesativarCentral)
+    if particao == 0 {
+        // todas as partições
+        comando.particao = 0xff
+    } else {
+        comando.particao = particao
+    }
+    comando.Super = NewComandoCentral(comando, observer, serveraddr, senha, tam_senha)
+    log.Print("DesativarCentral: inicio")
+    return comando
+}
+
+// AtivarCentral
+
+type AtivarCentral struct {
+    Super *ComandoCentral
+    particao int
+}
+
+func (comando *AtivarCentral) Autenticado() {
+    // byte 1: particao (0x01 = 1, 0xff = todas ou sem particao)
+    // byte 2: 0x00 desarmar, 0x01 armar, 0x02 stay
+    pacote := PacoteIsecNet2(0x401e, []byte{byte(comando.particao), 0x01})
+    comando.Super.EnviarPacote(pacote, comando.RespostaAtivarCentral)
+}
+
+func (comando *AtivarCentral) RespostaAtivarCentral(cmd int, payload []byte) {
+    comando.Super.Despedida()
+}
+
+func (comando *AtivarCentral) Wait() {
+    comando.Super.Wait()
+}
+
+func NewAtivarCentral(observer ObserverComando, serveraddr string, senha int, tam_senha int, particao int) *AtivarCentral {
+    comando := new(AtivarCentral)
+    if particao == 0 {
+        // todas as partições
+        comando.particao = 0xff
+    } else {
+        comando.particao = particao
+    }
+    comando.Super = NewComandoCentral(comando, observer, serveraddr, senha, tam_senha)
+    log.Print("AtivarCentral: inicio")
     return comando
 }
