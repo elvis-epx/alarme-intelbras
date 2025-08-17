@@ -8,12 +8,21 @@ import (
 
 type TratadorResposta func (int, []byte)
 
+// Observador do resultado final do comando
 type ObserverComando interface {
+    // invocado quando conexão termina
     Resultado(int)
+}
+
+// Implementação ("subclasse") do comando à central
+type ComandoCentralSub interface {
+    // É esperado que a subclasse conheça a estrutura ComandoCentral
+    Autenticado()
 }
 
 type ComandoCentral struct {
     tcp *TCPClient
+    sub ComandoCentralSub
     observer ObserverComando
     timeout *Timeout
     senha int
@@ -26,9 +35,10 @@ type ComandoCentral struct {
     status int
 }
 
-func NewComandoCentral(observer ObserverComando, serveraddr string, senha int, tam_senha int, extra int) *ComandoCentral {
+func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serveraddr string, senha int, tam_senha int, extra int) *ComandoCentral {
     comando := new(ComandoCentral)
     comando.tcp = NewTCPClient(serveraddr, comando)
+    comando.sub = sub
     comando.observer = observer
     comando.timeout = NewTimeout(15 * time.Second, 0, comando.tcp.Events, "Timeout")
     comando.senha = senha
@@ -145,8 +155,7 @@ func (comando *ComandoCentral) RespostaAutenticacao(cmd int, payload []byte) {
     }
 
     log.Printf("ComandoCentral: auth ok")
-    // TODO invocar comando subordinado
-    comando.Despedir()
+    comando.sub.Autenticado()
 }
 
 func (comando *ComandoCentral) ParseNak(payload []byte) {
@@ -157,7 +166,7 @@ func (comando *ComandoCentral) ParseNak(payload []byte) {
     log.Printf("ComandoCentral: nak motivo %02x", int(payload[0]))
 }
 
-func (comando *ComandoCentral) Despedir() {
+func (comando *ComandoCentral) Despedida() {
     log.Print("ComandoCentral: Despedindo")
     // envia pacote de despedida à central
     pacote := PacoteIsecNet2Bye()
