@@ -169,7 +169,7 @@ func (d *TestDelegate3) Handle(c *TCPClient, evt Event) bool {
     log.Printf("test delegate 3: event %s", evt.Name)
     switch evt.Name {
         case "to":
-            // simulate connection failure
+            log.Print("simulating connection failure")
             d.client.conn.Close()
             return true
         case "Connected":

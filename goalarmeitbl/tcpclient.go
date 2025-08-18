@@ -3,6 +3,7 @@ package goalarmeitbl
 import (
     "net"
     "io"
+    "time"
     "log"
     "sync"
 )
@@ -18,18 +19,18 @@ type TCPClientDelegate interface {
 
 type TCPClient struct {
     Events chan Event
-    delegate TCPClientDelegate
 
+    delegate TCPClientDelegate
+    conntimeout time.Duration // FIXME allow configuration of connection timeout
     wg sync.WaitGroup
     to_send chan []byte
     conn *net.TCPConn
 }
 
 func NewTCPClient(addr string, delegate TCPClientDelegate) *TCPClient {
-    // Event channel capacity at least 2 in case both send() and recv() emit error events but main() has already exited
+    // Events channel unbuffered to make sure there are no races
     // to_send channel capacity at least 2 so user can call Send(non-empty) plus Send(empty) w/o blocking
-
-    h := TCPClient{make(chan Event, 2), delegate, sync.WaitGroup{}, make(chan []byte, 2), nil}
+    h := TCPClient{make(chan Event), delegate, 60 * time.Second, sync.WaitGroup{}, make(chan []byte, 2), nil}
     h.wg.Add(1)
     go h.main(addr)
     return &h
@@ -38,36 +39,52 @@ func NewTCPClient(addr string, delegate TCPClientDelegate) *TCPClient {
 // Main loop
 func (h *TCPClient) main(addr string) {
     defer func() {
-        // drain outstanding events
-        // make room for possible send() and recv() final error events
-        for len(h.Events) > 0 {
-            <-h.Events
-        }
         log.Print("TCPClient: #### goroutine main stopped")
         h.wg.Done()
     }()
 
+    // client is still interested in this connection?
+    active := true
+
     go h.connect(addr)
 
+    // makes sure events from goroutines are all handled, even if active == false
+    connect_complete := false
+    send_complete := true
+    recv_complete := true
+
 loop:
-    for {
+    for active || !connect_complete || !send_complete || !recv_complete {
         evt := <-h.Events
         log.Print("TCPClient: event ", evt.Name)
 
         switch evt.Name {
+
         case "bye":
-            break loop
-        case "connected":
-            // from connect goroutine
-            defer func() {
-                // indirectly stops send goroutine
-                close(h.to_send)
-                // indirectly stops recv goroutine
+            active = false
+
+            // stop send goroutine, if running
+            close(h.to_send)
+
+            // indirectly stops recv goroutine, if running
+            if connect_complete && h.conn != nil {
                 h.conn.Close()
-            }()
+            }
+
+        case "connected":
+            // event emitted by connect() goroutine
+            connect_complete = true
+
+            if !active {
+                // "bye" event already happened, close connection early
+                h.conn.Close()
+                break
+            }
 
             go h.recv()
+            recv_complete = false
             go h.send()
+            send_complete = false
 
             if !h.delegate.Handle(h, Event{"Connected", nil}) {
                 log.Fatal("Unhandled event ", evt.Name)
@@ -76,13 +93,32 @@ loop:
 
         case "connerr":
             // from connect goroutine
+            connect_complete = true
+
+            if !active {
+                break
+            }
+
             if !h.delegate.Handle(h, Event{"NotConnected", nil}) {
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
             }
 
+        case "sendstop":
+            // from send goroutine
+            send_complete = true
+
+        case "recvstop":
+            // from recv goroutine
+            recv_complete = true
+
         case "recv":
             // from recv goroutine
+
+            if !active {
+                break
+            }
+
             if !h.delegate.Handle(h, Event{"Recv", evt.Cargo}) {
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
@@ -90,6 +126,11 @@ loop:
 
         case "err":
             // notify higher layers
+
+            if !active {
+                break
+            }
+
             if !h.delegate.Handle(h, Event{"Err", nil}) {
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
@@ -97,6 +138,11 @@ loop:
 
         case "sendeof":
             // notify higher layers
+
+            if !active {
+                break
+            }
+
             if !h.delegate.Handle(h, Event{"SendEof", nil}) {
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
@@ -104,12 +150,23 @@ loop:
 
         case "recveof":
             // notify higher layers
+
+            if !active {
+                break
+            }
+
             if !h.delegate.Handle(h, Event{"RecvEof", nil}) {
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
             }
 
         default:
+            // events emitted by other users of the event queue
+
+            if !active {
+                break
+            }
+
             if !h.delegate.Handle(h, evt) {
                 log.Fatal("Unhandled event ", evt.Name)
                 break loop
@@ -120,7 +177,7 @@ loop:
 
 // Connection goroutine
 func (h *TCPClient) connect(addr string) {
-    conn, err := net.Dial("tcp", addr)
+    conn, err := net.DialTimeout("tcp", addr, h.conntimeout)
     if err != nil {
         h.Events <-Event{"connerr", nil}
         return
@@ -142,11 +199,15 @@ func (h *TCPClient) recv() {
                 log.Print("TCPClient: recv err")
                 h.Events <-Event{"err", nil}
             }
+
+            // exit goroutine
             break
         }
         log.Print("TCPClient: Received ", n)
         h.Events <-Event{"recv", data[:n]}
     }
+
+    h.Events <-Event{"recvstop", nil}
     log.Print("TCPClient: goroutine recv stopped")
 }
 
@@ -193,6 +254,7 @@ func (h *TCPClient) send() {
         }
     }
 
+    h.Events <-Event{"sendstop", nil}
     log.Print("TCPClient: goroutine send stopped")
 }
 
