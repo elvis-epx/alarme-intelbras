@@ -60,10 +60,10 @@ loop:
         case "connected":
             // from connect goroutine
             defer func() {
+                // indirectly stops send goroutine
+                close(h.to_send)
                 // indirectly stops recv goroutine
                 h.conn.Close()
-                // stop send goroutine
-                h.to_send <-nil
             }()
 
             go h.recv()
@@ -204,7 +204,7 @@ func (h *TCPClient) send() {
 // several times in a row. Do this in a goroutine (or don't do this at all).
 func (h *TCPClient) Send(data []byte) {
     if data == nil {
-        // nil slice has another meaning and is used internally only
+        // nil slice means closed channel
         data = []byte{}
     }
     // forward to send goroutine
