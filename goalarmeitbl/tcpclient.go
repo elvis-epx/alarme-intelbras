@@ -201,7 +201,7 @@ func (h *TCPClient) send() {
 // Send data
 // empty slice = shutdown connection for sending
 // Warning: the send queue channel has limited length and may block if called
-// several times in a row. Do this in a goroutine (or don't do this at all).
+// several times in a row. Do that in a goroutine (or don't do that at all).
 func (h *TCPClient) Send(data []byte) {
     if data == nil {
         // nil slice means closed channel
