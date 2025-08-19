@@ -28,9 +28,9 @@ type TCPClient struct {
 }
 
 func NewTCPClient(addr string, delegate TCPClientDelegate) *TCPClient {
-    // Events channel unbuffered to make sure there are no races
+    // Events channel capacity of 2 so at least one send and one receive event will fit w/o blocking
     // to_send channel capacity at least 2 so user can call Send(non-empty) plus Send(empty) w/o blocking
-    h := TCPClient{make(chan Event), delegate, 60 * time.Second, sync.WaitGroup{}, make(chan []byte, 2), nil}
+    h := TCPClient{make(chan Event, 2), delegate, 60 * time.Second, sync.WaitGroup{}, make(chan []byte, 2), nil}
     h.wg.Add(1)
     go h.main(addr)
     return &h
@@ -38,11 +38,6 @@ func NewTCPClient(addr string, delegate TCPClientDelegate) *TCPClient {
 
 // Main loop
 func (h *TCPClient) main(addr string) {
-    defer func() {
-        log.Print("TCPClient: #### goroutine main stopped")
-        h.wg.Done()
-    }()
-
     // client is still interested in this connection?
     active := true
 
@@ -56,11 +51,15 @@ func (h *TCPClient) main(addr string) {
 loop:
     for active || !connect_complete || !send_complete || !recv_complete {
         evt := <-h.Events
-        log.Print("TCPClient: event ", evt.Name)
+        log.Print("TCPClient: gomain: event ", evt.Name)
 
         switch evt.Name {
 
         case "bye":
+            if !active {
+                break
+            }
+
             active = false
 
             // stop send goroutine, if running
@@ -173,6 +172,9 @@ loop:
             }
         }
     }
+
+    log.Print("TCPClient: gomain stopped -------------")
+    h.wg.Done()
 }
 
 // Connection goroutine
@@ -193,22 +195,22 @@ func (h *TCPClient) recv() {
         n, err := h.conn.Read(data)
         if err != nil {
             if err == io.EOF {
-                log.Print("TCPClient: recv eof")
+                log.Print("TCPClient: gorecv: eof")
                 h.Events <-Event{"recveof", nil}
             } else {
-                log.Print("TCPClient: recv err")
+                log.Print("TCPClient: gorecv: err")
                 h.Events <-Event{"err", nil}
             }
 
             // exit goroutine
             break
         }
-        log.Print("TCPClient: Received ", n)
+        log.Print("TCPClient: gorecv: received ", n)
         h.Events <-Event{"recv", data[:n]}
     }
 
     h.Events <-Event{"recvstop", nil}
-    log.Print("TCPClient: goroutine recv stopped")
+    log.Print("TCPClient: gorecv: stopped")
 }
 
 // Data sending goroutine
@@ -228,34 +230,35 @@ func (h *TCPClient) send() {
         }
 
         if len(data) == 0 {
-            // voluntary closure of connection in tx direction
-            log.Print("TCPClient: Closing for tx")
+            log.Print("TCPClient: gosend: shutdown")
             h.conn.CloseWrite()
             active = false
             continue
         }
 
         for len(data) > 0 {
-            log.Print("TCPClient: Sending ", len(data))
+            log.Print("TCPClient: gosend: sending ", len(data))
             n, err := h.conn.Write(data)
+
             if err != nil {
                 if err == io.EOF {
-                    log.Print("TCPClient: send eof")
+                    log.Print("TCPClient: gosend: eof")
                     h.Events <-Event{"sendeof", nil}
                 } else {
-                    log.Print("TCPClient: send err")
+                    log.Print("TCPClient: gosend: err")
                     h.Events <-Event{"err", nil}
                 }
                 active = false
                 break
             }
-            log.Print("TCPClient: Sent ", n)
+
+            log.Print("TCPClient: gosend: sent ", n)
             data = data[n:]
         }
     }
 
     h.Events <-Event{"sendstop", nil}
-    log.Print("TCPClient: goroutine send stopped")
+    log.Print("TCPClient: gosend: stopped")
 }
 
 // Public interface

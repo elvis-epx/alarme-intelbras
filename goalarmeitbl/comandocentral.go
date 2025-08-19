@@ -87,6 +87,10 @@ func (comando *ComandoCentral) EnviarPacote(pacote []byte, tf TratadorResposta) 
     // configura tratador da resposta
     comando.tratador = tf
     comando.tcp.Send(pacote)
+    if tf == nil {
+        // fecha conexão no sentido tx
+        comando.tcp.Send(nil)
+    }
 }
 
 func (comando *ComandoCentral) Autenticar() {
@@ -170,8 +174,6 @@ func (comando *ComandoCentral) Despedida() {
     // envia pacote de despedida à central
     pacote := PacoteIsecNet2Bye()
     comando.EnviarPacote(pacote, nil)
-    // fecha conexão no sentido tx
-    comando.tcp.Send(nil)
     // reportar sucesso para camadas superiores, ao encerrar
     comando.status = 0
 }
