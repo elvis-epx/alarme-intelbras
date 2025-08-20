@@ -23,8 +23,8 @@ type TCPClient struct {
 
 func NewTCPClient(addr string) *TCPClient {
     h := new(TCPClient)
-    h.Events = make(chan Event)
-    h.internal_events = make(chan tcpclientevent)
+    h.Events = make(chan Event, 1)
+    h.internal_events = make(chan tcpclientevent, 1)
     h.to_send = make(chan []byte, 2)
     h.conntimeout = 60 * time.Second
     log.Printf("TCPClient %p ==================", h)
@@ -54,20 +54,14 @@ func (h *TCPClient) main(addr string) {
             if !active {
                 break
             }
-
             active = false
             close(h.Events)
-
-            // stop send goroutine, if running
-            close(h.to_send)
-
-            // indirectly stops recv goroutine, if running
+            close(h.to_send) // stops send goroutine, if running
             if connect_complete && h.conn != nil {
-                h.conn.Close()
+                h.conn.Close() // indirectly stops recv goroutine
             }
 
         case "connected":
-            // event emitted by connect() goroutine
             connect_complete = true
 
             if !active {
@@ -84,58 +78,24 @@ func (h *TCPClient) main(addr string) {
             h.Events <- Event{"Connected", nil}
 
         case "connerr":
-            // from connect goroutine
             connect_complete = true
-
-            if !active {
-                break
-            }
-
-            h.Events <- Event{"NotConnected", nil}
+            if active { h.Events <- Event{"NotConnected", nil} }
 
         case "sendstop":
-            // from send goroutine
             send_complete = true
-
-        case "recvstop":
-            // from recv goroutine
-            recv_complete = true
+        case "sendeof":
+            if active { h.Events <- Event{"SendEof", nil} }
+        case "senderr":
+            if active { h.Events <- Event{"Err", nil} }
 
         case "recv":
-            // from recv goroutine
-
-            if !active {
-                break
-            }
-
-            h.Events <- Event{"Recv", evt.cargo}
-
-        case "err":
-            // notify higher layers
-
-            if !active {
-                break
-            }
-
-            h.Events <- Event{"Err", nil}
-
-        case "sendeof":
-            // notify higher layers
-
-            if !active {
-                break
-            }
-
-            h.Events <- Event{"SendEof", nil}
-
+            if active { h.Events <- Event{"Recv", evt.cargo} }
+        case "recverr":
+            recv_complete = true
+            if active { h.Events <- Event{"Err", nil} }
         case "recveof":
-            // notify higher layers
-
-            if !active {
-                break
-            }
-
-            h.Events <- Event{"RecvEof", nil}
+            recv_complete = true
+            if active { h.Events <- Event{"RecvEof", nil} }
 
         default:
             // should not happen
@@ -168,9 +128,8 @@ func (h *TCPClient) recv() {
                 h.internal_events <-tcpclientevent{"recveof", nil}
             } else {
                 log.Printf("TCPClient %p: gorecv: err", h)
-                h.internal_events <-tcpclientevent{"err", nil}
+                h.internal_events <-tcpclientevent{"recverr", nil}
             }
-
             // exit goroutine
             break
         }
@@ -178,7 +137,6 @@ func (h *TCPClient) recv() {
         h.internal_events <-tcpclientevent{"recv", data[:n]}
     }
 
-    h.internal_events <-tcpclientevent{"recvstop", nil}
     log.Printf("TCPClient %p: gorecv: stopped", h)
 }
 
@@ -215,7 +173,7 @@ func (h *TCPClient) send() {
                     h.internal_events <-tcpclientevent{"sendeof", nil}
                 } else {
                     log.Printf("TCPClient %p: gosend: err", h)
-                    h.internal_events <-tcpclientevent{"err", nil}
+                    h.internal_events <-tcpclientevent{"senderr", nil}
                 }
                 active = false
                 break
