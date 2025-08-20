@@ -9,7 +9,8 @@ import (
 
 type tcpclientevent struct {
     name string
-    cargo []byte
+    data []byte
+    conn *net.TCPConn
 }
 
 type TCPClient struct {
@@ -64,7 +65,7 @@ func (h *TCPClient) main(addr string) {
             active = false
             close(h.Events)  // client disengages
             close(h.to_send) // indirectly stops send goroutine, if running
-            if connect_finished && h.conn != nil {
+            if h.conn != nil {
                 h.conn.Close() // indirectly stops recv goroutine
             }
 
@@ -73,10 +74,11 @@ func (h *TCPClient) main(addr string) {
 
             if !active {
                 // "bye" event already happened, close connection early
-                h.conn.Close()
+                evt.conn.Close()
                 break
             }
 
+            h.conn = evt.conn
             go h.recv()
             recv_finished = false
             go h.send()
@@ -98,7 +100,7 @@ func (h *TCPClient) main(addr string) {
             if active { h.Events <- Event{"Err", nil} }
 
         case "recv":
-            if active { h.Events <- Event{"Recv", evt.cargo} }
+            if active { h.Events <- Event{"Recv", evt.data} }
         case "recverr":
             recv_finished = true
             if active { h.Events <- Event{"Err", nil} }
@@ -119,11 +121,10 @@ func (h *TCPClient) main(addr string) {
 func (h *TCPClient) connect(addr string) {
     conn, err := net.DialTimeout("tcp", addr, h.conntimeout)
     if err != nil {
-        h.internal_events <-tcpclientevent{"connerr", nil}
+        h.internal_events <-tcpclientevent{"connerr", nil, nil}
         return
     }
-    h.conn = conn.(*net.TCPConn)
-    h.internal_events <-tcpclientevent{"connected", nil}
+    h.internal_events <-tcpclientevent{"connected", nil, conn.(*net.TCPConn)}
 }
 
 // Data receiving goroutine
@@ -134,16 +135,16 @@ func (h *TCPClient) recv() {
         if err != nil {
             if err == io.EOF {
                 log.Printf("TCPClient %p: gorecv: eof", h)
-                h.internal_events <-tcpclientevent{"recveof", nil}
+                h.internal_events <-tcpclientevent{"recveof", nil, nil}
             } else {
                 log.Printf("TCPClient %p: gorecv: err", h)
-                h.internal_events <-tcpclientevent{"recverr", nil}
+                h.internal_events <-tcpclientevent{"recverr", nil, nil}
             }
             // exit goroutine
             break
         }
         log.Printf("TCPClient %p: gorecv: received %d", h, n)
-        h.internal_events <-tcpclientevent{"recv", data[:n]}
+        h.internal_events <-tcpclientevent{"recv", data[:n], nil}
     }
 
     log.Printf("TCPClient %p: gorecv: stopped", h)
@@ -172,10 +173,10 @@ func (h *TCPClient) send() {
             if err != nil {
                 if err == io.EOF {
                     log.Printf("TCPClient %p: gosend: eof", h)
-                    h.internal_events <-tcpclientevent{"sendeof", nil}
+                    h.internal_events <-tcpclientevent{"sendeof", nil, nil}
                 } else {
                     log.Printf("TCPClient %p: gosend: err", h)
-                    h.internal_events <-tcpclientevent{"senderr", nil}
+                    h.internal_events <-tcpclientevent{"senderr", nil, nil}
                 }
                 is_open = false
                 break
@@ -186,11 +187,11 @@ func (h *TCPClient) send() {
         }
 
         if is_open {
-            h.internal_events <-tcpclientevent{"sent", nil}
+            h.internal_events <-tcpclientevent{"sent", nil, nil}
         }
     }
 
-    h.internal_events <-tcpclientevent{"sendstop", nil}
+    h.internal_events <-tcpclientevent{"sendstop", nil, nil}
     log.Printf("TCPClient %p: gosend: stopped", h)
 }
 
@@ -212,5 +213,5 @@ func (h *TCPClient) Send(data []byte) {
 // Close connection
 // Also closes channel TCPClient.Events
 func (h *TCPClient) Bye() {
-    h.internal_events <-tcpclientevent{"bye", nil}
+    h.internal_events <-tcpclientevent{"bye", nil, nil}
 }
