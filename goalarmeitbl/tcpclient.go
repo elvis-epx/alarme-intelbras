@@ -55,8 +55,8 @@ func (h *TCPClient) main(addr string) {
                 break
             }
             active = false
-            close(h.Events)
-            close(h.to_send) // stops send goroutine, if running
+            close(h.Events)  // client disengages
+            close(h.to_send) // indirectly stops send goroutine, if running
             if connect_finished && h.conn != nil {
                 h.conn.Close() // indirectly stops recv goroutine
             }
@@ -144,14 +144,7 @@ func (h *TCPClient) recv() {
 func (h *TCPClient) send() {
     active := true
 
-    for {
-        data := <-h.to_send
-
-        if data == nil {
-            // exit goroutine
-            break
-        }
-
+    for data := range h.to_send {
         if !active {
             continue
         }
