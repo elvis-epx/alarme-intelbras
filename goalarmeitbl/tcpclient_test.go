@@ -118,6 +118,13 @@ func (d *TestDelegate) Handle(c *TCPClient, evt Event) bool {
                 c.Bye()
             }
             return true
+        case "Sent":
+            qlen, ok := evt.Cargo.(int)
+            if !ok {
+                log.Fatal("any downcast queue length")
+            }
+            log.Print("    packet sent, queue ", qlen)
+            return true
         case "SendEof":
             c.Bye()
             return true

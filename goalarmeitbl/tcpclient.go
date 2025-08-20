@@ -17,7 +17,7 @@ type TCPClient struct {
 
     internal_events chan tcpclientevent
     to_send chan []byte
-    conntimeout time.Duration // FIXME allow configuration of connection timeout
+    conntimeout time.Duration
     conn *net.TCPConn
 }
 
@@ -25,7 +25,9 @@ func NewTCPClient(addr string) *TCPClient {
     h := new(TCPClient)
     h.Events = make(chan Event, 1)
     h.internal_events = make(chan tcpclientevent, 1)
+    // FIXME allow configuration of send queue depth
     h.to_send = make(chan []byte, 2)
+    // FIXME allow configuration of connection timeout
     h.conntimeout = 60 * time.Second
     log.Printf("TCPClient %p ==================", h)
     go h.main(addr)
@@ -84,6 +86,8 @@ func (h *TCPClient) main(addr string) {
         case "send":
             // passing through here, we make sure calling Send() after Bye() won't panic
             if active { h.to_send <-evt.cargo }
+        case "sent":
+            if active { h.Events <- Event{"Sent", len(h.to_send)} }
         case "sendstop":
             send_finished = true
         case "sendeof":
@@ -178,6 +182,8 @@ func (h *TCPClient) send() {
             log.Printf("TCPClient %p: gosend: sent %d", h, n)
             data = data[n:]
         }
+
+        h.internal_events <-tcpclientevent{"sent", nil}
     }
 
     h.internal_events <-tcpclientevent{"sendstop", nil}
@@ -189,7 +195,8 @@ func (h *TCPClient) send() {
 // Send data
 // empty slice = shutdown connection for sending
 // Warning: the send queue channel has limited length and may block if called several times in succession.
-// Use bigger buffers, do the calls in a goroutine, or don't do that at all.
+// Use bigger slices, do the successive calls in a separate goroutine, or don't do that at all and listen for the "sent"
+// event to send the next chunk.
 func (h *TCPClient) Send(data []byte) {
     if data == nil {
         // nil slice would mean closed channel
