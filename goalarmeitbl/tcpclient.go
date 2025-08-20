@@ -23,7 +23,7 @@ type TCPClient struct {
 
 func NewTCPClient(addr string) *TCPClient {
     // FIXME allow configuration of connection timeout
-    // FIXME allow configuration of send queue depth for high-throughput applications
+    // FIXME allow configuration of queue depths for high-throughput applications
     send_queue_depth := 2
     // rationale: recverr + senderr + sendstop in case of unexpected close
     minimum_depth := 3
@@ -88,9 +88,6 @@ func (h *TCPClient) main(addr string) {
             connect_finished = true
             if active { h.Events <- Event{"NotConnected", nil} }
 
-        case "send":
-            // passing through here, we make sure calling Send() after Bye() won't panic
-            if active { h.to_send <-evt.cargo }
         case "sent":
             if active { h.Events <- Event{"Sent", len(h.to_send)} }
         case "sendstop":
@@ -202,14 +199,14 @@ func (h *TCPClient) send() {
 // Send data
 // empty slice = shutdown connection for sending
 // Warning: the send queue channel has limited length and may block if called several times in succession.
-// Use bigger slices, do the successive calls in a separate goroutine, or don't do that at all and listen for the "sent"
-// event to send the next chunk.
+// Listen for the "Sent" event to throttle the calls
+// Never call Send() after Bye() -- the send channel will be closed, and the program will panic.
 func (h *TCPClient) Send(data []byte) {
     if data == nil {
         // nil slice would mean closed channel
         data = []byte{}
     }
-    h.internal_events <-tcpclientevent{"send", data}
+    h.to_send <-data
 }
 
 // Close connection
