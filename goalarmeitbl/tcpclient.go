@@ -22,10 +22,14 @@ type TCPClient struct {
 }
 
 func NewTCPClient(addr string) *TCPClient {
-    h := TCPClient{make(chan Event), make(chan tcpclientevent), make(chan []byte, 2),
-                    60 * time.Second, nil}
+    h := new(TCPClient)
+    h.Events = make(chan Event)
+    h.internal_events = make(chan tcpclientevent)
+    h.to_send = make(chan []byte, 2)
+    h.conntimeout = 60 * time.Second
+    log.Printf("TCPClient %p ==================", h)
     go h.main(addr)
-    return &h
+    return h
 }
 
 // Main loop
@@ -42,7 +46,7 @@ func (h *TCPClient) main(addr string) {
 
     for active || !connect_complete || !send_complete || !recv_complete {
         evt := <-h.internal_events
-        log.Print("TCPClient: gomain: event ", evt.name)
+        log.Printf("TCPClient %p: gomain: event %s", h, evt.name)
 
         switch evt.name {
 
@@ -139,7 +143,7 @@ func (h *TCPClient) main(addr string) {
         }
     }
 
-    log.Print("TCPClient: gomain stopped -------------")
+    log.Printf("TCPClient %p: gomain stopped -------------", h)
 }
 
 // Connection goroutine
@@ -160,22 +164,22 @@ func (h *TCPClient) recv() {
         n, err := h.conn.Read(data)
         if err != nil {
             if err == io.EOF {
-                log.Print("TCPClient: gorecv: eof")
+                log.Printf("TCPClient %p: gorecv: eof", h)
                 h.internal_events <-tcpclientevent{"recveof", nil}
             } else {
-                log.Print("TCPClient: gorecv: err")
+                log.Printf("TCPClient %p: gorecv: err", h)
                 h.internal_events <-tcpclientevent{"err", nil}
             }
 
             // exit goroutine
             break
         }
-        log.Print("TCPClient: gorecv: received ", n)
+        log.Printf("TCPClient %p: gorecv: received %d", h, n)
         h.internal_events <-tcpclientevent{"recv", data[:n]}
     }
 
     h.internal_events <-tcpclientevent{"recvstop", nil}
-    log.Print("TCPClient: gorecv: stopped")
+    log.Printf("TCPClient %p: gorecv: stopped", h)
 }
 
 // Data sending goroutine
@@ -195,35 +199,35 @@ func (h *TCPClient) send() {
         }
 
         if len(data) == 0 {
-            log.Print("TCPClient: gosend: shutdown")
+            log.Printf("TCPClient %p: gosend: shutdown", h)
             h.conn.CloseWrite()
             active = false
             continue
         }
 
         for len(data) > 0 {
-            log.Print("TCPClient: gosend: sending ", len(data))
+            log.Printf("TCPClient %p: gosend: sending %d", h, len(data))
             n, err := h.conn.Write(data)
 
             if err != nil {
                 if err == io.EOF {
-                    log.Print("TCPClient: gosend: eof")
+                    log.Printf("TCPClient %p: gosend: eof", h)
                     h.internal_events <-tcpclientevent{"sendeof", nil}
                 } else {
-                    log.Print("TCPClient: gosend: err")
+                    log.Printf("TCPClient %p: gosend: err", h)
                     h.internal_events <-tcpclientevent{"err", nil}
                 }
                 active = false
                 break
             }
 
-            log.Print("TCPClient: gosend: sent ", n)
+            log.Printf("TCPClient %p: gosend: sent %d", h, n)
             data = data[n:]
         }
     }
 
     h.internal_events <-tcpclientevent{"sendstop", nil}
-    log.Print("TCPClient: gosend: stopped")
+    log.Printf("TCPClient %p: gosend: stopped", h)
 }
 
 // Public interface
