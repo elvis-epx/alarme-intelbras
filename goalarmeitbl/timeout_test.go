@@ -7,8 +7,8 @@ import (
 
 func TestTimeout(t *testing.T) {
     cbch := make(chan Event)
-    NewTimeout(1 * time.Second, 0, cbch, "foo")
     lower_deadline := time.Now().Add(1 * time.Second)
+    NewTimeout(1 * time.Second, 0, cbch, "foo")
     upper_deadline := time.NewTimer(2 * time.Second)
 loop:
     for {
@@ -18,7 +18,7 @@ loop:
             if now.After(lower_deadline) && evt.Name == "foo" {
                 break loop
             }
-            t.Error("Failed", now, lower_deadline)
+            t.Error("Failed", now, lower_deadline, evt.Name)
             return
         case <-upper_deadline.C:
             t.Error("Failed")
@@ -29,8 +29,8 @@ loop:
 
 func TestTimeout2(t *testing.T) {
     cbch := make(chan Event)
-    to := NewTimeout(1 * time.Second, 0, cbch, "foo")
     lower_deadline := time.Now().Add(3 * time.Second)
+    to := NewTimeout(1 * time.Second, 0, cbch, "foo")
     upper_deadline := time.NewTimer(5 * time.Second)
     to.Reset(3 * time.Second, 0)
 loop:
