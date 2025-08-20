@@ -22,13 +22,18 @@ type TCPClient struct {
 }
 
 func NewTCPClient(addr string) *TCPClient {
-    h := new(TCPClient)
-    h.Events = make(chan Event, 1)
-    h.internal_events = make(chan tcpclientevent, 1)
-    // FIXME allow configuration of send queue depth
-    h.to_send = make(chan []byte, 2)
     // FIXME allow configuration of connection timeout
+    // FIXME allow configuration of send queue depth for high-throughput applications
+    send_queue_depth := 2
+    // rationale: recverr + senderr + sendstop in case of unexpected close
+    minimum_depth := 3
+
+    h := new(TCPClient)
+    h.Events = make(chan Event, send_queue_depth + minimum_depth)
+    h.internal_events = make(chan tcpclientevent, send_queue_depth + minimum_depth)
+    h.to_send = make(chan []byte, send_queue_depth)
     h.conntimeout = 60 * time.Second
+
     log.Printf("TCPClient %p ==================", h)
     go h.main(addr)
     return h
@@ -149,17 +154,17 @@ func (h *TCPClient) recv() {
 
 // Data sending goroutine
 func (h *TCPClient) send() {
-    active := true
+    is_open := true
 
     for data := range h.to_send {
-        if !active {
+        if !is_open {
             continue
         }
 
         if len(data) == 0 {
             log.Printf("TCPClient %p: gosend: shutdown", h)
             h.conn.CloseWrite()
-            active = false
+            is_open = false
             continue
         }
 
@@ -175,7 +180,7 @@ func (h *TCPClient) send() {
                     log.Printf("TCPClient %p: gosend: err", h)
                     h.internal_events <-tcpclientevent{"senderr", nil}
                 }
-                active = false
+                is_open = false
                 break
             }
 
@@ -183,7 +188,9 @@ func (h *TCPClient) send() {
             data = data[n:]
         }
 
-        h.internal_events <-tcpclientevent{"sent", nil}
+        if is_open {
+            h.internal_events <-tcpclientevent{"sent", nil}
+        }
     }
 
     h.internal_events <-tcpclientevent{"sendstop", nil}

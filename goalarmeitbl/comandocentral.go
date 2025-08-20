@@ -7,6 +7,7 @@ import (
     "sync"
 )
 
+// Função que vai tratar a resposta  vinda da central
 type TratadorResposta func (int, []byte)
 
 // Observador do resultado final do comando
@@ -17,7 +18,6 @@ type ObserverComando interface {
 
 // Implementação ("subclasse") do comando à central
 type ComandoCentralSub interface {
-    // É esperado que a subclasse conheça a estrutura ComandoCentral
     Autenticado()
     Wait()
 }
@@ -30,9 +30,7 @@ type ComandoCentral struct {
     senha int
     tam_senha int
     buffer []byte
-
-    tratador TratadorResposta
-
+    tratador_resposta TratadorResposta
     status int
     wg sync.WaitGroup
 }
@@ -93,10 +91,8 @@ func (comando *ComandoCentral) handle(evt Event) {
 
 func (comando *ComandoCentral) EnviarPacote(pacote []byte, tf TratadorResposta) {
     log.Print("ComandoCentral: Enviando ", HexPrint(pacote))
-    // reinicia timer de desconexão
     comando.timeout.Restart()
-    // configura tratador da resposta
-    comando.tratador = tf
+    comando.tratador_resposta = tf
     comando.tcp.Send(pacote)
     if tf == nil {
         // fecha conexão no sentido tx
@@ -129,11 +125,11 @@ func (comando *ComandoCentral) Parse() {
     cmd, payload := PacoteIsecNet2Parse(pacote)
     log.Printf("ComandoCentral: Pacote resposta %04x", cmd)
 
-    if comando.tratador == nil {
-        log.Printf("ComandoCentral: sem tratador")
+    if comando.tratador_resposta == nil {
+        log.Print("ComandoCentral: sem tratador")
         comando.Bye()
     }
-    comando.tratador(cmd, payload)
+    comando.tratador_resposta(cmd, payload)
 }
 
 func (comando *ComandoCentral) RespostaAutenticacao(cmd int, payload []byte) {
@@ -168,13 +164,13 @@ func (comando *ComandoCentral) RespostaAutenticacao(cmd int, payload []byte) {
         return
     }
 
-    log.Printf("ComandoCentral: auth ok")
+    log.Print("ComandoCentral: auth ok")
     comando.sub.Autenticado()
 }
 
 func (comando *ComandoCentral) ParseNak(payload []byte) {
     if len(payload) != 1 {
-        log.Printf("ComandoCentral: nak invalido")
+        log.Print("ComandoCentral: nak invalido")
         return
     }
     log.Printf("ComandoCentral: nak motivo %02x", int(payload[0]))
@@ -182,7 +178,6 @@ func (comando *ComandoCentral) ParseNak(payload []byte) {
 
 func (comando *ComandoCentral) Despedida() {
     log.Print("ComandoCentral: Despedindo")
-    // envia pacote de despedida à central
     pacote := PacoteIsecNet2Bye()
     comando.EnviarPacote(pacote, nil)
     // reportar sucesso para camadas superiores, ao encerrar
