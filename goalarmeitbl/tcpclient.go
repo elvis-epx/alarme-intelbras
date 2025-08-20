@@ -5,6 +5,7 @@ import (
     "io"
     "time"
     "log"
+    "context"
 )
 
 type tcpclientevent struct {
@@ -45,7 +46,8 @@ func (h *TCPClient) main(addr string) {
     // client is still interested in this connection?
     active := true
 
-    go h.connect(addr)
+    ctx, conn_cancel := context.WithTimeout(context.Background(), h.conntimeout)
+    go h.connect(addr, ctx)
 
     // makes sure events from goroutines are all handled, even if active == false
     connect_finished := false
@@ -63,6 +65,7 @@ func (h *TCPClient) main(addr string) {
                 break
             }
             active = false
+            conn_cancel() // indirectly stops connection goroutine, if running
             close(h.Events)  // client disengages
             close(h.to_send) // indirectly stops send goroutine, if running
             if h.conn != nil {
@@ -73,7 +76,7 @@ func (h *TCPClient) main(addr string) {
             connect_finished = true
 
             if !active {
-                // "bye" event already happened, close connection early
+                // "bye" event already happened, dispose of connection
                 evt.conn.Close()
                 break
             }
@@ -118,9 +121,11 @@ func (h *TCPClient) main(addr string) {
 }
 
 // Connection goroutine
-func (h *TCPClient) connect(addr string) {
-    conn, err := net.DialTimeout("tcp", addr, h.conntimeout)
+func (h *TCPClient) connect(addr string, ctx context.Context) {
+    dialer := &net.Dialer{}
+    conn, err := dialer.DialContext(ctx, "tcp", addr)
     if err != nil {
+        // ctx timeout/cancel must report as well, so we know this goroutine has ended
         h.internal_events <-tcpclientevent{"connerr", nil, nil}
         return
     }
