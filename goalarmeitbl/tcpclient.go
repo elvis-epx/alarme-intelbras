@@ -40,11 +40,11 @@ func (h *TCPClient) main(addr string) {
     go h.connect(addr)
 
     // makes sure events from goroutines are all handled, even if active == false
-    connect_complete := false
-    send_complete := true
-    recv_complete := true
+    connect_finished := false
+    send_finished := true
+    recv_finished := true
 
-    for active || !connect_complete || !send_complete || !recv_complete {
+    for active || !connect_finished || !send_finished || !recv_finished {
         evt := <-h.internal_events
         log.Printf("TCPClient %p: gomain: event %s", h, evt.name)
 
@@ -57,12 +57,12 @@ func (h *TCPClient) main(addr string) {
             active = false
             close(h.Events)
             close(h.to_send) // stops send goroutine, if running
-            if connect_complete && h.conn != nil {
+            if connect_finished && h.conn != nil {
                 h.conn.Close() // indirectly stops recv goroutine
             }
 
         case "connected":
-            connect_complete = true
+            connect_finished = true
 
             if !active {
                 // "bye" event already happened, close connection early
@@ -71,18 +71,18 @@ func (h *TCPClient) main(addr string) {
             }
 
             go h.recv()
-            recv_complete = false
+            recv_finished = false
             go h.send()
-            send_complete = false
+            send_finished = false
 
             h.Events <- Event{"Connected", nil}
 
         case "connerr":
-            connect_complete = true
+            connect_finished = true
             if active { h.Events <- Event{"NotConnected", nil} }
 
         case "sendstop":
-            send_complete = true
+            send_finished = true
         case "sendeof":
             if active { h.Events <- Event{"SendEof", nil} }
         case "senderr":
@@ -91,10 +91,10 @@ func (h *TCPClient) main(addr string) {
         case "recv":
             if active { h.Events <- Event{"Recv", evt.cargo} }
         case "recverr":
-            recv_complete = true
+            recv_finished = true
             if active { h.Events <- Event{"Err", nil} }
         case "recveof":
-            recv_complete = true
+            recv_finished = true
             if active { h.Events <- Event{"RecvEof", nil} }
 
         default:
@@ -203,7 +203,7 @@ func (h *TCPClient) Send(data []byte) {
     h.to_send <-data
 }
 
-// Close connection and free resources
+// Close connection and channel TCPClient.Events
 func (h *TCPClient) Bye() {
     h.internal_events <-tcpclientevent{"bye", nil}
 }
