@@ -81,6 +81,9 @@ func (h *TCPClient) main(addr string) {
             connect_finished = true
             if active { h.Events <- Event{"NotConnected", nil} }
 
+        case "send":
+            // passing through here, we make sure calling Send() after Bye() won't panic
+            if active { h.to_send <-evt.cargo }
         case "sendstop":
             send_finished = true
         case "sendeof":
@@ -185,18 +188,18 @@ func (h *TCPClient) send() {
 
 // Send data
 // empty slice = shutdown connection for sending
-// Warning: the send queue channel has limited length and may block if called
-// several times in succession. Do that in a goroutine (or don't do that at all).
+// Warning: the send queue channel has limited length and may block if called several times in succession.
+// Use bigger buffers, do the calls in a goroutine, or don't do that at all.
 func (h *TCPClient) Send(data []byte) {
     if data == nil {
-        // nil slice means closed channel
+        // nil slice would mean closed channel
         data = []byte{}
     }
-    // forward to send goroutine
-    h.to_send <-data
+    h.internal_events <-tcpclientevent{"send", data}
 }
 
-// Close connection and channel TCPClient.Events
+// Close connection
+// Also closes channel TCPClient.Events
 func (h *TCPClient) Bye() {
     h.internal_events <-tcpclientevent{"bye", nil}
 }
