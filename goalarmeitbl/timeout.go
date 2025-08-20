@@ -8,7 +8,7 @@ import (
 // Base type of event loops
 type Event struct {
     Name string
-    Cargo []byte
+    Cargo any
 }
 
 // internal structure to control Timeout safely

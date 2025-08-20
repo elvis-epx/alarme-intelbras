@@ -4,6 +4,7 @@ import (
     "log"
     "time"
     "slices"
+    "sync"
 )
 
 type TratadorResposta func (int, []byte)
@@ -33,23 +34,31 @@ type ComandoCentral struct {
     tratador TratadorResposta
 
     status int
+    wg sync.WaitGroup
 }
 
 func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serveraddr string, senha int, tam_senha int) *ComandoCentral {
     comando := new(ComandoCentral)
-    comando.tcp = NewTCPClient(serveraddr, comando)
+    comando.tcp = NewTCPClient(serveraddr)
     comando.sub = sub
     comando.observer = observer
     comando.timeout = NewTimeout(15 * time.Second, 0, comando.tcp.Events, "Timeout")
     comando.senha = senha
     comando.tam_senha = tam_senha
     comando.status = 1 // erro
+    comando.wg = sync.WaitGroup{}
+    comando.wg.Add(1)
     log.Print("ComandoCentral: inicio")
-    return comando
-}
 
-func (comando *ComandoCentral) Wait() {
-    comando.tcp.Wait()
+    go func() {
+        for evt := range comando.tcp.Events {
+            comando.handle(evt)
+        }
+        comando.wg.Done()
+        log.Print("ComandoCentral: fim ----")
+    }()
+
+    return comando
 }
 
 func (comando *ComandoCentral) Bye() {
@@ -58,7 +67,11 @@ func (comando *ComandoCentral) Bye() {
     comando.tcp.Bye()
 }
 
-func (comando *ComandoCentral) Handle(_ *TCPClient, evt Event) bool {
+func (comando *ComandoCentral) Wait() {
+    comando.wg.Wait()
+}
+
+func (comando *ComandoCentral) handle(evt Event) {
     switch evt.Name {
     case "Connected":
         comando.Autenticar()
@@ -66,7 +79,8 @@ func (comando *ComandoCentral) Handle(_ *TCPClient, evt Event) bool {
         log.Print("ComandoCentral: Conexão falhou")
         comando.Bye()
     case "Recv":
-        comando.buffer = slices.Concat(comando.buffer, evt.Cargo)
+        buf, _ := evt.Cargo.([]byte)
+        comando.buffer = slices.Concat(comando.buffer, buf)
         comando.Parse()
     case "Timeout":
         log.Print("ComandoCentral: Timeout")
@@ -74,10 +88,7 @@ func (comando *ComandoCentral) Handle(_ *TCPClient, evt Event) bool {
     case "SendEof", "RecvEof", "Err":
         log.Print("ComandoCentral: Conexão terminada ", evt.Name)
         comando.Bye()
-    default:
-        return false
     }
-    return true
 }
 
 func (comando *ComandoCentral) EnviarPacote(pacote []byte, tf TratadorResposta) {

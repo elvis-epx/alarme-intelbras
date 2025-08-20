@@ -92,7 +92,11 @@ func (d *TestDelegate) Handle(c *TCPClient, evt Event) bool {
             c.Send([]byte("abcde\n"))
             return true
         case "Recv":
-            d.RecvBuf = slices.Concat(d.RecvBuf, evt.Cargo)
+            received, ok := evt.Cargo.([]byte)
+            if !ok {
+                log.Fatal("any downcast")
+            }
+            d.RecvBuf = slices.Concat(d.RecvBuf, received)
             data := string(d.RecvBuf)
             log.Print("    received ", data)
             if d.phase == 0 && data == "bcdef\n" {
@@ -134,8 +138,12 @@ func TestTCPClient(t *testing.T) {
     d.phase = 0
     d.t = t
 
-    c := NewTCPClient(PORT, d)
-    c.Wait()
+    c := NewTCPClient(PORT)
+    for evt := range c.Events {
+        if !d.Handle(c, evt) {
+            log.Fatal("Unhandled event ", evt.Name)
+        }
+    }
 }
 
 type TestDelegate2 struct {
@@ -156,8 +164,13 @@ func TestTCPClient2(t *testing.T) {
     d := new(TestDelegate2)
     d.t = t
 
-    c := NewTCPClient(PORT, d)
-    c.Wait()
+    c := NewTCPClient(PORT)
+
+    for evt := range c.Events {
+        if !d.Handle(c, evt) {
+            log.Fatal("Unhandled event ", evt.Name)
+        }
+    }
 }
 
 type TestDelegate3 struct {
@@ -186,10 +199,14 @@ func TestTCPClient3(t *testing.T) {
     d := new(TestDelegate3)
     d.t = t
 
-    c := NewTCPClient(PORT, d)
+    c := NewTCPClient(PORT)
     d.client = c
 
     NewTimeout(2 * time.Second, 0, c.Events, "to")
 
-    c.Wait()
+    for evt := range c.Events {
+        if !d.Handle(c, evt) {
+            log.Fatal("Unhandled event ", evt.Name)
+        }
+    }
 }

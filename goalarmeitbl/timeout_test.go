@@ -14,10 +14,11 @@ loop:
     for {
         select {
         case evt := <-cbch:
-            if time.Now().After(lower_deadline) && evt.Name == "foo" {
+            now := time.Now()
+            if now.After(lower_deadline) && evt.Name == "foo" {
                 break loop
             }
-            t.Error("Failed")
+            t.Error("Failed", now, lower_deadline)
             return
         case <-upper_deadline.C:
             t.Error("Failed")
