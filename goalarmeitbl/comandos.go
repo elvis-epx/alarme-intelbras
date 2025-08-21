@@ -7,36 +7,30 @@ import (
     "fmt"
 )
 
+type ConstrutorSub func (_ int) ComandoCentralSub
+
 // ComandoNulo (no-op)
 
 type ComandoNulo struct {
-    Super *ComandoCentral
 }
 
-func (comando *ComandoNulo) Autenticado() {
-    comando.Super.Despedida()
+func (comando *ComandoNulo) Autenticado(super *ComandoCentral) {
+    super.Despedida()
 }
 
-func (comando *ComandoNulo) Wait() {
-    comando.Super.Wait()
-}
-
-func NewComandoNulo(observer ObserverComando, serveraddr string, senha int, tam_senha int) *ComandoNulo {
+func NewComandoNulo(_ int) ComandoCentralSub {
     comando := new(ComandoNulo)
-    comando.Super = NewComandoCentral(comando, observer, serveraddr, senha, tam_senha)
-    log.Print("ComandoNulo: inicio")
     return comando
 }
 
 // SolicitarStatus
 
 type SolicitarStatus struct {
-    Super *ComandoCentral
 }
 
-func (comando *SolicitarStatus) Autenticado() {
+func (comando *SolicitarStatus) Autenticado(super *ComandoCentral) {
     pacote := PacoteIsecNet2(0x0b4a, nil)
-    comando.Super.EnviarPacote(pacote, comando.RespostaStatus)
+    super.EnviarPacote(pacote, comando.RespostaStatus)
 }
 
 func bits_para_numeros(octetos []byte, inverso bool) string {
@@ -59,7 +53,7 @@ func sim_nao(valor int) string {
     return "Não"
 }
 
-func (comando *SolicitarStatus) RespostaStatus(cmd int, payload []byte) {
+func (comando *SolicitarStatus) RespostaStatus(super *ComandoCentral, cmd int, payload []byte) {
     payload = slices.Concat([]byte{0x00}, payload)
     log.Print()
     log.Print()
@@ -102,43 +96,32 @@ func (comando *SolicitarStatus) RespostaStatus(cmd int, payload []byte) {
     log.Print("*******************************************")
     log.Print()
 
-    comando.Super.Despedida()
+    super.Despedida()
 }
 
-func (comando *SolicitarStatus) Wait() {
-    comando.Super.Wait()
-}
-
-func NewSolicitarStatus(observer ObserverComando, serveraddr string, senha int, tam_senha int) *SolicitarStatus {
+func NewSolicitarStatus(_ int) ComandoCentralSub {
     comando := new(SolicitarStatus)
-    comando.Super = NewComandoCentral(comando, observer, serveraddr, senha, tam_senha)
-    log.Print("SolicitarStatus: inicio")
     return comando
 }
 
 // DesativarCentral
 
 type DesativarCentral struct {
-    Super *ComandoCentral
     particao int
 }
 
-func (comando *DesativarCentral) Autenticado() {
+func (comando *DesativarCentral) Autenticado(super *ComandoCentral) {
     // byte 1: particao (0x01 = 1, 0xff = todas ou sem particao)
     // byte 2: 0x00 desarmar, 0x01 armar, 0x02 stay
     pacote := PacoteIsecNet2(0x401e, []byte{byte(comando.particao), 0x00})
-    comando.Super.EnviarPacote(pacote, comando.RespostaDesativarCentral)
+    super.EnviarPacote(pacote, comando.RespostaDesativarCentral)
 }
 
-func (comando *DesativarCentral) RespostaDesativarCentral(cmd int, payload []byte) {
-    comando.Super.Despedida()
+func (comando *DesativarCentral) RespostaDesativarCentral(super *ComandoCentral, cmd int, payload []byte) {
+    super.Despedida()
 }
 
-func (comando *DesativarCentral) Wait() {
-    comando.Super.Wait()
-}
-
-func NewDesativarCentral(observer ObserverComando, serveraddr string, senha int, tam_senha int, particao int) *DesativarCentral {
+func NewDesativarCentral(particao int) ComandoCentralSub {
     comando := new(DesativarCentral)
     if particao == 0 {
         // todas as partições
@@ -146,34 +129,27 @@ func NewDesativarCentral(observer ObserverComando, serveraddr string, senha int,
     } else {
         comando.particao = particao
     }
-    comando.Super = NewComandoCentral(comando, observer, serveraddr, senha, tam_senha)
-    log.Print("DesativarCentral: inicio")
     return comando
 }
 
 // AtivarCentral
 
 type AtivarCentral struct {
-    Super *ComandoCentral
     particao int
 }
 
-func (comando *AtivarCentral) Autenticado() {
+func (comando *AtivarCentral) Autenticado(super *ComandoCentral) {
     // byte 1: particao (0x01 = 1, 0xff = todas ou sem particao)
     // byte 2: 0x00 desarmar, 0x01 armar, 0x02 stay
     pacote := PacoteIsecNet2(0x401e, []byte{byte(comando.particao), 0x01})
-    comando.Super.EnviarPacote(pacote, comando.RespostaAtivarCentral)
+    super.EnviarPacote(pacote, comando.RespostaAtivarCentral)
 }
 
-func (comando *AtivarCentral) RespostaAtivarCentral(cmd int, payload []byte) {
-    comando.Super.Despedida()
+func (comando *AtivarCentral) RespostaAtivarCentral(super *ComandoCentral, cmd int, payload []byte) {
+    super.Despedida()
 }
 
-func (comando *AtivarCentral) Wait() {
-    comando.Super.Wait()
-}
-
-func NewAtivarCentral(observer ObserverComando, serveraddr string, senha int, tam_senha int, particao int) *AtivarCentral {
+func NewAtivarCentral(particao int) ComandoCentralSub {
     comando := new(AtivarCentral)
     if particao == 0 {
         // todas as partições
@@ -181,7 +157,18 @@ func NewAtivarCentral(observer ObserverComando, serveraddr string, senha int, ta
     } else {
         comando.particao = particao
     }
-    comando.Super = NewComandoCentral(comando, observer, serveraddr, senha, tam_senha)
-    log.Print("AtivarCentral: inicio")
     return comando
+}
+
+// Lista de comandos disponíveis
+
+var Subcomandos map[string]DescComandoSub
+
+func init() {
+    Subcomandos = map[string]DescComandoSub{
+        "nulo": DescComandoSub{false, NewComandoNulo},
+        "status": DescComandoSub{false, NewSolicitarStatus},
+        "ativar": DescComandoSub{true, NewAtivarCentral},
+        "desativar": DescComandoSub{true, NewDesativarCentral},
+    }
 }

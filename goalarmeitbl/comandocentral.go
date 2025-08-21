@@ -8,7 +8,7 @@ import (
 )
 
 // Função que vai tratar a resposta  vinda da central
-type TratadorResposta func (int, []byte)
+type TratadorResposta func (*ComandoCentral, int, []byte)
 
 // Observador do resultado final do comando
 type ObserverComando interface {
@@ -18,8 +18,16 @@ type ObserverComando interface {
 
 // Implementação ("subclasse") do comando à central
 type ComandoCentralSub interface {
-    Autenticado()
-    Wait()
+    Autenticado(*ComandoCentral)
+}
+
+// Construtor de uma implementação/subclasse
+type Constructor func(int) ComandoCentralSub
+
+// Descritor de uma subclasse, para usar num mapa string -> descritor
+type DescComandoSub struct {
+    ExtraParam bool
+    Construtor Constructor
 }
 
 type ComandoCentral struct {
@@ -129,10 +137,10 @@ func (comando *ComandoCentral) Parse() {
         log.Print("ComandoCentral: sem tratador")
         comando.Bye()
     }
-    comando.tratador_resposta(cmd, payload)
+    comando.tratador_resposta(comando, cmd, payload)
 }
 
-func (comando *ComandoCentral) RespostaAutenticacao(cmd int, payload []byte) {
+func (comando *ComandoCentral) RespostaAutenticacao(_ *ComandoCentral, cmd int, payload []byte) {
     if cmd == 0xf0fd {
         comando.ParseNak(payload)
         comando.Bye()
@@ -165,7 +173,7 @@ func (comando *ComandoCentral) RespostaAutenticacao(cmd int, payload []byte) {
     }
 
     log.Print("ComandoCentral: auth ok")
-    comando.sub.Autenticado()
+    comando.sub.Autenticado(comando)
 }
 
 func (comando *ComandoCentral) ParseNak(payload []byte) {

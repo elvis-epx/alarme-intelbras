@@ -32,8 +32,13 @@ func main() {
         log.Fatal("Tamanho senha inválida")
     }
 
+    descritor, ok := goalarmeitbl.Subcomandos[comando]
+    if !ok {
+        log.Fatal("Comando não reconhecido")
+    }
+
     extra := 0
-    if comando == "ativar" || comando == "desativar" {
+    if descritor.ExtraParam {
         if len(os.Args) > 5 {
             extra, err = strconv.Atoi(os.Args[5])
             if err != nil || extra > 255 || extra < 0 {
@@ -42,19 +47,8 @@ func main() {
         }
     }
 
-    var c goalarmeitbl.ComandoCentralSub
-
-    // TODO use something more clever like reflection?
-    if comando == "nulo" {
-        c = goalarmeitbl.NewComandoNulo(new(Observador), serveraddr, senha, tam_senha)
-    } else if comando == "status" {
-        c = goalarmeitbl.NewSolicitarStatus(new(Observador), serveraddr, senha, tam_senha)
-    } else if comando == "ativar" {
-        c = goalarmeitbl.NewAtivarCentral(new(Observador), serveraddr, senha, tam_senha, extra)
-    } else if comando == "desativar" {
-        c = goalarmeitbl.NewDesativarCentral(new(Observador), serveraddr, senha, tam_senha, extra)
-    } else {
-        log.Fatal("Comando não reconhecido")
-    }
+    sub := descritor.Construtor(extra)
+    c := goalarmeitbl.NewComandoCentral(sub, new(Observador), serveraddr, senha, tam_senha)
     c.Wait()
 }
+
