@@ -24,12 +24,6 @@ type ComandoCentralSub interface {
 // Construtor de uma implementação/subclasse
 type Constructor func(int) ComandoCentralSub
 
-// Descritor de uma subclasse, para usar num mapa string -> descritor
-type DescComandoSub struct {
-    ExtraParam bool
-    Construtor Constructor
-}
-
 type ComandoCentral struct {
     tcp *TCPClient
     sub ComandoCentralSub

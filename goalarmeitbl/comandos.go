@@ -7,7 +7,12 @@ import (
     "fmt"
 )
 
-type ConstrutorSub func (_ int) ComandoCentralSub
+// Descritor de uma subclasse, para usar num mapa string -> descritor
+type DescComandoSub struct {
+    ExtraHelp string
+    ExtraParam bool
+    Construtor Constructor
+}
 
 // ComandoNulo (no-op)
 
@@ -160,15 +165,112 @@ func NewAtivarCentral(particao int) ComandoCentralSub {
     return comando
 }
 
+// DesligarSirene
+
+type DesligarSirene struct {
+    particao byte
+}
+
+func (comando *DesligarSirene) Autenticado(super *ComandoCentral) {
+    pacote := PacoteIsecNet2(0x4019, []byte{comando.particao})
+    super.EnviarPacote(pacote, comando.RespostaDesligarSirene)
+}
+
+func (comando *DesligarSirene) RespostaDesligarSirene(super *ComandoCentral, cmd int, payload []byte) {
+    super.Despedida()
+}
+
+func NewDesligarSirene(particao int) ComandoCentralSub {
+    comando := new(DesligarSirene)
+    if particao == 0 {
+        // todas as partições
+        comando.particao = 0xff
+    } else {
+        comando.particao = byte(particao)
+    }
+    return comando
+}
+
+// BypassZona
+
+type BypassZona struct {
+    zona byte
+}
+
+func (comando *BypassZona) Autenticado(super *ComandoCentral) {
+    pacote := PacoteIsecNet2(0x401f, []byte{comando.zona - 1, 0x01})
+    super.EnviarPacote(pacote, comando.RespostaBypassZona)
+}
+
+func (comando *BypassZona) RespostaBypassZona(super *ComandoCentral, cmd int, payload []byte) {
+    super.Despedida()
+}
+
+func NewBypassZona(zona int) ComandoCentralSub {
+    comando := new(BypassZona)
+    if zona < 1 || zona > 254 {
+        log.Fatal("Zona precisa ser especificada")
+    }
+    comando.zona = byte(zona)
+    return comando
+}
+
+// ReativarZona
+
+type ReativarZona struct {
+    zona byte
+}
+
+func (comando *ReativarZona) Autenticado(super *ComandoCentral) {
+    pacote := PacoteIsecNet2(0x401f, []byte{comando.zona - 1, 0x00})
+    super.EnviarPacote(pacote, comando.RespostaReativarZona)
+}
+
+func (comando *ReativarZona) RespostaReativarZona(super *ComandoCentral, cmd int, payload []byte) {
+    super.Despedida()
+}
+
+func NewReativarZona(zona int) ComandoCentralSub {
+    comando := new(ReativarZona)
+    if zona < 1 || zona > 254 {
+        log.Fatal("Zona precisa ser especificada")
+    }
+    comando.zona = byte(zona)
+    return comando
+}
+
+// LimparDisparo
+
+type LimparDisparo struct {
+}
+
+func (comando *LimparDisparo) Autenticado(super *ComandoCentral) {
+    pacote := PacoteIsecNet2(0x4013, nil)
+    super.EnviarPacote(pacote, comando.RespostaLimparDisparo)
+}
+
+func (comando *LimparDisparo) RespostaLimparDisparo(super *ComandoCentral, cmd int, payload []byte) {
+    super.Despedida()
+}
+
+func NewLimparDisparo(_ int) ComandoCentralSub {
+    comando := new(LimparDisparo)
+    return comando
+}
+
 // Lista de comandos disponíveis
 
 var Subcomandos map[string]DescComandoSub
 
 func init() {
     Subcomandos = map[string]DescComandoSub{
-        "nulo": DescComandoSub{false, NewComandoNulo},
-        "status": DescComandoSub{false, NewSolicitarStatus},
-        "ativar": DescComandoSub{true, NewAtivarCentral},
-        "desativar": DescComandoSub{true, NewDesativarCentral},
+        "nulo": DescComandoSub{"", false, NewComandoNulo},
+        "status": DescComandoSub{"", false, NewSolicitarStatus},
+        "ativar": DescComandoSub{"[partição] ou todas partições se omitida", true, NewAtivarCentral},
+        "desativar": DescComandoSub{"[partição] ou todas partições se omitida", true, NewDesativarCentral},
+        "desligarsirene": DescComandoSub{"[partição] ou todas partições se omitida", true, NewDesligarSirene},
+        "limpardisparo": DescComandoSub{"", false, NewLimparDisparo},
+        "bypass": DescComandoSub{"<zona 1-64>", true, NewBypassZona},
+        "reativar": DescComandoSub{"<zona 1-64>", true, NewReativarZona},
     }
 }
