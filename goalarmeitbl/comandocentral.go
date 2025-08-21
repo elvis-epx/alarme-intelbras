@@ -124,6 +124,16 @@ func (comando *ComandoCentral) Parse() {
     cmd, payload := PacoteIsecNet2Parse(pacote)
     log.Printf("ComandoCentral: Pacote resposta %04x", cmd)
 
+    if cmd == 0xf0fd {
+        comando.ParseNak(payload)
+        comando.Bye()
+        return
+    } else if cmd == 0xf0f7 {
+        log.Printf("ComandoCentral: central ocupada")
+        comando.Bye()
+        return
+    }
+
     if comando.tratador_resposta == nil {
         log.Print("ComandoCentral: sem tratador")
         comando.Bye()
@@ -132,12 +142,6 @@ func (comando *ComandoCentral) Parse() {
 }
 
 func (comando *ComandoCentral) RespostaAutenticacao(_ *ComandoCentral, cmd int, payload []byte) {
-    if cmd == 0xf0fd {
-        comando.ParseNak(payload)
-        comando.Bye()
-        return
-    }
-
     if cmd != 0xf0f0 {
         log.Printf("ComandoCentral: auth resp inesperada %04x", cmd)
         comando.Bye()

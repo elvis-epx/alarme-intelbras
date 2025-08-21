@@ -62,6 +62,12 @@ func sim_nao(valor int) string {
 }
 
 func (comando *SolicitarStatus) RespostaStatus(super *ComandoCentral, cmd int, payload []byte) {
+    if cmd != 0x0b4a {
+        log.Printf("RespostaStatus: resp inesperada %04x", cmd)
+        super.Bye()
+        return
+    }
+
     payload = slices.Concat([]byte{0x00}, payload)
     log.Print()
     log.Print()
@@ -126,6 +132,12 @@ func (comando *DesativarCentral) Autenticado(super *ComandoCentral) {
 }
 
 func (comando *DesativarCentral) RespostaDesativarCentral(super *ComandoCentral, cmd int, payload []byte) {
+    if cmd != 0x401e {
+        log.Printf("DesativarCentral: resp inesperada %04x", cmd)
+        super.Bye()
+        return
+    }
+
     super.Despedida()
 }
 
@@ -154,6 +166,12 @@ func (comando *AtivarCentral) Autenticado(super *ComandoCentral) {
 }
 
 func (comando *AtivarCentral) RespostaAtivarCentral(super *ComandoCentral, cmd int, payload []byte) {
+    if cmd != 0x401e {
+        log.Printf("AtivarCentral: resp inesperada %04x", cmd)
+        super.Bye()
+        return
+    }
+
     super.Despedida()
 }
 
@@ -180,6 +198,12 @@ func (comando *DesligarSirene) Autenticado(super *ComandoCentral) {
 }
 
 func (comando *DesligarSirene) RespostaDesligarSirene(super *ComandoCentral, cmd int, payload []byte) {
+    if cmd != 0xf0fe {
+        log.Printf("DesligarSirene: resp inesperada %04x", cmd)
+        super.Bye()
+        return
+    }
+
     super.Despedida()
 }
 
@@ -206,6 +230,12 @@ func (comando *BypassZona) Autenticado(super *ComandoCentral) {
 }
 
 func (comando *BypassZona) RespostaBypassZona(super *ComandoCentral, cmd int, payload []byte) {
+    if cmd != 0xf0fe {
+        log.Printf("BypassZona: resp inesperada %04x", cmd)
+        super.Bye()
+        return
+    }
+
     super.Despedida()
 }
 
@@ -226,10 +256,17 @@ type ReativarZona struct {
 
 func (comando *ReativarZona) Autenticado(super *ComandoCentral) {
     pacote := PacoteIsecNet2(0x401f, []byte{comando.zona - 1, 0x00})
+    // TODO implementar reativação todas as zonas (0xff + códigos x 0x3f)
     super.EnviarPacote(pacote, comando.RespostaReativarZona)
 }
 
 func (comando *ReativarZona) RespostaReativarZona(super *ComandoCentral, cmd int, payload []byte) {
+    if cmd != 0xf0fe {
+        log.Printf("ReativarZona: resp inesperada %04x", cmd)
+        super.Bye()
+        return
+    }
+
     super.Despedida()
 }
 
@@ -253,6 +290,12 @@ func (comando *LimparDisparo) Autenticado(super *ComandoCentral) {
 }
 
 func (comando *LimparDisparo) RespostaLimparDisparo(super *ComandoCentral, cmd int, payload []byte) {
+    if cmd != 0xf0fe {
+        log.Printf("LimparDisparo: resp inesperada %04x", cmd)
+        super.Bye()
+        return
+    }
+
     super.Despedida()
 }
 
@@ -274,6 +317,6 @@ func init() {
         "desligarsirene": DescComandoSub{"[partição] (se omitida, desliga todas)", true, NewDesligarSirene},
         "limpardisparo": DescComandoSub{"", false, NewLimparDisparo},
         "bypass": DescComandoSub{"<zona> (obrigatório especificar zona)", true, NewBypassZona},
-        "reativar": DescComandoSub{"<zona> (obrigatório especificar zona)", true, NewReativarZona},
+        "cancelbypass": DescComandoSub{"<zona> (obrigatório especificar zona)", true, NewReativarZona},
     }
 }
