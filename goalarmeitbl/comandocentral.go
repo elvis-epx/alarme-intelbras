@@ -21,9 +21,6 @@ type ComandoCentralSub interface {
     Autenticado(*ComandoCentral)
 }
 
-// Construtor de uma implementação/subclasse
-type Constructor func(int) ComandoCentralSub
-
 type ComandoCentral struct {
     tcp *TCPClient
     sub ComandoCentralSub

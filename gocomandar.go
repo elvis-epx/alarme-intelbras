@@ -2,7 +2,7 @@ package main
 
 import (
     "os"
-    "log"
+    "fmt"
     "strconv"
     "github.com/elvis-epx/alarme-intelbras/goalarmeitbl"
 )
@@ -12,29 +12,46 @@ type Observador struct {
 
 func (o *Observador) Resultado(res int) {
     if (res == 0) {
-        log.Print("Sucesso")
+        fmt.Println("Sucesso")
     } else {
-        log.Print("Fracasso")
+        fmt.Println("Fracasso")
+        os.Exit(2)
     }
 }
 
+func usage(err string) {
+    fmt.Printf("Uso: %s <endereço:porta> <senha> <tamanho senha> <comando> [partição ou zona]\n", os.Args[0])
+    fmt.Println()
+    fmt.Println("O parâmetro Partição/Zona pode ou não ser requerido, a depender do comando")
+    fmt.Println()
+    fmt.Println("Comandos disponíveis")
+    fmt.Println("--------------------")
+    for comando, descritor := range goalarmeitbl.Subcomandos {
+        fmt.Printf("%s %s\n", comando, descritor.ExtraHelp)
+    }
+    fmt.Println()
+    fmt.Printf("Erro: %s\n", err)
+    os.Exit(2)
+}
+
 func main() {
-    comando := os.Args[1]
-    serveraddr := os.Args[2]
+    serveraddr := os.Args[1]
 
-    senha, err := strconv.Atoi(os.Args[3])
+    senha, err := strconv.Atoi(os.Args[2])
     if err != nil {
-        log.Fatal("Senha inválida")
+        usage("Senha inválida")
     }
 
-    tam_senha, err2 := strconv.Atoi(os.Args[4])
+    tam_senha, err2 := strconv.Atoi(os.Args[3])
     if err2 != nil || (tam_senha != 4 && tam_senha != 6) {
-        log.Fatal("Tamanho senha inválida")
+        usage("Tamanho senha inválida")
     }
+
+    comando := os.Args[4]
 
     descritor, ok := goalarmeitbl.Subcomandos[comando]
     if !ok {
-        log.Fatal("Comando não reconhecido")
+        usage("Comando não reconhecido")
     }
 
     extra := 0
@@ -42,13 +59,20 @@ func main() {
         if len(os.Args) > 5 {
             extra, err = strconv.Atoi(os.Args[5])
             if err != nil || extra > 255 || extra < 0 {
-                log.Fatal("Valor extra inválido")
+                usage("Parâmetro extra inválido")
             }
+        }
+    } else {
+        if len(os.Args) > 5 {
+            usage("Parâmetro extra desnecessário")
         }
     }
 
-    sub := descritor.Construtor(extra)
+    sub, errstring := descritor.Construtor(extra)
+    if errstring != "" {
+        usage(errstring)
+    }
+    
     c := goalarmeitbl.NewComandoCentral(sub, new(Observador), serveraddr, senha, tam_senha)
     c.Wait()
 }
-

@@ -7,6 +7,9 @@ import (
     "fmt"
 )
 
+// Construtor de uma implementação/subclasse
+type Constructor func(int) (ComandoCentralSub, string)
+
 // Descritor de uma subclasse, para usar num mapa string -> descritor
 type DescComandoSub struct {
     ExtraHelp string
@@ -23,9 +26,9 @@ func (comando *ComandoNulo) Autenticado(super *ComandoCentral) {
     super.Despedida()
 }
 
-func NewComandoNulo(_ int) ComandoCentralSub {
+func NewComandoNulo(_ int) (ComandoCentralSub, string) {
     comando := new(ComandoNulo)
-    return comando
+    return comando, ""
 }
 
 // SolicitarStatus
@@ -104,9 +107,9 @@ func (comando *SolicitarStatus) RespostaStatus(super *ComandoCentral, cmd int, p
     super.Despedida()
 }
 
-func NewSolicitarStatus(_ int) ComandoCentralSub {
+func NewSolicitarStatus(_ int) (ComandoCentralSub, string) {
     comando := new(SolicitarStatus)
-    return comando
+    return comando, ""
 }
 
 // DesativarCentral
@@ -126,7 +129,7 @@ func (comando *DesativarCentral) RespostaDesativarCentral(super *ComandoCentral,
     super.Despedida()
 }
 
-func NewDesativarCentral(particao int) ComandoCentralSub {
+func NewDesativarCentral(particao int) (ComandoCentralSub, string) {
     comando := new(DesativarCentral)
     if particao == 0 {
         // todas as partições
@@ -134,7 +137,7 @@ func NewDesativarCentral(particao int) ComandoCentralSub {
     } else {
         comando.particao = particao
     }
-    return comando
+    return comando, ""
 }
 
 // AtivarCentral
@@ -154,7 +157,7 @@ func (comando *AtivarCentral) RespostaAtivarCentral(super *ComandoCentral, cmd i
     super.Despedida()
 }
 
-func NewAtivarCentral(particao int) ComandoCentralSub {
+func NewAtivarCentral(particao int) (ComandoCentralSub, string) {
     comando := new(AtivarCentral)
     if particao == 0 {
         // todas as partições
@@ -162,7 +165,7 @@ func NewAtivarCentral(particao int) ComandoCentralSub {
     } else {
         comando.particao = particao
     }
-    return comando
+    return comando, ""
 }
 
 // DesligarSirene
@@ -180,7 +183,7 @@ func (comando *DesligarSirene) RespostaDesligarSirene(super *ComandoCentral, cmd
     super.Despedida()
 }
 
-func NewDesligarSirene(particao int) ComandoCentralSub {
+func NewDesligarSirene(particao int) (ComandoCentralSub, string) {
     comando := new(DesligarSirene)
     if particao == 0 {
         // todas as partições
@@ -188,7 +191,7 @@ func NewDesligarSirene(particao int) ComandoCentralSub {
     } else {
         comando.particao = byte(particao)
     }
-    return comando
+    return comando, ""
 }
 
 // BypassZona
@@ -206,13 +209,13 @@ func (comando *BypassZona) RespostaBypassZona(super *ComandoCentral, cmd int, pa
     super.Despedida()
 }
 
-func NewBypassZona(zona int) ComandoCentralSub {
+func NewBypassZona(zona int) (ComandoCentralSub, string) {
     comando := new(BypassZona)
     if zona < 1 || zona > 254 {
-        log.Fatal("Zona precisa ser especificada")
+        return nil, "Zona precisa ser especificada e estar na faixa 1-254"
     }
     comando.zona = byte(zona)
-    return comando
+    return comando, ""
 }
 
 // ReativarZona
@@ -230,13 +233,13 @@ func (comando *ReativarZona) RespostaReativarZona(super *ComandoCentral, cmd int
     super.Despedida()
 }
 
-func NewReativarZona(zona int) ComandoCentralSub {
+func NewReativarZona(zona int) (ComandoCentralSub, string) {
     comando := new(ReativarZona)
     if zona < 1 || zona > 254 {
-        log.Fatal("Zona precisa ser especificada")
+        return nil, "Zona precisa ser especificada e estar na faixa 1-254"
     }
     comando.zona = byte(zona)
-    return comando
+    return comando, ""
 }
 
 // LimparDisparo
@@ -253,9 +256,9 @@ func (comando *LimparDisparo) RespostaLimparDisparo(super *ComandoCentral, cmd i
     super.Despedida()
 }
 
-func NewLimparDisparo(_ int) ComandoCentralSub {
+func NewLimparDisparo(_ int) (ComandoCentralSub, string) {
     comando := new(LimparDisparo)
-    return comando
+    return comando, ""
 }
 
 // Lista de comandos disponíveis
@@ -266,11 +269,11 @@ func init() {
     Subcomandos = map[string]DescComandoSub{
         "nulo": DescComandoSub{"", false, NewComandoNulo},
         "status": DescComandoSub{"", false, NewSolicitarStatus},
-        "ativar": DescComandoSub{"[partição] ou todas partições se omitida", true, NewAtivarCentral},
-        "desativar": DescComandoSub{"[partição] ou todas partições se omitida", true, NewDesativarCentral},
-        "desligarsirene": DescComandoSub{"[partição] ou todas partições se omitida", true, NewDesligarSirene},
+        "ativar": DescComandoSub{"[partição] (se omitida, ativa todas)", true, NewAtivarCentral},
+        "desativar": DescComandoSub{"[partição] (se omitida, desativa todas)", true, NewDesativarCentral},
+        "desligarsirene": DescComandoSub{"[partição] (se omitida, desliga todas)", true, NewDesligarSirene},
         "limpardisparo": DescComandoSub{"", false, NewLimparDisparo},
-        "bypass": DescComandoSub{"<zona 1-64>", true, NewBypassZona},
-        "reativar": DescComandoSub{"<zona 1-64>", true, NewReativarZona},
+        "bypass": DescComandoSub{"<zona> (obrigatório especificar zona)", true, NewBypassZona},
+        "reativar": DescComandoSub{"<zona> (obrigatório especificar zona)", true, NewReativarZona},
     }
 }
