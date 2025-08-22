@@ -86,6 +86,7 @@ func (d *TestDelegate) Handle(c *TCPClient, evt Event) bool {
     log.Printf("test delegate: event %s", evt.Name)
     switch evt.Name {
         case "NotConnected":
+            d.t.Error("NotConnected")
             c.Bye()
             return true
         case "Connected":

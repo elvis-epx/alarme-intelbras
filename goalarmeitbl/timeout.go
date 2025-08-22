@@ -5,7 +5,7 @@ import (
     "math/rand/v2"
 )
 
-// Base type of event loops
+// Base type of user-facing event loops
 type Event struct {
     Name string
     Cargo any
