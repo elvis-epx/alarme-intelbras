@@ -87,7 +87,7 @@ func (d *TestDelegate) Handle(c *TCPClient, evt Event) bool {
     switch evt.Name {
         case "NotConnected":
             d.t.Error("NotConnected")
-            c.Bye()
+            // no need to call Bye()
             return true
         case "Connected":
             c.Send([]byte("abcde\n"))
@@ -126,13 +126,7 @@ func (d *TestDelegate) Handle(c *TCPClient, evt Event) bool {
             }
             log.Print("    packet sent, queue ", qlen)
             return true
-        case "SendEof":
-            c.Bye()
-            return true
-        case "RecvEof":
-            c.Bye()
-            return true
-        case "Err":
+        case "SendEof", "RecvEof", "Err":
             c.Bye()
             return true
     }
@@ -191,7 +185,7 @@ func (d *TestDelegate3) Handle(c *TCPClient, evt Event) bool {
     switch evt.Name {
         case "to":
             log.Print("simulating connection failure")
-            d.client.conn.Close()
+            d.client.Session.conn.Close()
             return true
         case "Connected":
             return true
