@@ -142,7 +142,7 @@ func TestTCPServer(t *testing.T) {
             }
         }
 
-        srv.Bye()
+        srv.Stop()
     }()
 
     // auxiliary client that exercises the server

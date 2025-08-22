@@ -6,35 +6,24 @@ import (
     "errors"
 )
 
-type tcpserverevent struct {
-    name string
-    conn *net.TCPConn
-}
-
 type TCPServer struct {
     Events chan Event
-    bye chan struct{}
+    listener net.Listener
 }
 
 func NewTCPServer(addr string) (*TCPServer, error) {
     s := new(TCPServer)
     s.Events = make(chan Event, 1)
-    s.bye = make(chan struct{})
 
-    l, err := net.Listen("tcp", addr)
+    listener, err := net.Listen("tcp", addr)
     if err != nil {
         return nil, err
     }
-
-    // Closes socket when user calls Bye()
-    go func() {
-        <-s.bye
-        l.Close()
-    }()
+    s.listener = listener
 
     go func() {
         for {
-            conn, err := l.Accept()
+            conn, err := listener.Accept()
             if err != nil {
                 if errors.Is(err, net.ErrClosed) {
                     break
@@ -48,8 +37,8 @@ func NewTCPServer(addr string) (*TCPServer, error) {
             s.Events <-Event{"new", session}
         }
 
-        l.Close()
-        close(s.Events) // user disengages
+        listener.Close()
+        close(s.Events) // disengage user
         log.Printf("TCPServer: stopped")
     }()
 
@@ -58,6 +47,6 @@ func NewTCPServer(addr string) (*TCPServer, error) {
 }
 
 // User must handle remaining events after calling this
-func (s *TCPServer) Bye() {
-    close(s.bye)
+func (s *TCPServer) Stop() {
+    s.listener.Close()
 }
