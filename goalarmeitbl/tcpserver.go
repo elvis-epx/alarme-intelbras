@@ -11,6 +11,8 @@ type TCPServer struct {
     listener net.Listener
 }
 
+// Create TCP server
+// User must listen Events channel to get TCPSession's
 func NewTCPServer(addr string) (*TCPServer, error) {
     s := new(TCPServer)
     s.Events = make(chan Event, 1)
@@ -46,6 +48,7 @@ func NewTCPServer(addr string) (*TCPServer, error) {
     return s, nil
 }
 
+// Stops TCP server asynchronously
 // User must handle remaining events after calling this
 func (s *TCPServer) Stop() {
     s.listener.Close()
