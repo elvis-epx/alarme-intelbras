@@ -5,6 +5,7 @@ import (
     "time"
     "log"
     "context"
+    "sync"
 )
 
 type TCPClient struct {
@@ -12,6 +13,8 @@ type TCPClient struct {
     Session *TCPSession
     conntimeout time.Duration
     cancel context.CancelFunc
+    state chan string
+    closeonce sync.Once
 }
 
 type tcpclientevent struct {
@@ -30,6 +33,7 @@ func NewTCPClient(addr string) *TCPClient {
     h.Events = h.Session.Events
     // FIXME allow to configure connection timeout, or allow to pass a context
     h.conntimeout = 60 * time.Second
+    h.state = make(chan string, 1)
 
     log.Printf("TCPClient %p ==================", h)
 
@@ -45,12 +49,14 @@ func NewTCPClient(addr string) *TCPClient {
             log.Printf("TCPClient %p: conn fail", h) // including ctx cancellation
             h.Events <- Event{"NotConnected", nil}
             close(h.Events) // user disengages
+            h.state <- "-"
             return
         }
 
         log.Printf("TCPClient %p: conn success", h)
         h.Session.Start(conn.(*net.TCPConn))
         h.Events <- Event{"Connected", nil}
+        h.state <- "+"
 
         log.Printf("TCPClient %p: TCPSession %p in charge -------", h, h.Session)
     }()
@@ -59,20 +65,6 @@ func NewTCPClient(addr string) *TCPClient {
 }
 
 // Public interface
-
-// Cancel connection.
-// Must not be called if "Connected" event was already received
-// Should be called by the same goroutine that receives events to avoid race conditions
-func (h *TCPClient) Cancel() {
-    // cancel and drain pending events
-    h.cancel()
-    for evt := range h.Events {
-        log.Printf("TCPClient %p: drained event %s", h, evt.Name)
-        if evt.Name != "NotConnected" {
-            h.Session.Close()
-        }
-    }
-}
 
 // Send data. Forwards to TCPSession.
 // May be called only after connection is established
@@ -84,8 +76,23 @@ func (h *TCPClient) Send(data []byte) {
     h.Session.Send(data)
 }
 
-// Close connection. Forwards to TCPSession.
-// May be called only after connection is established
+// Close connection, or cancels it if still not established
 func (h *TCPClient) Close() {
-    h.Session.Close()
+    h.closeonce.Do(func() {
+        // cancel context, if still relevant, to provoke closure of connect goroutine
+        h.cancel()
+
+        // wait for connection goroutine to report status, or read its past status
+        state := <-h.state
+
+        if state == "-" {
+            // not connected. Drain pending events
+            for evt := range h.Events {
+                log.Printf("TCPClient %p: drained event %s", h, evt.Name)
+            }
+        } else if state == "+" {
+            // already connected; forward
+            h.Session.Close() // This method drains pending events by itself
+        }
+    })
 }
