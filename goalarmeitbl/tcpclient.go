@@ -57,15 +57,22 @@ func NewTCPClient(addr string) *TCPClient {
 
 // Public interface
 
-// Cancel connection
-// User must still listen for Events and handling them, because Cancel() is asynchronous.
-// This method only makes things happen faster than the typical context timeout.
+// Cancel connection.
+// Must not be called if "Connected" event was already received
+// Should be called by the same goroutine that receives events to avoid race conditions
 func (h *TCPClient) Cancel() {
+    // cancel and drain pending events
     h.cancel()
+    for evt := range h.Events {
+        log.Printf("TCPClient %p: drained event %s", h, evt.Name)
+        if evt.Name != "NotConnected" {
+            h.Session.Close()
+        }
+    }
 }
 
 // Send data. Forwards to TCPSession.
-// Must be called only after connection is established
+// May be called only after connection is established
 // empty slice = shutdown connection for sending
 // Warning: the send queue channel has limited length and may block if called several times in succession.
 // Listen for the "Sent" event to throttle the calls
@@ -75,8 +82,7 @@ func (h *TCPClient) Send(data []byte) {
 }
 
 // Close connection. Forwards to TCPSession.
-// Also closes Events channel
-// Must be called only after connection is established
-func (h *TCPClient) Bye() {
-    h.Session.Bye()
+// May be called only after connection is established
+func (h *TCPClient) Close() {
+    h.Session.Close()
 }

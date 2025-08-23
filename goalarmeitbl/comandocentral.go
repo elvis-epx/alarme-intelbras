@@ -61,7 +61,7 @@ func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serverad
 func (comando *ComandoCentral) Bye() {
     comando.observer.Resultado(comando.status)
     comando.timeout.Free()
-    comando.tcp.Bye()
+    comando.tcp.Close()
 }
 
 func (comando *ComandoCentral) Wait() {

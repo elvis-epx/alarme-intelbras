@@ -116,7 +116,7 @@ func (d *TestDelegate) Handle(c *TCPClient, evt Event) bool {
                 }()
             } else if d.phase == 2 && data == "yz\n" {
                 d.RecvBuf = nil
-                c.Bye()
+                c.Close()
             }
             return true
         case "Sent":
@@ -127,7 +127,7 @@ func (d *TestDelegate) Handle(c *TCPClient, evt Event) bool {
             log.Print("    packet sent, queue ", qlen)
             return true
         case "SendEof", "RecvEof", "Err":
-            c.Bye()
+            c.Close()
             return true
     }
     return false
@@ -156,7 +156,6 @@ func (d *TestDelegate2) Handle(c *TCPClient, evt Event) bool {
     log.Printf("test delegate 2: event %s", evt.Name)
     switch evt.Name {
         case "NotConnected":
-            c.Bye()
             return true
     }
     return false
@@ -190,7 +189,7 @@ func (d *TestDelegate3) Handle(c *TCPClient, evt Event) bool {
         case "Connected":
             return true
         case "Err":
-            c.Bye()
+            c.Close()
             return true
     }
     return false
