@@ -17,10 +17,11 @@ type TCPSession struct {
     to_send chan []byte
     conn *net.TCPConn
     wg sync.WaitGroup
+    stoponce sync.Once
 }
 
 // Creates new TCPSession. Indirectly invoked by TCPServer and TCPClient
-// Connection release is indicated by Events channel closure
+// Connection release is indicated by Events channel closure.
 //
 // User must handle the following Events:
 // "Recv" + []byte: data received
@@ -40,8 +41,8 @@ func NewTCPSession() *TCPSession {
     h := new(TCPSession)
     // rationale for +2: Err from send goroutine + Err from recv goroutine
     h.Events = make(chan Event, send_queue_depth + 2)
-    // rationale for +2: nil from Close() plus nil from recv goroutine
-    h.to_send = make(chan []byte, send_queue_depth + 2)
+    // rationale for +1: nil from stop()
+    h.to_send = make(chan []byte, send_queue_depth + 1)
 
     return h
 }
@@ -91,11 +92,13 @@ func (h *TCPSession) recv() {
 
 // indirectly stops goroutines
 func (h *TCPSession) stop() {
-    h.conn.Close()
-    for len(h.to_send) > 0 {
-        <-h.to_send
-    }
-    h.to_send <- nil
+    h.stoponce.Do(func() {
+        h.conn.Close()
+        for len(h.to_send) > 0 {
+            <-h.to_send
+        }
+        h.to_send <- nil
+    })
 }
 
 // Data sending goroutine. Stopped by nil msg in h.to_send
