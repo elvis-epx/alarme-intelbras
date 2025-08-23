@@ -19,12 +19,12 @@ type TCPSession struct {
     conn *net.TCPConn
     recv_buffer_size int
 
-    to_send chan []byte     // send queue
+    to_send chan []byte         // send queue
     send_queue_depth int
-    send_mutex sync.Mutex   // mutex to allow to_send to be closed
+    send_sem chan struct{}      // semaphore to protect Send() against closed to_send
 
-    wg sync.WaitGroup       // check all goroutines have stopped
-    stoponce sync.Once      // make sure stop() acts only once
+    wg sync.WaitGroup           // check all goroutines have stopped
+    stoponce sync.Once          // make sure stop() acts only once
 }
 
 // Creates new TCPSession. Indirectly invoked by TCPServer and TCPClient
@@ -54,6 +54,8 @@ func NewTCPSession() *TCPSession {
         h.send_queue_depth = 1
     }
     h.to_send = make(chan []byte, h.send_queue_depth)
+    h.send_sem = make(chan struct{}, 1)
+    h.send_sem <-struct{}{}
 
     return h
 }
@@ -109,10 +111,10 @@ func (h *TCPSession) stop() bool {
     h.stoponce.Do(func() {
         h.conn.Close()
 
-        h.send_mutex.Lock()
+        <-h.send_sem
         h.send_queue_depth = 0
         close(h.to_send)
-        h.send_mutex.Unlock()
+        h.send_sem <-struct{}{}
 
         did_stop = true 
         log.Printf("TCPSession %p: stop()", h)
@@ -178,9 +180,12 @@ func (h *TCPSession) send() {
 func (h *TCPSession) Send(data []byte) bool {
     log.Printf("TCPSession %p: Send %d", h, len(data))
 
-    h.send_mutex.Lock()
-    defer h.send_mutex.Unlock()
+    <-h.send_sem
+    defer func() {
+        h.send_sem <-struct{}{}
+    }()
 
+    // protection against closed h.to_send
     if h.send_queue_depth > 0 {
         select {
         case h.to_send <-data:
