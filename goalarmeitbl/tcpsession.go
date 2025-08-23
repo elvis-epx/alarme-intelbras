@@ -20,15 +20,15 @@ type TCPSession struct {
 }
 
 // Creates new TCPSession. Indirectly invoked by TCPServer and TCPClient
-//
 // Connection release is indicated by Events channel closure
+//
 // User must handle the following Events:
 // "Recv" + []byte: data received
-// "Sent": data chunk sent
+// "Sent" + int: data chunk sent, "n" chunks to go
 // "RecvEof": connection closed in rx direction
 // "SendEof": connection closed in tx direction
-// "Err": error, connection no longer valid (no need to call Close()).
-//        This event may appear twice. Call Close() proactively to avoid the possibility.
+// "Err": error, connection no longer valid (no need to call Close() to release it).
+//        This event may happen twice. Call Close() on the first one to avoid this.
 //
 // API: Send() and Close()
 
@@ -98,7 +98,7 @@ func (h *TCPSession) stop() {
     h.to_send <- nil
 }
 
-// Data sending goroutine. Stopped by closure of h.conn or closure of channel h.to_send
+// Data sending goroutine. Stopped by nil msg in h.to_send
 func (h *TCPSession) send() {
     is_open := true
 
@@ -157,8 +157,9 @@ func (h *TCPSession) send() {
 // empty slice = shutdown connection for sending
 // Warning: the send queue channel has limited length and may block if called several times in succession.
 // Listen for the "Sent" event to throttle
-// Must not call Send() after Close() -- the send channel may be closed, and the program will panic.
+// Should not call Send() after Close() -- may block forever
 func (h *TCPSession) Send(data []byte) {
+    log.Printf("TCPSession %p: Send %d", h, len(data))
     if data == nil {
         // nil has other meaning
         data = []byte{}
@@ -168,8 +169,8 @@ func (h *TCPSession) Send(data []byte) {
 
 // Close connection
 // It is guaranteed that no events will be emitted afterwards
-// User must call this to ensure release of all resources associated with TCPSession
 func (h *TCPSession) Close() {
+    log.Printf("TCPSession %p: Close", h)
     h.stop()
     // drain all outstanding events until h.Events closure
     for evt := range h.Events {
