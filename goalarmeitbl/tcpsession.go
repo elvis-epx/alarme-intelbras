@@ -128,18 +128,12 @@ func (h *TCPSession) stop() bool {
 
 // Data sending goroutine. Stopped by closing channel h.to_send
 func (h *TCPSession) send() {
-    is_open := true
-
+loop:
     for data := range h.to_send {
-        if !is_open {
-            continue
-        }
-
         if len(data) == 0 {
             log.Printf("TCPSession %p: gosend: shutdown", h)
             h.conn.CloseWrite()
-            is_open = false
-            continue
+            break loop
         }
 
         for len(data) > 0 {
@@ -156,17 +150,18 @@ func (h *TCPSession) send() {
                         h.Events <- Event{"Err", nil}
                     }
                 }
-                is_open = false
-                break
+                break loop
             }
 
             log.Printf("TCPSession %p: gosend: sent %d", h, n)
             data = data[n:]
         }
 
-        if is_open {
-            h.Events <- Event{"Sent", len(h.to_send)}
-        }
+        h.Events <- Event{"Sent", len(h.to_send)}
+    }
+
+    // Drain channel until closure
+    for range h.to_send {
     }
 
     log.Printf("TCPSession %p: gosend: exited", h)
