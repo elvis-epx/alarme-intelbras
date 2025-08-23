@@ -48,11 +48,11 @@ func NewTCPSession() *TCPSession {
     // rationale for +1: "Sent" events + at least one "Recv"/error event
     h.queue_depth = 1
     h.send_queue_depth = 2
-    h.recv_buffer_size = 1500
-    h.Events = make(chan Event, h.send_queue_depth + h.queue_depth)
     if h.send_queue_depth <= 0 {
         h.send_queue_depth = 1
     }
+    h.recv_buffer_size = 1500
+    h.Events = make(chan Event, h.send_queue_depth + h.queue_depth)
     h.to_send = make(chan []byte, h.send_queue_depth)
     h.send_sem = make(chan struct{}, 1)
     h.send_sem <-struct{}{}
@@ -60,12 +60,15 @@ func NewTCPSession() *TCPSession {
     return h
 }
 
-// Once a session is started, must be released by calling Bye()
 func (h *TCPSession) Start(conn *net.TCPConn) {
     h.conn = conn
+
     h.wg = sync.WaitGroup{}
     h.wg.Add(2)
+    go h.recv()
+    go h.send()
 
+    // Teardown when both goroutines are finished
     go func() {
         h.wg.Wait()
         h.conn.Close()
@@ -73,8 +76,6 @@ func (h *TCPSession) Start(conn *net.TCPConn) {
         log.Printf("TCPSession %p: exited -------------", h)
     }()
 
-    go h.recv()
-    go h.send()
     log.Printf("TCPSession %p ==================", h)
 }
 
@@ -108,6 +109,7 @@ func (h *TCPSession) recv() {
 func (h *TCPSession) stop() bool {
     did_stop := false
 
+    // necessary since h.to_send must not be closed more than once
     h.stoponce.Do(func() {
         // indirectly stops recv goroutine
         h.conn.Close()

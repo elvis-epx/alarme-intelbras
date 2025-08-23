@@ -24,13 +24,14 @@ type tcpclientevent struct {
 
 // Creates a new TCPClient, that will embed a TCPSession if connection is successful
 // User should handle Connected || NotConnected events, and the TCPSession events after Connected
-
 func NewTCPClient(addr string) *TCPClient {
     h := new(TCPClient)
     h.Session = NewTCPSession()
+
     // using TCPSession channel allows the user to keep listening for the same channel
     // regardless of TCPClient or TCPSession being in charge
     h.Events = h.Session.Events
+
     // FIXME allow to configure connection timeout, or allow to pass a context
     h.conntimeout = 60 * time.Second
     h.state = make(chan string, 1)
@@ -78,6 +79,7 @@ func (h *TCPClient) Send(data []byte) bool {
 
 // Close connection, or cancels it if still not established
 func (h *TCPClient) Close() {
+    // do this only once since h.state has a single message
     h.closeonce.Do(func() {
         // cancel context, if still relevant, to provoke closure of connect goroutine
         h.cancel()
