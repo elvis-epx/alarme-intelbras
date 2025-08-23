@@ -113,6 +113,17 @@ func (d *TestDelegate) Handle(c *TCPClient, evt Event) bool {
                 go func() {
                     c.Send([]byte("xy\n"))
                     c.Send(nil)
+                    c.Send(nil)
+                    c.Send(nil)
+                    c.Send(nil)
+                    c.Send(nil)
+                    c.Send(nil)
+                    c.Send(nil)
+                    c.Send(nil)
+                    c.Send(nil)
+                    c.Send(nil)
+                    c.Send(nil)
+                    c.Send(nil)
                 }()
             } else if d.phase == 2 && data == "yz\n" {
                 d.RecvBuf = nil
