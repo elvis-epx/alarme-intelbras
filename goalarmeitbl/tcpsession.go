@@ -18,6 +18,7 @@ type TCPSession struct {
     conn *net.TCPConn
     wg sync.WaitGroup
     stoponce sync.Once
+    recvbuffersize int
 }
 
 // Creates new TCPSession. Indirectly invoked by TCPServer and TCPClient
@@ -35,8 +36,8 @@ type TCPSession struct {
 // called by TCPServer and TCPClient.
 
 func NewTCPSession() *TCPSession {
-    // FIXME allow configuration of connection timeout
     // FIXME allow configuration of queue depths for high-throughput applications
+    // FIXME allow configuration of recv buffer size
     send_queue_depth := 2
 
     h := new(TCPSession)
@@ -44,6 +45,7 @@ func NewTCPSession() *TCPSession {
     h.Events = make(chan Event, send_queue_depth + 2)
     // rationale for +1: nil from stop()
     h.to_send = make(chan []byte, send_queue_depth + 1)
+    h.recvbuffersize = 1500
 
     return h
 }
@@ -57,8 +59,8 @@ func (h *TCPSession) Start(conn *net.TCPConn) {
     go func() {
         h.wg.Wait()
         h.conn.Close() // just to make sure
-        close(h.Events) // user disengages
-        log.Printf("TCPSession %p: stopped -------------", h)
+        close(h.Events) // disengage user 
+        log.Printf("TCPSession %p: exited -------------", h)
     }()
 
     go h.recv()
@@ -69,7 +71,7 @@ func (h *TCPSession) Start(conn *net.TCPConn) {
 // Data receiving goroutine. Stopped by closure of h.conn
 func (h *TCPSession) recv() {
     for {
-        data := make([]byte, 1500)
+        data := make([]byte, h.recvbuffersize)
         n, err := h.conn.Read(data)
         if err != nil {
             if err == io.EOF {
@@ -77,8 +79,9 @@ func (h *TCPSession) recv() {
                 h.Events <- Event{"RecvEof", nil}
             } else {
                 log.Printf("TCPSession %p: gorecv: err or stop", h)
-                h.Events <- Event{"Err", nil}
-                h.stop()
+                if h.stop() {
+                    h.Events <- Event{"Err", nil}
+                }
             }
             // exit goroutine
             break
@@ -87,19 +90,25 @@ func (h *TCPSession) recv() {
         h.Events <- Event{"Recv", data[:n]}
     }
 
+    log.Printf("TCPSession %p: gorecv: exited", h)
     h.wg.Done()
-    log.Printf("TCPSession %p: gorecv: stopped", h)
 }
 
 // indirectly stops goroutines
-func (h *TCPSession) stop() {
+func (h *TCPSession) stop() bool {
+    did_stop := false
+
     h.stoponce.Do(func() {
         h.conn.Close()
         for len(h.to_send) > 0 {
             <-h.to_send
         }
         h.to_send <- nil
+        did_stop = true 
+        log.Printf("TCPSession %p: stop()", h)
     })
+
+    return did_stop
 }
 
 // Data sending goroutine. Stopped by nil msg in h.to_send
@@ -110,7 +119,6 @@ func (h *TCPSession) send() {
         data := <-h.to_send
 
         if data == nil {
-            log.Printf("TCPSession %p: gosend: stop", h)
             break
         }
 
@@ -135,8 +143,9 @@ func (h *TCPSession) send() {
                     h.Events <- Event{"SendEof", nil}
                 } else {
                     log.Printf("TCPSession %p: gosend: err", h)
-                    h.Events <- Event{"Err", nil}
-                    h.conn.Close()
+                    if h.stop() {
+                        h.Events <- Event{"Err", nil}
+                    }
                 }
                 is_open = false
                 break
@@ -151,8 +160,8 @@ func (h *TCPSession) send() {
         }
     }
 
+    log.Printf("TCPSession %p: gosend: exited", h)
     h.wg.Done()
-    log.Printf("TCPSession %p: gosend: stopped", h)
 }
 
 // Public interface

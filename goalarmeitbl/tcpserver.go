@@ -42,7 +42,7 @@ func NewTCPServer(addr string) (*TCPServer, error) {
 
         listener.Close()
         close(s.Events) // disengage user
-        log.Printf("TCPServer: stopped")
+        log.Printf("TCPServer: exited")
     }()
 
     log.Print("TCPServer: started")

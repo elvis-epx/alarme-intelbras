@@ -46,7 +46,7 @@ func NewTCPClient(addr string) *TCPClient {
         dialer := &net.Dialer{}
         conn, err := dialer.DialContext(ctx, "tcp", addr)
         if err != nil {
-            log.Printf("TCPClient %p: conn fail", h) // including ctx cancellation
+            log.Printf("TCPClient %p: conn fail %v", h, err) // including ctx cancellation
             h.Events <- Event{"NotConnected", nil}
             close(h.Events) // user disengages
             h.state <- "-"
