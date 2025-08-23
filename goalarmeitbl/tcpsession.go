@@ -20,24 +20,28 @@ type TCPSession struct {
 }
 
 // Creates new TCPSession. Indirectly invoked by TCPServer and TCPClient
-// User must call Close() to release resources when the connection is no longer necessary or usable
+//
+// Connection release is indicated by Events channel closure
 // User must handle the following Events:
 // "Recv" + []byte: data received
 // "Sent": data chunk sent
 // "RecvEof": connection closed in rx direction
 // "SendEof": connection closed in tx direction
-// "Err": error, connection no longer valid (still must call Close())
+// "Err": error, connection no longer valid (no need to call Close()).
+//        This event may appear twice. Call Close() proactively to avoid the possibility.
+//
+// API: Send() and Close()
 
 func NewTCPSession() *TCPSession {
     // FIXME allow configuration of connection timeout
     // FIXME allow configuration of queue depths for high-throughput applications
     send_queue_depth := 2
-    // rationale: recverr + senderr in case of unexpected close
-    minimum_depth := 2
 
     h := new(TCPSession)
-    h.Events = make(chan Event, send_queue_depth + minimum_depth)
-    h.to_send = make(chan []byte, send_queue_depth)
+    // rationale for +2: Err from send goroutine + Err from recv goroutine
+    h.Events = make(chan Event, send_queue_depth + 2)
+    // rationale for +2: nil from Close() plus nil from recv goroutine
+    h.to_send = make(chan []byte, send_queue_depth + 2)
 
     return h
 }
@@ -50,7 +54,7 @@ func (h *TCPSession) Start(conn *net.TCPConn) {
 
     go func() {
         h.wg.Wait()
-        h.conn.Close()
+        h.conn.Close() // just to make sure
         close(h.Events) // user disengages
         log.Printf("TCPSession %p: stopped -------------", h)
     }()
@@ -72,7 +76,7 @@ func (h *TCPSession) recv() {
             } else {
                 log.Printf("TCPSession %p: gorecv: err or stop", h)
                 h.Events <- Event{"Err", nil}
-                h.conn.Close()
+                h.stop()
             }
             // exit goroutine
             break
@@ -85,15 +89,25 @@ func (h *TCPSession) recv() {
     log.Printf("TCPSession %p: gorecv: stopped", h)
 }
 
+// indirectly stops goroutines
+func (h *TCPSession) stop() {
+    h.conn.Close()
+    for len(h.to_send) > 0 {
+        <-h.to_send
+    }
+    h.to_send <- nil
+}
+
 // Data sending goroutine. Stopped by closure of h.conn or closure of channel h.to_send
 func (h *TCPSession) send() {
     is_open := true
 
-    for data := range h.to_send {
+    for {
+        data := <-h.to_send
+
         if data == nil {
             log.Printf("TCPSession %p: gosend: stop", h)
-            close(h.to_send)
-            continue
+            break
         }
 
         if !is_open {
@@ -146,18 +160,17 @@ func (h *TCPSession) send() {
 // Must not call Send() after Close() -- the send channel may be closed, and the program will panic.
 func (h *TCPSession) Send(data []byte) {
     if data == nil {
-        // nil means stop sending
+        // nil has other meaning
         data = []byte{}
     }
     h.to_send <-data
 }
 
 // Close connection
-// It is guaranteed that no events will be emitted after this
+// It is guaranteed that no events will be emitted afterwards
 // User must call this to ensure release of all resources associated with TCPSession
 func (h *TCPSession) Close() {
-    h.conn.Close()   // indirectly stop recv and send goroutines
-    h.to_send <- nil // stop send goroutine
+    h.stop()
     // drain all outstanding events until h.Events closure
     for evt := range h.Events {
         log.Printf("TCPSession %p: drained %s", h, evt.Name)
