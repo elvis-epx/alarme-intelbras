@@ -87,7 +87,7 @@ func (d *TestDelegate) Handle(c *TCPClient, evt Event) bool {
     switch evt.Name {
         case "NotConnected":
             d.t.Error("NotConnected")
-            // no need to call Bye()
+            // no need to call Close()
             return true
         case "Connected":
             c.Send([]byte("abcde\n"))

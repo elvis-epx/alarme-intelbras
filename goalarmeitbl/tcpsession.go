@@ -19,6 +19,15 @@ type TCPSession struct {
     wg sync.WaitGroup
 }
 
+// Creates new TCPSession. Indirectly invoked by TCPServer and TCPClient
+// User must call Close() to release resources when the connection is no longer necessary or usable
+// User must handle the following Events:
+// "Recv" + []byte: data received
+// "Sent": data chunk sent
+// "RecvEof": connection closed in rx direction
+// "SendEof": connection closed in tx direction
+// "Err": error, connection no longer valid (still must call Close())
+
 func NewTCPSession() *TCPSession {
     // FIXME allow configuration of connection timeout
     // FIXME allow configuration of queue depths for high-throughput applications
@@ -144,6 +153,7 @@ func (h *TCPSession) Send(data []byte) {
 }
 
 // Close connection
+// It is guaranteed that no events will be emitted after this
 // User must call this to ensure release of all resources associated with TCPSession
 func (h *TCPSession) Close() {
     h.conn.Close()   // indirectly stop recv and send goroutines
