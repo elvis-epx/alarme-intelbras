@@ -23,7 +23,7 @@ type tcpclientevent struct {
 }
 
 // Creates a new TCPClient, that will embed a TCPSession if connection is successful
-// User should handle Connected || NotConnected events, and then all TCPSession events
+// User should handle Connected || NotConnected events, and the TCPSession events after Connected
 
 func NewTCPClient(addr string) *TCPClient {
     h := new(TCPClient)
@@ -67,13 +67,13 @@ func NewTCPClient(addr string) *TCPClient {
 // Public interface
 
 // Send data. Forwards to TCPSession.
-// May be called only after connection is established
+// May be called only after connection is established. Never blocks.
 // empty slice = shutdown connection for sending
-// Warning: the send queue channel has limited length and may block if called several times in succession.
-// Listen for the "Sent" event to throttle the calls
-// Never call Send() after Close() -- the send channel will be closed, and the program will panic.
-func (h *TCPClient) Send(data []byte) {
-    h.Session.Send(data)
+// Returns true if send successfully queued, false if queue is full
+// Returns false if connection already closed.
+// Listen for "Sent" events to manage the queue and avoid failures
+func (h *TCPClient) Send(data []byte) bool {
+    return h.Session.Send(data)
 }
 
 // Close connection, or cancels it if still not established
