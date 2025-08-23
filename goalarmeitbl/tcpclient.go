@@ -70,7 +70,7 @@ func NewTCPClient(addr string) *TCPClient {
 // May be called only after connection is established. Never blocks.
 // empty slice = shutdown connection for sending
 // Returns true if send successfully queued, false if queue is full
-// Returns false if connection already closed.
+// Returns true if connection already closed.
 // Listen for "Sent" events to manage the queue and avoid failures
 func (h *TCPClient) Send(data []byte) bool {
     return h.Session.Send(data)
