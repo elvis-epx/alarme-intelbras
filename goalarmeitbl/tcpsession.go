@@ -14,11 +14,17 @@ type tcpsessionevent struct {
 
 type TCPSession struct {
     Events chan Event
-    to_send chan []byte
+    queue_depth int
+
     conn *net.TCPConn
-    wg sync.WaitGroup
-    stoponce sync.Once
-    recvbuffersize int
+    recv_buffer_size int
+
+    to_send chan []byte     // send queue
+    send_queue_depth int
+    send_mutex sync.Mutex   // mutex to allow to_send to be closed
+
+    wg sync.WaitGroup       // check all goroutines have stopped
+    stoponce sync.Once      // make sure stop() acts only once
 }
 
 // Creates new TCPSession. Indirectly invoked by TCPServer and TCPClient
@@ -29,8 +35,7 @@ type TCPSession struct {
 // "Sent" + int: data chunk sent, "n" chunks to go
 // "RecvEof": connection closed in rx direction
 // "SendEof": connection closed in tx direction
-// "Err": error, connection no longer valid (no need to call Close() to release it).
-//        This event may happen twice. Call Close() on the first one to avoid this.
+// "Err": error, connection no longer valid (no need to call Close() to release it)
 //
 // API: Send() and Close(). Should not be called before Start(), which is normally
 // called by TCPServer and TCPClient.
@@ -38,14 +43,17 @@ type TCPSession struct {
 func NewTCPSession() *TCPSession {
     // FIXME allow configuration of queue depths for high-throughput applications
     // FIXME allow configuration of recv buffer size
-    send_queue_depth := 2
 
     h := new(TCPSession)
-    // rationale for +2: Err from send goroutine + Err from recv goroutine
-    h.Events = make(chan Event, send_queue_depth + 2)
-    // rationale for +1: nil from stop()
-    h.to_send = make(chan []byte, send_queue_depth + 1)
-    h.recvbuffersize = 1500
+    // rationale for +1: "Sent" events + at least one "Recv"/error event
+    h.queue_depth = 1
+    h.send_queue_depth = 2
+    h.recv_buffer_size = 1500
+    h.Events = make(chan Event, h.send_queue_depth + h.queue_depth)
+    if h.send_queue_depth <= 0 {
+        h.send_queue_depth = 1
+    }
+    h.to_send = make(chan []byte, h.send_queue_depth)
 
     return h
 }
@@ -58,7 +66,7 @@ func (h *TCPSession) Start(conn *net.TCPConn) {
 
     go func() {
         h.wg.Wait()
-        h.conn.Close() // just to make sure
+        h.conn.Close()
         close(h.Events) // disengage user 
         log.Printf("TCPSession %p: exited -------------", h)
     }()
@@ -71,7 +79,7 @@ func (h *TCPSession) Start(conn *net.TCPConn) {
 // Data receiving goroutine. Stopped by closure of h.conn
 func (h *TCPSession) recv() {
     for {
-        data := make([]byte, h.recvbuffersize)
+        data := make([]byte, h.recv_buffer_size)
         n, err := h.conn.Read(data)
         if err != nil {
             if err == io.EOF {
@@ -100,10 +108,12 @@ func (h *TCPSession) stop() bool {
 
     h.stoponce.Do(func() {
         h.conn.Close()
-        for len(h.to_send) > 0 {
-            <-h.to_send
-        }
-        h.to_send <- nil
+
+        h.send_mutex.Lock()
+        h.send_queue_depth = 0
+        close(h.to_send)
+        h.send_mutex.Unlock()
+
         did_stop = true 
         log.Printf("TCPSession %p: stop()", h)
     })
@@ -111,17 +121,11 @@ func (h *TCPSession) stop() bool {
     return did_stop
 }
 
-// Data sending goroutine. Stopped by nil msg in h.to_send
+// Data sending goroutine. Stopped by closing channel h.to_send
 func (h *TCPSession) send() {
     is_open := true
 
-    for {
-        data := <-h.to_send
-
-        if data == nil {
-            break
-        }
-
+    for data := range h.to_send {
         if !is_open {
             continue
         }
@@ -168,16 +172,27 @@ func (h *TCPSession) send() {
 
 // Send data
 // empty slice = shutdown connection for sending
-// Warning: the send queue channel has limited length and may block if called several times in succession.
-// Listen for the "Sent" event to throttle
-// Should not call Send() after Close() -- may block forever
-func (h *TCPSession) Send(data []byte) {
+// Returns true if successfully queued, false if queue is full 
+// Send after close does not block, does not panic, but returns false
+// Listen for the "Sent" event to manage the queue and avoid queue-full failures
+func (h *TCPSession) Send(data []byte) bool {
     log.Printf("TCPSession %p: Send %d", h, len(data))
-    if data == nil {
-        // nil has other meaning
-        data = []byte{}
+
+    h.send_mutex.Lock()
+    defer h.send_mutex.Unlock()
+
+    if h.send_queue_depth > 0 {
+        select {
+        case h.to_send <-data:
+            return true
+        default:
+            log.Printf("TCPSession %p: Send() would block", h)
+            return false
+        }
     }
-    h.to_send <-data
+
+    log.Printf("TCPSession %p: Send() after close", h)
+    return false
 }
 
 // Close connection
