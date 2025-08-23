@@ -173,7 +173,7 @@ func (h *TCPSession) send() {
 // Send data
 // empty slice = shutdown connection for sending
 // Returns true if successfully queued, false if queue is full 
-// Send after close does not block, does not panic, but returns false
+// Send after close does not block, does not panic, and returns true
 // Listen for the "Sent" event to manage the queue and avoid queue-full failures
 func (h *TCPSession) Send(data []byte) bool {
     log.Printf("TCPSession %p: Send %d", h, len(data))
@@ -192,7 +192,7 @@ func (h *TCPSession) Send(data []byte) bool {
     }
 
     log.Printf("TCPSession %p: Send() after close", h)
-    return false
+    return true
 }
 
 // Close connection
