@@ -31,7 +31,8 @@ type TCPSession struct {
 // "Err": error, connection no longer valid (no need to call Close() to release it).
 //        This event may happen twice. Call Close() on the first one to avoid this.
 //
-// API: Send() and Close()
+// API: Send() and Close(). Should not be called before Start(), which is normally
+// called by TCPServer and TCPClient.
 
 func NewTCPSession() *TCPSession {
     // FIXME allow configuration of connection timeout
