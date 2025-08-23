@@ -86,7 +86,7 @@ func (h *TCPClient) Close() {
         state := <-h.state
 
         if state == "-" {
-            // not connected. Drain pending events
+            // not connected. Drain pending events (no problem if h.Events closed)
             for evt := range h.Events {
                 log.Printf("TCPClient %p: drained event %s", h, evt.Name)
             }

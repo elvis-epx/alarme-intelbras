@@ -109,10 +109,13 @@ func (h *TCPSession) stop() bool {
     did_stop := false
 
     h.stoponce.Do(func() {
+        // indirectly stops recv goroutine
         h.conn.Close()
 
         <-h.send_sem
+        // makes sure further Send() goes to /dev/null
         h.send_queue_depth = 0
+        // indirectly stops send goroutine
         close(h.to_send)
         h.send_sem <-struct{}{}
 
@@ -206,6 +209,7 @@ func (h *TCPSession) Close() {
     log.Printf("TCPSession %p: Close", h)
     h.stop()
     // drain all outstanding events until h.Events closure
+    // (does not panic if h.Events is closed already)
     for evt := range h.Events {
         log.Printf("TCPSession %p: drained %s", h, evt.Name)
     }
