@@ -113,6 +113,7 @@ func (h *TCPSession) stop() bool {
         // indirectly stops recv goroutine
         h.conn.Close()
 
+        // Protect against race with Send()
         <-h.send_sem
         // makes sure further Send() goes to /dev/null
         h.send_queue_depth = 0
@@ -179,6 +180,7 @@ loop:
 func (h *TCPSession) Send(data []byte) bool {
     log.Printf("TCPSession %p: Send %d", h, len(data))
 
+    // Protect against race with stop()
     <-h.send_sem
     defer func() {
         h.send_sem <-struct{}{}
