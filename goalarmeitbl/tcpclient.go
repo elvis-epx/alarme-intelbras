@@ -11,6 +11,7 @@ import (
 type TCPClient struct {
     Events chan Event
     Session *TCPSession
+
     conntimeout time.Duration
     cancel context.CancelFunc
     state chan string
@@ -28,7 +29,7 @@ func NewTCPClient(addr string) *TCPClient {
     h := new(TCPClient)
     h.Session = NewTCPSession()
 
-    // using TCPSession channel allows the user to keep listening for the same channel
+    // using TCPSession channel allows the user to keep listening to the same channel
     // regardless of TCPClient or TCPSession being in charge
     h.Events = h.Session.Events
 

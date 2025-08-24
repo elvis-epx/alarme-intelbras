@@ -94,8 +94,7 @@ func (h *TCPSession) recv() {
                     h.Events <- Event{"Err", nil}
                 }
             }
-            // exit goroutine
-            break
+            break // exit goroutine
         }
         log.Printf("TCPSession %p: gorecv: received %d", h, n)
         h.Events <- Event{"Recv", data[:n]}
