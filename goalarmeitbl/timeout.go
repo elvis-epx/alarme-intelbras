@@ -72,7 +72,7 @@ func (timeout *Timeout) handle_command(cmd TimeoutControl) (bool) {
         timeout.restart()
     case "trigger":
         timeout.alive = false
-        timeout.cbch <- Event{timeout.cbchmsg, nil}
+        timeout.cbch <- Event{timeout.cbchmsg, timeout}
     case "stop":
         timeout.impl.Stop()
         timeout.alive = false
