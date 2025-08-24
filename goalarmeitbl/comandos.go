@@ -1,7 +1,6 @@
 package goalarmeitbl
 
 import (
-    "log"
     "slices"
     "strings"
     "fmt"
@@ -17,8 +16,8 @@ type DescComandoSub struct {
     Construtor Constructor
 }
 
-// ComandoNulo (no-op)
-
+// Apenas autentica e encerra.
+// Útil para testes, conferir que a senha é válida, etc.
 type ComandoNulo struct {
 }
 
@@ -31,8 +30,7 @@ func NewComandoNulo(_ int) (ComandoCentralSub, string) {
     return comando, ""
 }
 
-// SolicitarStatus
-
+// Solicita status da central: partições, disparos, etc.
 type SolicitarStatus struct {
 }
 
@@ -63,52 +61,52 @@ func sim_nao(valor int) string {
 
 func (comando *SolicitarStatus) RespostaStatus(super *ComandoCentral, cmd int, payload []byte) {
     if cmd != 0x0b4a {
-        log.Printf("RespostaStatus: resp inesperada %04x", cmd)
+        fmt.Printf("RespostaStatus: resp inesperada %04x\n", cmd)
         super.Bye()
         return
     }
 
     payload = slices.Concat([]byte{0x00}, payload)
-    log.Print()
-    log.Print()
-    log.Print("*******************************************")
+    fmt.Println()
+    fmt.Println()
+    fmt.Println("*******************************************")
     if payload[1] == 0x01 {
-        log.Print("Central AMT-8000")
+        fmt.Println("Central AMT-8000")
     } else {
-        log.Print("Central de tipo desconhecido")
+        fmt.Println("Central de tipo desconhecido")
     }
-    log.Printf("Versão de firmware %d.%d.%d", payload[2], payload[3], payload[4])
-    log.Print("Status geral: ")
+    fmt.Printf("Versão de firmware %d.%d.%d\n", payload[2], payload[3], payload[4])
+    fmt.Println("Status geral: ")
     var armado = map[int]string{0x00: "Desarmado", 0x01: "Partição(ões) armada(s)", 0x03: "Todas partições armadas"}
-    log.Printf("\t %s", armado[int(((payload[21] >> 5) & 0x03))])
-    log.Printf("\tZonas em alarme: %s", sim_nao(int(payload[21] & 0x8)))
-    log.Printf("\tZonas canceladas: %s", sim_nao(int(payload[21] & 0x10)))
-    log.Printf("\tTodas zonas fechadas: %s", sim_nao(int(payload[21] & 0x4)))
-    log.Printf("\tSirene: %s", sim_nao(int(payload[21] & 0x2)))
-    log.Printf("\tProblemas: %s", sim_nao(int(payload[21] & 0x1)))
+    fmt.Printf("\t %s\n", armado[int(((payload[21] >> 5) & 0x03))])
+    fmt.Printf("\tZonas em alarme: %s\n", sim_nao(int(payload[21] & 0x8)))
+    fmt.Printf("\tZonas canceladas: %s\n", sim_nao(int(payload[21] & 0x10)))
+    fmt.Printf("\tTodas zonas fechadas: %s\n", sim_nao(int(payload[21] & 0x4)))
+    fmt.Printf("\tSirene: %s\n", sim_nao(int(payload[21] & 0x2)))
+    fmt.Printf("\tProblemas: %s\n", sim_nao(int(payload[21] & 0x1)))
     for particao := range 17 {
         habilitado := payload[22 + particao] & 0x80
         if habilitado == 0 {
             continue
         }
-        log.Printf("Partição %02d:", particao)
-        log.Printf("\tStay: %s", sim_nao(int(payload[22 + particao] & 0x40)))
-        log.Printf("\tDelay de saída: %s", sim_nao(int(payload[22 + particao] & 0x20)))
-        log.Printf("\tPronto para armar: %s", sim_nao(int(payload[22 + particao] & 0x10)))
-        log.Printf("\tAlame ocorreu: %s", sim_nao(int(payload[22 + particao] & 0x08)))
-        log.Printf("\tEm alarme: %s", sim_nao(int(payload[22 + particao] & 0x04)))
-        log.Printf("\tArmado modo stay: %s", sim_nao(int(payload[22 + particao] & 0x02)))
-        log.Printf("\tArmado: %s", sim_nao(int(payload[22 + particao] & 0x01)))
+        fmt.Printf("Partição %02d:\n", particao)
+        fmt.Printf("\tStay: %s\n", sim_nao(int(payload[22 + particao] & 0x40)))
+        fmt.Printf("\tDelay de saída: %s\n", sim_nao(int(payload[22 + particao] & 0x20)))
+        fmt.Printf("\tPronto para armar: %s\n", sim_nao(int(payload[22 + particao] & 0x10)))
+        fmt.Printf("\tAlame ocorreu: %s\n", sim_nao(int(payload[22 + particao] & 0x08)))
+        fmt.Printf("\tEm alarme: %s\n", sim_nao(int(payload[22 + particao] & 0x04)))
+        fmt.Printf("\tArmado modo stay: %s\n", sim_nao(int(payload[22 + particao] & 0x02)))
+        fmt.Printf("\tArmado: %s\n", sim_nao(int(payload[22 + particao] & 0x01)))
     }
-    log.Printf("Zonas abertas: %s", bits_para_numeros(payload[39:47], false))
-    log.Printf("Zonas em alarme: %s", bits_para_numeros(payload[47:55], false))
-    // log.Printf("Zonas ativas: %s", bits_para_numeros(payload[55:63], true))
-    log.Printf("Zonas em bypass: %s", bits_para_numeros(payload[55:63], false))
-    log.Printf("Sirenes ligadas: %s", bits_para_numeros(payload[63:65], false))
+    fmt.Printf("Zonas abertas: %s\n", bits_para_numeros(payload[39:47], false))
+    fmt.Printf("Zonas em alarme: %s\n", bits_para_numeros(payload[47:55], false))
+    // fmt.Printf("Zonas ativas: %s\n", bits_para_numeros(payload[55:63], true))
+    fmt.Printf("Zonas em bypass: %s\n", bits_para_numeros(payload[55:63], false))
+    fmt.Printf("Sirenes ligadas: %s\n", bits_para_numeros(payload[63:65], false))
 
     // TODO interpretar mais campos
-    log.Print("*******************************************")
-    log.Print()
+    fmt.Println("*******************************************")
+    fmt.Println()
 
     super.Despedida()
 }
@@ -118,8 +116,7 @@ func NewSolicitarStatus(_ int) (ComandoCentralSub, string) {
     return comando, ""
 }
 
-// DesativarCentral
-
+// Desarmar o alarme da central
 type DesativarCentral struct {
     particao int
 }
@@ -133,7 +130,7 @@ func (comando *DesativarCentral) Autenticado(super *ComandoCentral) {
 
 func (comando *DesativarCentral) RespostaDesativarCentral(super *ComandoCentral, cmd int, payload []byte) {
     if cmd != 0x401e {
-        log.Printf("DesativarCentral: resp inesperada %04x", cmd)
+        fmt.Printf("DesativarCentral: resp inesperada %04x\n", cmd)
         super.Bye()
         return
     }
@@ -152,8 +149,7 @@ func NewDesativarCentral(particao int) (ComandoCentralSub, string) {
     return comando, ""
 }
 
-// AtivarCentral
-
+// Ativar o alarme, ou seja, armar a central
 type AtivarCentral struct {
     particao int
 }
@@ -167,7 +163,7 @@ func (comando *AtivarCentral) Autenticado(super *ComandoCentral) {
 
 func (comando *AtivarCentral) RespostaAtivarCentral(super *ComandoCentral, cmd int, payload []byte) {
     if cmd != 0x401e {
-        log.Printf("AtivarCentral: resp inesperada %04x", cmd)
+        fmt.Printf("AtivarCentral: resp inesperada %04x\n", cmd)
         super.Bye()
         return
     }
@@ -186,8 +182,7 @@ func NewAtivarCentral(particao int) (ComandoCentralSub, string) {
     return comando, ""
 }
 
-// DesligarSirene
-
+// Desligar a sirene, sem limpar o disparo do alarme em si
 type DesligarSirene struct {
     particao byte
 }
@@ -199,7 +194,7 @@ func (comando *DesligarSirene) Autenticado(super *ComandoCentral) {
 
 func (comando *DesligarSirene) RespostaDesligarSirene(super *ComandoCentral, cmd int, payload []byte) {
     if cmd != 0xf0fe {
-        log.Printf("DesligarSirene: resp inesperada %04x", cmd)
+        fmt.Printf("DesligarSirene: resp inesperada %04x\n", cmd)
         super.Bye()
         return
     }
@@ -218,8 +213,7 @@ func NewDesligarSirene(particao int) (ComandoCentralSub, string) {
     return comando, ""
 }
 
-// BypassZona
-
+// Bypass de zona, ou seja, desativar a zona de modo que não possa disparar o alarme
 type BypassZona struct {
     zona byte
 }
@@ -231,7 +225,7 @@ func (comando *BypassZona) Autenticado(super *ComandoCentral) {
 
 func (comando *BypassZona) RespostaBypassZona(super *ComandoCentral, cmd int, payload []byte) {
     if cmd != 0xf0fe {
-        log.Printf("BypassZona: resp inesperada %04x", cmd)
+        fmt.Printf("BypassZona: resp inesperada %04x\n", cmd)
         super.Bye()
         return
     }
@@ -248,8 +242,7 @@ func NewBypassZona(zona int) (ComandoCentralSub, string) {
     return comando, ""
 }
 
-// ReativarZona
-
+// Reativar zona, ou seja, remover o bypass de zona
 type ReativarZona struct {
     zona byte
 }
@@ -262,7 +255,7 @@ func (comando *ReativarZona) Autenticado(super *ComandoCentral) {
 
 func (comando *ReativarZona) RespostaReativarZona(super *ComandoCentral, cmd int, payload []byte) {
     if cmd != 0xf0fe {
-        log.Printf("ReativarZona: resp inesperada %04x", cmd)
+        fmt.Printf("ReativarZona: resp inesperada %04x\n", cmd)
         super.Bye()
         return
     }
@@ -279,8 +272,7 @@ func NewReativarZona(zona int) (ComandoCentralSub, string) {
     return comando, ""
 }
 
-// LimparDisparo
-
+// Limpar registro de alarme disparado
 type LimparDisparo struct {
 }
 
@@ -291,7 +283,7 @@ func (comando *LimparDisparo) Autenticado(super *ComandoCentral) {
 
 func (comando *LimparDisparo) RespostaLimparDisparo(super *ComandoCentral, cmd int, payload []byte) {
     if cmd != 0xf0fe {
-        log.Printf("LimparDisparo: resp inesperada %04x", cmd)
+        fmt.Printf("LimparDisparo: resp inesperada %04x\n", cmd)
         super.Bye()
         return
     }

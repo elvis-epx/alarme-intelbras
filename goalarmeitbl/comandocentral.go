@@ -2,12 +2,13 @@ package goalarmeitbl
 
 import (
     "log"
+    "fmt"
     "time"
     "slices"
     "sync"
 )
 
-// Função que vai tratar a resposta  vinda da central
+// Função que vai tratar a resposta vinda da central
 type TratadorResposta func (*ComandoCentral, int, []byte)
 
 // Observador do resultado final do comando
@@ -21,6 +22,8 @@ type ComandoCentralSub interface {
     Autenticado(*ComandoCentral)
 }
 
+// Comando à central.
+// Esta estrutura implementa apenas a infra-estrutura para um comando (conexão e autenticação)
 type ComandoCentral struct {
     tcp *TCPClient
     sub ComandoCentralSub
@@ -34,6 +37,8 @@ type ComandoCentral struct {
     wg sync.WaitGroup
 }
 
+// Cria novo comando e inicia a conexão à central
+// Usuário deve chamar Wait() e receber o resultado através do callback ao observador
 func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serveraddr string, senha int, tam_senha int) *ComandoCentral {
     comando := new(ComandoCentral)
     comando.tcp = NewTCPClient(serveraddr)
@@ -58,29 +63,33 @@ func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serverad
     return comando
 }
 
+// Aborta o comando
 func (comando *ComandoCentral) Bye() {
     comando.observer.Resultado(comando.status)
     comando.timeout.Free()
     comando.tcp.Close()
 }
 
+// Bloqueia até o comando ser concluído
 func (comando *ComandoCentral) Wait() {
     comando.wg.Wait()
 }
 
+// Handler dos eventos TCPClient/TCPSession
+// Não-reentrante
 func (comando *ComandoCentral) handle(evt Event) {
     switch evt.Name {
     case "Connected":
         comando.Autenticar()
     case "NotConnected":
-        log.Print("ComandoCentral: Conexão falhou")
+        fmt.Println("ComandoCentral: Conexão falhou")
         comando.Bye()
     case "Recv":
         buf, _ := evt.Cargo.([]byte)
         comando.buffer = slices.Concat(comando.buffer, buf)
         comando.Parse()
     case "Timeout":
-        log.Print("ComandoCentral: Timeout")
+        fmt.Println("ComandoCentral: Timeout")
         comando.Bye()
     case "SendEof", "RecvEof", "Err":
         log.Print("ComandoCentral: Conexão terminada ", evt.Name)
@@ -88,6 +97,7 @@ func (comando *ComandoCentral) handle(evt Event) {
     }
 }
 
+// Envia pacote de comando e implanta um tratador da resposta
 func (comando *ComandoCentral) EnviarPacote(pacote []byte, tf TratadorResposta) {
     log.Print("ComandoCentral: Enviando ", HexPrint(pacote))
     comando.timeout.Restart()
@@ -99,12 +109,14 @@ func (comando *ComandoCentral) EnviarPacote(pacote []byte, tf TratadorResposta) 
     }
 }
 
+// Envia pacote de autenticação
 func (comando *ComandoCentral) Autenticar() {
     log.Print("ComandoCentral: Autenticando")
     pacote := PacoteIsecNet2Auth(comando.senha, comando.tam_senha)
     comando.EnviarPacote(pacote, comando.RespostaAutenticacao)
 }
 
+// Interpreta um pacote de resposta da central
 func (comando *ComandoCentral) Parse() {
     log.Print("ComandoCentral: Recebido até agora ", HexPrint(comando.buffer))
     comprimento := PacoteIsecNet2Completo(comando.buffer)
@@ -112,12 +124,12 @@ func (comando *ComandoCentral) Parse() {
         log.Print("ComandoCentral: Pacote incompleto")
         return
     }
-    
+
     pacote := comando.buffer[:comprimento]
     comando.buffer = comando.buffer[comprimento:]
 
     if !PacoteIsecNet2Correto(pacote) {
-        log.Print("ComandoCentral: Pacote incorreto, desistindo")
+        fmt.Println("ComandoCentral: Pacote incorreto, desistindo")
         comando.Bye()
     }
 
@@ -129,7 +141,7 @@ func (comando *ComandoCentral) Parse() {
         comando.Bye()
         return
     } else if cmd == 0xf0f7 {
-        log.Printf("ComandoCentral: central ocupada")
+        fmt.Println("ComandoCentral: central ocupada")
         comando.Bye()
         return
     }
@@ -143,13 +155,13 @@ func (comando *ComandoCentral) Parse() {
 
 func (comando *ComandoCentral) RespostaAutenticacao(_ *ComandoCentral, cmd int, payload []byte) {
     if cmd != 0xf0f0 {
-        log.Printf("ComandoCentral: auth resp inesperada %04x", cmd)
+        fmt.Printf("ComandoCentral: auth resp inesperada %04x\n", cmd)
         comando.Bye()
         return
     }
 
     if len(payload) != 1 {
-        log.Printf("ComandoCentral: auth resp invalida")
+        fmt.Println("ComandoCentral: auth resp invalida")
         comando.Bye()
         return
     }
@@ -162,23 +174,26 @@ func (comando *ComandoCentral) RespostaAutenticacao(_ *ComandoCentral, cmd int, 
     // 04 = aguardando permissão de usuário (?)
 
     if resposta > 0 {
-        log.Printf("ComandoCentral: auth falhou por motivo %d", resposta)
+        fmt.Printf("ComandoCentral: auth falhou por motivo %d\n", resposta)
         comando.Bye()
         return
     }
 
     log.Print("ComandoCentral: auth ok")
+    // Delega a comunicação a ComandoCentralSub
     comando.sub.Autenticado(comando)
 }
 
+// Interpreta pacote "NAK" de erro
 func (comando *ComandoCentral) ParseNak(payload []byte) {
     if len(payload) != 1 {
-        log.Print("ComandoCentral: nak invalido")
+        fmt.Println("ComandoCentral: nak invalido")
         return
     }
-    log.Printf("ComandoCentral: nak motivo %02x", int(payload[0]))
+    fmt.Printf("ComandoCentral: nak motivo %02x\n", int(payload[0]))
 }
 
+// Encerra a comunicação com a central de forma "civilizada"
 func (comando *ComandoCentral) Despedida() {
     log.Print("ComandoCentral: Despedindo")
     pacote := PacoteIsecNet2Bye()

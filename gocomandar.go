@@ -2,6 +2,8 @@ package main
 
 import (
     "os"
+    "log"
+    "io"
     "fmt"
     "strconv"
     "github.com/elvis-epx/alarme-intelbras/goalarmeitbl"
@@ -35,6 +37,7 @@ func usage(err string) {
 }
 
 func main() {
+    log.SetOutput(io.Discard)
     serveraddr := os.Args[1]
 
     senha, err := strconv.Atoi(os.Args[2])
