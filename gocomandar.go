@@ -33,7 +33,7 @@ func usage(err string) {
     }
     fmt.Println()
     fmt.Printf("Erro: %s\n", err)
-    os.Exit(2)
+    os.Exit(3)
 }
 
 func main() {
