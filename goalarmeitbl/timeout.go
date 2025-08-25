@@ -57,12 +57,13 @@ func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchm
 }
 
 func (timeout *Timeout) handler() {
-    // Only this goroutine, handle_command and restart can touch Timeout private data
+    // Only this goroutine (and upstream handle_command() and restart()) can touch Timeout private data
+loop:
     for {
         select {
         case cmd := <- timeout.control:
            if !timeout.handle_command(cmd) {
-                break
+                break loop
             }
         case timeout.info <- TimeoutInfo{timeout.eta, timeout.alive}:
             continue
@@ -94,6 +95,9 @@ func (timeout *Timeout) handle_command(cmd TimeoutControl) (bool) {
             timeout.cbchowner.ReleaseTimeout(timeout)
             timeout.cbchowner = nil
         }
+        // make sure program will panic if anybody tries to use this afterwards
+        close(timeout.control)
+        close(timeout.info)
         return false
     }
     return true
@@ -120,7 +124,7 @@ func (timeout *Timeout) Stop() {
     timeout.control <- TimeoutControl{"stop", 0, 0}
 }
 
-// Synchronously refrain from sending further events
+// Synchronously guarantees that this Timeout won't post events after Free() returns
 // (possible because timeout.control is bufferless)
 func (timeout *Timeout) Free() {
     timeout.control <- TimeoutControl{"free", 0, 0}

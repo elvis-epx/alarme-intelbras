@@ -49,14 +49,9 @@ func NewTCPServer(addr string) (*TCPServer, error) {
     return s, nil
 }
 
-// Stops TCP server
-// Should be called by the same goroutine that handles events to avoid race conditions
+// Stops TCP server.
+// There may be new connections outstanding after this call, so the user must
+// still handle remaining Events and close the (now unnecessary) sessions
 func (s *TCPServer) Stop() {
     s.listener.Close()
-    for evt := range s.Events {
-        log.Printf("TCPServer: drained event %s", evt.Name)
-        if evt.Name == "new" {
-            evt.Cargo.(*net.TCPConn).Close()
-        }
-    }
 }
