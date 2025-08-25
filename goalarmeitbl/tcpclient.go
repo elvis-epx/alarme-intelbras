@@ -84,18 +84,12 @@ func (h *TCPClient) Close() {
     h.closeonce.Do(func() {
         // cancel context, if still relevant, to provoke closure of connect goroutine
         h.cancel()
-
         // wait for connection goroutine to report status, or read its past status
-        state := <-h.state
-
-        if state == "-" {
-            // not connected. Drain pending events (no problem if h.Events closed)
-            for evt := range h.Events {
-                log.Printf("TCPClient %p: drained event %s", h, evt.Name)
-            }
-        } else if state == "+" {
-            // already connected; forward
-            h.Session.Close() // This method drains pending events by itself
-        }
+        <-h.state
+        h.Session.Close()
     })
+}
+
+func (h *TCPClient) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
+    return h.Session.Timeout(avgto, fudge, cbchmsg)
 }

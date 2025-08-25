@@ -5,6 +5,7 @@ import (
     "io"
     "log"
     "sync"
+    "time"
 )
 
 type tcpsessionevent struct {
@@ -25,6 +26,9 @@ type TCPSession struct {
 
     wg sync.WaitGroup           // check all goroutines have stopped
     stoponce sync.Once          // make sure stop() acts only once
+
+    timeouts map[*Timeout]bool  // Timeouts associated with this session
+    timeouts_sem chan struct {} // and its semaphore
 }
 
 // Creates new TCPSession. Indirectly invoked by TCPServer and TCPClient
@@ -57,13 +61,19 @@ func NewTCPSession() *TCPSession {
     h.send_sem = make(chan struct{}, 1)
     h.send_sem <-struct{}{}
 
+    h.timeouts = make(map[*Timeout]bool)
+    h.timeouts_sem = make(chan struct{}, 1)
+    h.timeouts_sem <-struct{}{}
+
+    h.wg = sync.WaitGroup{}
+    h.conn = nil
+
     return h
 }
 
 func (h *TCPSession) Start(conn *net.TCPConn) {
     h.conn = conn
 
-    h.wg = sync.WaitGroup{}
     h.wg.Add(2)
     go h.recv()
     go h.send()
@@ -72,7 +82,9 @@ func (h *TCPSession) Start(conn *net.TCPConn) {
     go func() {
         h.wg.Wait()
         h.conn.Close()
-        close(h.Events) // disengage user 
+        go h.drain_events()
+        h.release_timeouts()
+        close(h.Events) // disengage user and drain_events()
         log.Printf("TCPSession %p: exited -------------", h)
     }()
 
@@ -110,14 +122,16 @@ func (h *TCPSession) stop() bool {
 
     // necessary since h.to_send must not be closed more than once
     h.stoponce.Do(func() {
-        // indirectly stops recv goroutine
-        h.conn.Close()
+        // indirectly stops recv goroutine, if running
+        if h.conn != nil {
+            h.conn.Close()
+        }
 
         // Protect against race with Send()
         <-h.send_sem
         // makes sure further Send() goes to /dev/null
         h.send_queue_depth = 0
-        // indirectly stops send goroutine
+        // indirectly stops send goroutine, if running
         close(h.to_send)
         h.send_sem <-struct{}{}
 
@@ -202,13 +216,63 @@ func (h *TCPSession) Send(data []byte) bool {
 }
 
 // Close connection
-// It is guaranteed that no events will be emitted afterwards
+// It is guaranteed that no events will be emitted afterwards,
+// if called by the same goroutine that handles events
 func (h *TCPSession) Close() {
     log.Printf("TCPSession %p: Close", h)
     h.stop()
-    // drain all outstanding events until h.Events closure
-    // (does not panic if h.Events is closed already)
+    h.drain_events()
+}
+
+// Drains event queue until closure
+// Does not panic even if h.Events is closed
+func (h *TCPSession) drain_events() {
     for evt := range h.Events {
         log.Printf("TCPSession %p: drained %s", h, evt.Name)
+    }
+}
+
+func (h *TCPSession) ReleaseTimeout(to *Timeout) {
+    <-h.timeouts_sem
+    if _, ok := h.timeouts[to]; ok {
+        log.Printf("TCPSession %p: released timeout %p", h, to)
+        delete(h.timeouts, to)
+    }
+    h.timeouts_sem <-struct{}{}
+}
+
+// Do not call after Events has closed
+func (h *TCPSession) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
+    to := NewTimeout(avgto, fudge, h.Events, cbchmsg, h)
+    <-h.timeouts_sem
+    h.timeouts[to] = true
+    h.timeouts_sem <-struct{}{}
+    log.Printf("TCPSession %p: new owned timeout %p", h, to)
+    
+    return to
+}
+
+func (h *TCPSession) release_timeouts() {
+    for {
+        var to *Timeout
+
+        // Get any owned timeout
+        <-h.timeouts_sem
+	    for k := range h.timeouts {
+		    to = k
+		    break
+	    }
+        h.timeouts_sem <-struct{}{}
+
+        if to == nil {
+            break
+        }
+
+        to.Free()
+
+        <-h.timeouts_sem
+        delete(h.timeouts, to)
+        log.Printf("TCPSession %p: released timeout %p .", h, to)
+        h.timeouts_sem <-struct{}{}
     }
 }

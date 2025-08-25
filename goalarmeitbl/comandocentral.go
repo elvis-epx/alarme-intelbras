@@ -44,7 +44,7 @@ func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serverad
     comando.tcp = NewTCPClient(serveraddr)
     comando.sub = sub
     comando.observer = observer
-    comando.timeout = NewTimeout(15 * time.Second, 0, comando.tcp.Events, "Timeout")
+    comando.timeout = comando.tcp.Timeout(15 * time.Second, 0, "Timeout")
     comando.senha = senha
     comando.tam_senha = tam_senha
     comando.status = 1 // erro
@@ -66,7 +66,6 @@ func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serverad
 // Aborta o comando
 func (comando *ComandoCentral) Bye() {
     comando.observer.Resultado(comando.status)
-    comando.timeout.Free()
     comando.tcp.Close()
 }
 

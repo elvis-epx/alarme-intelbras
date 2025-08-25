@@ -11,6 +11,11 @@ type Event struct {
     Cargo any
 }
 
+// Owner of Events channel, if any
+type EventsOwner interface {
+    ReleaseTimeout(*Timeout)
+}
+
 // internal structure to control Timeout safely
 type TimeoutControl struct {
     name string
@@ -34,15 +39,18 @@ type Timeout struct {
 
     cbch chan Event
     cbchmsg string
+    cbchowner EventsOwner
 
-    control chan TimeoutControl
+    control chan TimeoutControl // must be bufferless, see Free() and "free" event
     info chan TimeoutInfo
 }
 
 type TimeoutCallback func (*Timeout)
 
-func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string) (*Timeout) {
-    timeout := Timeout{avgto, fudge, nil, false, time.Now(), cbch, cbchmsg, make(chan TimeoutControl), make(chan TimeoutInfo)}
+func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string, cbchowner EventsOwner) (*Timeout) {
+    timeout := Timeout{avgto, fudge, nil, false, time.Now(),
+                cbch, cbchmsg, cbchowner,
+                make(chan TimeoutControl), make(chan TimeoutInfo)}
     go timeout.handler()
     defer timeout.Restart()
     return &timeout
@@ -72,13 +80,20 @@ func (timeout *Timeout) handle_command(cmd TimeoutControl) (bool) {
         timeout.restart()
     case "trigger":
         timeout.alive = false
-        timeout.cbch <- Event{timeout.cbchmsg, timeout}
+        if timeout.cbch != nil {
+            timeout.cbch <- Event{timeout.cbchmsg, timeout}
+        }
     case "stop":
         timeout.impl.Stop()
         timeout.alive = false
     case "free":
         timeout.impl.Stop()
         timeout.alive = false
+        timeout.cbch = nil
+        if timeout.cbchowner != nil {
+            timeout.cbchowner.ReleaseTimeout(timeout)
+            timeout.cbchowner = nil
+        }
         return false
     }
     return true
@@ -105,6 +120,8 @@ func (timeout *Timeout) Stop() {
     timeout.control <- TimeoutControl{"stop", 0, 0}
 }
 
+// Synchronously refrain from sending further events
+// (possible because timeout.control is bufferless)
 func (timeout *Timeout) Free() {
     timeout.control <- TimeoutControl{"free", 0, 0}
 }

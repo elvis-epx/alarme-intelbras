@@ -2,11 +2,11 @@ package main
 
 import (
     "os"
-    "log"
-    "io"
     "fmt"
     "strconv"
     "github.com/elvis-epx/alarme-intelbras/goalarmeitbl"
+    // "log"
+    // "io"
 )
 
 type Observador struct {
@@ -37,7 +37,7 @@ func usage(err string) {
 }
 
 func main() {
-    log.SetOutput(io.Discard)
+    // log.SetOutput(io.Discard)
     if len(os.Args) < 5 {
         usage("Forneça os parâmetros necessários")
     }

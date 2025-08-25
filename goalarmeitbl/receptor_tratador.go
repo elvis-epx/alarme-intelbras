@@ -25,8 +25,8 @@ func NewTratadorReceptorIP(receptor *ReceptorIP, tcp *TCPSession) {
     t.receptor = receptor
     t.tcp = tcp
     fmt.Println("TratadorReceptorIP: inicio")
-    t.to_ident = t.Timeout(120 * time.Second, 0, t.tcp.Events, "to_ident")
-    t.to_comm = t.Timeout(600 * time.Second, 0, t.tcp.Events, "to_comm")
+    t.to_ident = t.tcp.Timeout(120 * time.Second, 0, "to_ident")
+    t.to_comm = t.tcp.Timeout(600 * time.Second, 0, "to_comm")
 
     go func() {
         for evt := range t.tcp.Events {
@@ -133,7 +133,7 @@ func (t *TratadorReceptorIP) consome_msg() bool {
 
     if len(t.buffer) > 0 {
         if t.to_incompleta == nil {
-            t.to_incompleta = t.Timeout(60 * time.Second, 0, t.tcp.Events, "to_incompleta")
+            t.to_incompleta = t.tcp.Timeout(60 * time.Second, 0, "to_incompleta")
         }
     }
 
@@ -241,7 +241,7 @@ func (t *TratadorReceptorIP) solicita_data_hora(msg []byte) {
     // em Go, time.Weekday() retorna 0 para domingo
     // e o protocolo da central adota a mesma convenção
     dow := int(agora.Weekday())
-    fmt.Printf("TratadorReceptorIP: %04d-%02d-%02d %02d:%02d\n", year, month, day, hour, minute, second)
+    fmt.Printf("TratadorReceptorIP: %04d-%02d-%02d %02d:%02d:%02d\n", year, month, day, hour, minute, second)
 
     resposta := []byte{0x80, BCD(year - 2000), BCD(month), BCD(day), BCD(dow), BCD(hour), BCD(minute), BCD(second)}
     t.enviar_longo(resposta)

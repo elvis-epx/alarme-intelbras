@@ -8,7 +8,7 @@ import (
 func TestTimeout(t *testing.T) {
     cbch := make(chan Event)
     lower_deadline := time.Now().Add(1 * time.Second)
-    NewTimeout(1 * time.Second, 0, cbch, "foo")
+    NewTimeout(1 * time.Second, 0, cbch, "foo", nil)
     upper_deadline := time.NewTimer(2 * time.Second)
 loop:
     for {
@@ -30,7 +30,7 @@ loop:
 func TestTimeout2(t *testing.T) {
     cbch := make(chan Event)
     lower_deadline := time.Now().Add(3 * time.Second)
-    to := NewTimeout(1 * time.Second, 0, cbch, "foo")
+    to := NewTimeout(1 * time.Second, 0, cbch, "foo", nil)
     upper_deadline := time.NewTimer(5 * time.Second)
     to.Reset(3 * time.Second, 0)
 loop:

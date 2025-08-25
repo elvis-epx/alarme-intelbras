@@ -24,7 +24,7 @@ func NewReceptorIPConfig(in io.Reader) (ReceptorIPConfig, error) {
     }
 
     if !p.HasSection(sec) {
-        return c, errors.New(fmt.Sprintf("Seção [%s] não encontrada na config"))
+        return c, errors.New(fmt.Sprintf("Seção [%s] não encontrada na config", sec))
     }
 
     addr, err := p.Get(sec, "addr")

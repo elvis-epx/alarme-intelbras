@@ -214,7 +214,8 @@ func TestTCPClient3(t *testing.T) {
     c := NewTCPClient(PORT)
     d.client = c
 
-    NewTimeout(2 * time.Second, 0, c.Events, "to")
+    c.Timeout(2 * time.Second, 0, "to")
+    c.Timeout(20 * time.Second, 0, "tonever")
 
     for evt := range c.Events {
         if !d.Handle(c, evt) {
