@@ -16,18 +16,18 @@ func init() {
         121: {"*": "Ativacao/desativacao sob coacao"},
         122: {"*": "Panico silencioso"},
         130: {
-            "aber": "Disparo de zona {zona}",
-            "rest": "Restauracao de zona {zona}",
+            "aber": "Disparo de zona %[1]s",
+            "rest": "Restauracao de zona %[1]s",
             },
-        133: {"*": "Disparo de zona 24h {zona}"},
-        146: {"*": "Disparo silencioso {zona}"},
+        133: {"*": "Disparo de zona 24h %[1]s"},
+        146: {"*": "Disparo silencioso %[1]s"},
         301: {
             "aber": "Falta de energia AC",
             "rest": "Retorno de energia AC",
             },
         342: {
-            "aber": "Falta de energia AC em componente sem fio {zona}",
-            "rest": "Retorno energia AC em componente sem fio {zona}",
+            "aber": "Falta de energia AC em componente sem fio %[1]s",
+            "rest": "Retorno energia AC em componente sem fio %[1]s",
             },
         302: {
             "aber": "Bateria do sistema baixa",
@@ -45,55 +45,55 @@ func init() {
             },
         354: {"*": "Falha ao comunicar evento"},
         147: {
-            "aber": "Falha de supervisao {zona}",
-            "rest": "Recuperacao falha de supervisao {zona}",
+            "aber": "Falha de supervisao %[1]s",
+            "rest": "Recuperacao falha de supervisao %[1]s",
             },
         145: {
-            "aber": "Tamper em dispositivo expansor {zona}",
-            "rest": "Restauro tamper em dispositivo expansor {zona}",
+            "aber": "Tamper em dispositivo expansor %[1]s",
+            "rest": "Restauro tamper em dispositivo expansor %[1]s",
             },
         383: {
-            "aber": "Tamper em sensor {zona}",
-            "rest": "Restauro tamper em sensor {zona}",
+            "aber": "Tamper em sensor %[1]s",
+            "rest": "Restauro tamper em sensor %[1]s",
             },
         384: {
-            "aber": "Bateria baixa em componente sem fio {zona}",
-            "rest": "Recuperacao bateria baixa em componente sem fio {zona}",
+            "aber": "Bateria baixa em componente sem fio %[1]s",
+            "rest": "Recuperacao bateria baixa em componente sem fio %[1]s",
             },
         401: {
-            "rest": "Ativacao manual P{particao}",
-            "aber": "Desativacao manual P{particao}",
+            "rest": "Ativacao manual P%[2]s",
+            "aber": "Desativacao manual P%[2]s",
             },
         403: {
-            "rest": "Ativacao automatica P{particao}",
-            "aber": "Desativacao automatica P{particao}",
+            "rest": "Ativacao automatica P%[2]s",
+            "aber": "Desativacao automatica P%[2]s",
             },
         404: {
-            "rest": "Ativacao remota P{particao}",
-            "aber": "Desativacao remota P{particao}",
+            "rest": "Ativacao remota P%[2]s",
+            "aber": "Desativacao remota P%[2]s",
             },
         407: {
-            "rest": "Ativacao remota app P{particao}",
-            "aber": "Desativacao remota app P{particao}",
+            "rest": "Ativacao remota app P%[2]s",
+            "aber": "Desativacao remota app P%[2]s",
             },
-        408: {"*": "Ativacao por uma tecla P{particao}"},
+        408: {"*": "Ativacao por uma tecla P%[2]s"},
         410: {"*": "Acesso remoto"},
         461: {"*": "Senha incorreta"},
         533: {
-            "aber": "Adicao de zona {zona}",
-            "rest": "Remocao de zona {zona}",
+            "aber": "Adicao de zona %[1]s",
+            "rest": "Remocao de zona %[1]s",
             },
         570: {
-            "aber": "Bypass de zona {zona}",
-            "rest": "Cancel bypass de zona {zona}",
+            "aber": "Bypass de zona %[1]s",
+            "rest": "Cancel bypass de zona %[1]s",
             },
         602: {"*": "Teste periodico"},
         621: {"*": "Reset do buffer de eventos"},
         601: {"*": "Teste manual"},
         616: {"*": "Solicitacao de manutencao"},
         422: {
-            "aber": "Acionamento de PGM {zona}",
-            "rest": "Desligamento de PGM {zona}",
+            "aber": "Acionamento de PGM %[1]s",
+            "rest": "Desligamento de PGM %[1]s",
             },
         625: {"*": "Data e hora reiniciados"},
     }
@@ -166,11 +166,11 @@ func ContactIDEncode(number int, length int) ([]byte) {
 }
 
 // Converte um número de até 2 dígitos para BCD
-func BCD(n int) (byte, error) {
+func BCD(n int) byte {
     if n > 99 || n < 0 {
-        return 0, fmt.Errorf("valor invalido para BCD: %02x", n)
+        return 0
     }
-    return byte(((n / 10) << 4) + (n % 10)), nil
+    return byte(((n / 10) << 4) + (n % 10))
 }
 
 // Converte um número BCD de tamanho arbitrário em inteiro

@@ -70,14 +70,14 @@ func TestContactIDEncode(t *testing.T) {
 }
 
 func TestBCD(t *testing.T) {
-    res, err := BCD(89)
-    if res != 0x89 || err != nil {
+    res := BCD(89)
+    if res != 0x89 {
         t.Errorf("failed I %x", res)
         return
     }
 
-    res, err = BCD(120)
-    if err == nil {
+    res = BCD(120)
+    if res != 0 {
         t.Errorf("failed II %x", res)
         return
     }

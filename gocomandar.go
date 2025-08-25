@@ -38,6 +38,10 @@ func usage(err string) {
 
 func main() {
     log.SetOutput(io.Discard)
+    if len(os.Args) < 5 {
+        usage("Forneça os parâmetros necessários")
+    }
+
     serveraddr := os.Args[1]
 
     senha, err := strconv.Atoi(os.Args[2])

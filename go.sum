@@ -1,0 +1,4 @@
+github.com/bigkevmcd/go-configparser v0.0.0-20250311182818-a679eef33309 h1:h2H7P1M0rXm8LTJMhZWr3SAleTmR6vg+7PM1BkTumaw=
+github.com/bigkevmcd/go-configparser v0.0.0-20250311182818-a679eef33309/go.mod h1:vzEQfW+A1T+AMJmTIX+SXNLNECHOM7GEinHhw0IjykI=
+github.com/ncruces/go-strftime v0.1.9 h1:bY0MQC28UADQmHmaF5dgpLmImcShSi2kHU9XLdhx/f4=
+github.com/ncruces/go-strftime v0.1.9/go.mod h1:Fwc5htZGVVkseilnfgOVb9mKy6w1naJmn9CehxcKcls=
