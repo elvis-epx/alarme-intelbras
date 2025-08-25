@@ -91,10 +91,6 @@ func (timeout *Timeout) handle_command(cmd TimeoutControl) (bool) {
         timeout.impl.Stop()
         timeout.alive = false
         timeout.cbch = nil
-        if timeout.cbchowner != nil {
-            timeout.cbchowner.ReleaseTimeout(timeout)
-            timeout.cbchowner = nil
-        }
         // make sure program will panic if anybody tries to use this afterwards
         close(timeout.control)
         close(timeout.info)
@@ -124,9 +120,15 @@ func (timeout *Timeout) Stop() {
     timeout.control <- TimeoutControl{"stop", 0, 0}
 }
 
-// Synchronously guarantees that this Timeout won't post events after Free() returns
-// (possible because timeout.control is bufferless)
 func (timeout *Timeout) Free() {
+    // if called by the same goroutine that will call TCPSession.Close(), this guarantees that
+    // there won't be a race between section destructor and user freeing the Timeout in parallel
+    if timeout.cbchowner != nil {
+        timeout.cbchowner.ReleaseTimeout(timeout)
+        timeout.cbchowner = nil
+    }
+    // Synchronously guarantees that this Timeout won't post events after Free() returns
+    // (possible because timeout.control is bufferless)
     timeout.control <- TimeoutControl{"free", 0, 0}
 }
 
