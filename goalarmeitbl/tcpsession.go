@@ -22,10 +22,9 @@ type TCPSession struct {
 
     to_send chan []byte         // send queue
     send_queue_depth int
-    send_sem chan struct{}      // semaphore to protect Send() against closed to_send
 
     wg sync.WaitGroup           // check all goroutines have stopped
-    stoponce sync.Once          // make sure stop() acts only once
+    erronce sync.Once           // make sure Err event is emitted only once
 
     timeouts map[*Timeout]bool  // Timeouts associated with this session
     timeouts_sem chan struct {} // and its semaphore
@@ -40,11 +39,12 @@ type TCPSession struct {
 // "Sent" + int: data chunk sent, "n" chunks to go
 // "RecvEof": connection closed in rx direction
 // "SendEof": connection closed in tx direction
-// "Err": error, connection no longer valid (must call Close() to release it)
+// "Err": error, connection no longer valid (still must call Close() to release it)
 //
-// API: Send() and Close(). Should not be called before Start(), which is normally
+// API: Send() and Close(). Should not be called before Start(), but this is normally
 // called by TCPServer and TCPClient.
 // Timeout API: Timeout() to create timeouts owned by this session
+// All APIs must not be called after Close()
 
 func NewTCPSession() *TCPSession {
     // FIXME allow configuration of queue depths for high-throughput applications
@@ -60,14 +60,14 @@ func NewTCPSession() *TCPSession {
     h.recv_buffer_size = 1500
     h.Events = make(chan Event, h.send_queue_depth + h.queue_depth)
     h.to_send = make(chan []byte, h.send_queue_depth)
-    h.send_sem = make(chan struct{}, 1)
-    h.send_sem <-struct{}{}
 
     h.timeouts = make(map[*Timeout]bool)
     h.timeouts_sem = make(chan struct{}, 1)
     h.timeouts_sem <-struct{}{}
 
     h.wg = sync.WaitGroup{}
+    h.wg.Add(1)
+
     h.conn = nil
 
     return h
@@ -76,7 +76,7 @@ func NewTCPSession() *TCPSession {
 func (h *TCPSession) Start(conn *net.TCPConn) {
     h.conn = conn
 
-    h.wg.Add(3)
+    h.wg.Add(2)
     go h.recv()
     go h.send()
 
@@ -104,9 +104,9 @@ func (h *TCPSession) recv() {
                 h.Events <- Event{"RecvEof", nil}
             } else {
                 log.Printf("TCPSession %p: gorecv: err or stop", h)
-                if h.stop() {
+                h.erronce.Do(func() {
                     h.Events <- Event{"Err", nil}
-                }
+                })
             }
             break // exit goroutine
         }
@@ -116,32 +116,6 @@ func (h *TCPSession) recv() {
 
     log.Printf("TCPSession %p: gorecv: exited", h)
     h.wg.Done()
-}
-
-// indirectly stops goroutines
-func (h *TCPSession) stop() bool {
-    did_stop := false
-
-    // necessary since h.to_send must not be closed more than once
-    h.stoponce.Do(func() {
-        // indirectly stops recv goroutine, if running
-        if h.conn != nil {
-            h.conn.Close()
-        }
-
-        // Protect against race with Send()
-        <-h.send_sem
-        // makes sure further Send() goes to /dev/null
-        h.send_queue_depth = 0
-        // indirectly stops send goroutine, if running
-        close(h.to_send)
-        h.send_sem <-struct{}{}
-
-        did_stop = true 
-        log.Printf("TCPSession %p: stop()", h)
-    })
-
-    return did_stop
 }
 
 // Data sending goroutine. Stopped by closing channel h.to_send
@@ -164,9 +138,9 @@ loop:
                     h.Events <- Event{"SendEof", nil}
                 } else {
                     log.Printf("TCPSession %p: gosend: err", h)
-                    if h.stop() {
+                    h.erronce.Do(func() {
                         h.Events <- Event{"Err", nil}
-                    }
+                    })
                 }
                 break loop
             }
@@ -190,39 +164,29 @@ loop:
 
 // Send data
 // empty slice = shutdown connection for sending
-// Returns true if successfully queued, false if queue is full 
-// Send after close does not block, does not panic, and returns true
-// Listen for the "Sent" event to manage the queue and avoid queue-full failures
-func (h *TCPSession) Send(data []byte) bool {
+// May block if send queue is full. Session should have send queue deep enough for the use case
+// Listen for the "Sent" event to manage the queue
+func (h *TCPSession) Send(data []byte) {
     log.Printf("TCPSession %p: Send %d", h, len(data))
-
-    // Protect against race with stop()
-    <-h.send_sem
-    defer func() {
-        h.send_sem <-struct{}{}
-    }()
-
-    // protection against closed h.to_send
-    if h.send_queue_depth > 0 {
-        select {
-        case h.to_send <-data:
-            return true
-        default:
-            log.Printf("TCPSession %p: Send() would block", h)
-            return false
-        }
-    }
-
-    log.Printf("TCPSession %p: Send() after close", h)
-    return true
+    h.to_send <-data
 }
 
 // Close connection and release resources
 // No events will be emitted after this call returns
 func (h *TCPSession) Close() {
-    log.Printf("TCPSession %p: Close", h)
-    h.stop()
+    log.Printf("TCPSession %p: Closing...", h)
+
+    // indirectly stops recv goroutine, if running
+    if h.conn != nil {
+        h.conn.Close()
+    }
+
+    // indirectly stops send goroutine, if running
+    close(h.to_send)
+
+    // stops main session goroutine
     h.wg.Done()
+
     // Blocks until h.Events is closed by main session' own goroutine
     for evt := range h.Events {
         log.Printf("TCPSession %p: drained %s", h, evt.Name)

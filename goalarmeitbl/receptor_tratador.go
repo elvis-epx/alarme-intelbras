@@ -12,8 +12,6 @@ type TratadorReceptorIP struct {
     receptor *ReceptorIP
     tcp *TCPSession
     buffer []byte
-    send_queue [][]byte
-    send_inflight int
     central_identificada bool
     to_ident *Timeout
     to_comm *Timeout
@@ -49,9 +47,7 @@ func (t *TratadorReceptorIP) handle(evt Event) {
         t.buffer = slices.Concat(t.buffer, buf)
         t.parse()
     case "Sent":
-        log.Print("TratadorReceptorIP: Sent")
-        t.send_inflight -= 1
-        t._send()
+        // pass
     case "to_ident":
         fmt.Println("TratadorReceptorIP: timeout de identificação")
         t.Bye()
@@ -77,26 +73,9 @@ func (t *TratadorReceptorIP) ev_para_gancho(codigo int, particao int, zona int, 
     t.receptor.InvocaGancho("ev", msg)
 }
 
-func (t *TratadorReceptorIP) _send() {
-    if len(t.send_queue) == 0 || t.send_inflight > 0 {
-        return
-    }
-
-    // como tcp.Send() não bloqueia, e falha se a fila estiver cheia, escolhemos enviar apenas uma
-    // resposta de cada vez usando o evento "Sent" para coordenar
-    
-    log.Print("TratadorReceptorIP: Sending")
-    if !t.tcp.Send(t.send_queue[0]) {
-        log.Fatal("tcp.Send() não deveria falhar")
-    }
-    t.send_queue = t.send_queue[1:]
-    t.send_inflight += 1
-}
-
 func (t *TratadorReceptorIP) enviar(pacote []byte) {
     log.Print("TratadorReceptorIP: Enviando ", HexPrint(pacote))
-    t.send_queue = append(t.send_queue, pacote)
-    t._send()
+    t.tcp.Send(pacote)
 }
 
 func (t *TratadorReceptorIP) enquadrar(dados []byte) []byte {

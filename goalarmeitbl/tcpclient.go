@@ -69,13 +69,11 @@ func NewTCPClient(addr string) *TCPClient {
 // Public interface
 
 // Send data. Forwards to TCPSession.
-// May be called only after connection is established. Never blocks.
-// empty slice = shutdown connection for sending
-// Returns true if send successfully queued, false if queue is full
-// Returns true if connection already closed.
+// May be called only after connection is established. May block if send queue is full
 // Listen for "Sent" events to manage the queue and avoid failures
-func (h *TCPClient) Send(data []byte) bool {
-    return h.Session.Send(data)
+// Must not be called after Close()
+func (h *TCPClient) Send(data []byte) {
+    h.Session.Send(data)
 }
 
 // Close connection, or cancels it if still not established
