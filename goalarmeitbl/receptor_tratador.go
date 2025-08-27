@@ -301,13 +301,13 @@ func (t *TratadorReceptorIP) evento_alarme(msg []byte, com_foto bool) {
             squalif = "*"
         }
 
-        scodigo, sok := evento_contact_id[squalif]
+        padr_descricao, sok := evento_contact_id[squalif]
 
         if sok {
             desconhecido = false
-            descricao_humana := fmt.Sprintf(scodigo, zona, particao)
+            descricao_humana := fmt.Sprintf(padr_descricao, zona, particao)
             if com_foto {
-                fotos := fmt.Sprintf("(com fotos, i=%d n=%d)", indice, nr_fotos)
+                fotos := fmt.Sprintf(" (com fotos, i=%d n=%d)", indice, nr_fotos)
                 descricao_humana += fotos
             }
             fmt.Println(descricao_humana)

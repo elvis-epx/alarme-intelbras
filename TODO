@@ -1,1 +1,6 @@
 Mensagem para gancho_msg: incluir partição ao ativar/desativar alarme
+
+Versão Go:
+    - Refactor timeout_owner
+    - Mais testes + coverage
+    - Mover partes do protocolo em receptor.py para protocol.py

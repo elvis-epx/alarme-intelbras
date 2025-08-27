@@ -16,7 +16,7 @@ type ReceptorIPConfig struct {
 func NewReceptorIPConfig(in io.Reader) (ReceptorIPConfig, error) {
     sec := "receptorip"
     ganchos := []string{"gancho_arquivo", "gancho_central", "gancho_ev", "gancho_msg", "gancho_watchdog"}
-    c := ReceptorIPConfig{make(map[string]string), "", 9009}
+    c := ReceptorIPConfig{make(map[string]string), "", 9010}
 
     p, err := configparser.ParseReaderWithOptions(in)
     if err != nil {
@@ -28,19 +28,25 @@ func NewReceptorIPConfig(in io.Reader) (ReceptorIPConfig, error) {
     }
 
     addr, err := p.Get(sec, "addr")
-    if err != nil {
+    if err == nil {
         if addr == "0.0.0.0" || addr == "::" {
+            fmt.Println("Aviso: addr coringa, ouvindo em todas as interfaces")
             addr = ""
         }
         c.Addr = addr
+    } else {
+        fmt.Println("Aviso: addr não especificado, ouvindo em todas as interfaces")
     }
 
     port, err := p.GetInt64(sec, "port")
-    if err != nil {
+    if err == nil {
         if port <= 0 || port >= 65536 {
-            port = 9009
+            fmt.Printf("Aviso: port com valor inválido, ouvindo na porta default %d\n", c.Port)
+        } else {
+            c.Port = int(port)
         }
-        c.Port = int(port)
+    } else {
+        fmt.Printf("Aviso: port não especificado, ouvindo na porta default %d\n", c.Port)
     }
 
     for _, gancho := range ganchos {
