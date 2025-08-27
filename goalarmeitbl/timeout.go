@@ -3,17 +3,13 @@ package goalarmeitbl
 import (
     "time"
     "math/rand/v2"
+    "log"
 )
 
 // Base type of user-facing event loops
 type Event struct {
     Name string
     Cargo any
-}
-
-// Owner of Events channel, if any
-type EventsOwner interface {
-    ReleaseTimeout(*Timeout)
 }
 
 // internal structure to control Timeout safely
@@ -39,7 +35,7 @@ type Timeout struct {
 
     cbch chan Event
     cbchmsg string
-    cbchowner EventsOwner
+    owner *TimeoutOwner
 
     control chan TimeoutControl // must be bufferless, see Free() and "free" event
     info chan TimeoutInfo
@@ -47,9 +43,9 @@ type Timeout struct {
 
 type TimeoutCallback func (*Timeout)
 
-func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string, cbchowner EventsOwner) (*Timeout) {
+func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string, owner *TimeoutOwner) (*Timeout) {
     timeout := Timeout{avgto, fudge, nil, false, time.Now(),
-                cbch, cbchmsg, cbchowner,
+                cbch, cbchmsg, owner,
                 make(chan TimeoutControl), make(chan TimeoutInfo)}
     go timeout.handler()
     defer timeout.Restart()
@@ -123,9 +119,9 @@ func (timeout *Timeout) Stop() {
 func (timeout *Timeout) Free() {
     // if called by the same goroutine that will call TCPSession.Close(), this guarantees that
     // there won't be a race between section destructor and user freeing the Timeout in parallel
-    if timeout.cbchowner != nil {
-        timeout.cbchowner.ReleaseTimeout(timeout)
-        timeout.cbchowner = nil
+    if timeout.owner != nil {
+        timeout.owner.release_timeout(timeout)
+        timeout.owner = nil
     }
     // Synchronously guarantees that this Timeout won't post events after Free() returns
     // (possible because timeout.control is bufferless)
@@ -151,4 +147,63 @@ func (timeout *Timeout) Remaining() (time.Duration) {
         return 0
     }
     return info.eta.Sub(time.Now()) 
+}
+
+// Timeout owner that is part of by e.g. TCPSession and TCPServer
+
+type TimeoutOwner struct {
+    cbch chan Event
+    timeouts map[*Timeout]bool  // Timeouts associated with this server
+    timeouts_sem chan struct {} // and its semaphore
+}
+
+func NewTimeoutOwner(cbch chan Event) *TimeoutOwner {
+    t := new(TimeoutOwner)
+    t.cbch = cbch
+    t.timeouts = make(map[*Timeout]bool)
+    t.timeouts_sem = make(chan struct{}, 1)
+    t.timeouts_sem <-struct{}{}
+    return t
+}
+
+// This is called by the owned Timeout upon Timeout.Free()
+func (t *TimeoutOwner) release_timeout(to *Timeout) {
+    <-t.timeouts_sem
+    if _, ok := t.timeouts[to]; ok {
+        log.Printf("Released timeout %p", to)
+        delete(t.timeouts, to)
+    }
+    t.timeouts_sem <-struct{}{}
+}
+
+// Release all owned Timeouts and make sure they won't send further events
+func (t *TimeoutOwner) Release() {
+    for {
+        var to *Timeout
+
+        // Get some owned timeout
+        <-t.timeouts_sem
+	    for k := range t.timeouts {
+		    to = k
+		    break
+	    }
+        t.timeouts_sem <-struct{}{}
+
+        if to == nil {
+            break
+        }
+
+        // synchronously calls TimeoutOwner.release_timeout()
+        to.Free()
+    }
+}
+
+// Create new owned Timeout
+func (t *TimeoutOwner) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
+    <-t.timeouts_sem
+    to := NewTimeout(avgto, fudge, t.cbch, cbchmsg, t)
+    t.timeouts[to] = true
+    t.timeouts_sem <-struct{}{}
+
+    return to
 }

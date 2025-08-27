@@ -32,8 +32,7 @@ type TCPSession struct {
     wg sync.WaitGroup           // check all goroutines have stopped
     erronce sync.Once           // make sure Err event is emitted only once
 
-    timeouts map[*Timeout]bool  // Timeouts associated with this session
-    timeouts_sem chan struct {} // and its semaphore
+    timeouts *TimeoutOwner     // Timeouts associated with this session
 }
 
 // Creates new TCPSession. Indirectly invoked by TCPServer and TCPClient
@@ -68,9 +67,7 @@ func NewTCPSession(owner TCPSessionOwner) *TCPSession {
     h.Events = make(chan Event, h.send_queue_depth + h.queue_depth)
     h.to_send = make(chan []byte, h.send_queue_depth)
 
-    h.timeouts = make(map[*Timeout]bool)
-    h.timeouts_sem = make(chan struct{}, 1)
-    h.timeouts_sem <-struct{}{}
+    h.timeouts = NewTimeoutOwner(h.Events)
 
     h.wg = sync.WaitGroup{}
     h.wg.Add(1)
@@ -92,7 +89,7 @@ func (h *TCPSession) Start(conn *net.TCPConn) {
         h.wg.Wait()
         // Close() is still running and draining h.Events at this point, so if any timeout triggers,
         // it won't block on h.Events
-        h.release_timeouts()
+        h.timeouts.Release()
         close(h.Events) // disengage user
         h.owner.Closed(h) // called only if session was Start()ed
         log.Printf("TCPSession %p: exited -------------", h)
@@ -201,46 +198,9 @@ func (h *TCPSession) Close() {
     }
 }
 
-// Should not be called by user. This is called by the owned Timeout upon Timeout.Free()
-func (h *TCPSession) ReleaseTimeout(to *Timeout) {
-    <-h.timeouts_sem
-    if _, ok := h.timeouts[to]; ok {
-        log.Printf("TCPSession %p: released timeout %p", h, to)
-        delete(h.timeouts, to)
-    }
-    h.timeouts_sem <-struct{}{}
-}
-
 // Create new Timeout owned by this session
-// (meaning it is automatically stopped and released when the session is closed)
 func (h *TCPSession) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
-    to := NewTimeout(avgto, fudge, h.Events, cbchmsg, h)
-    <-h.timeouts_sem
-    h.timeouts[to] = true
-    h.timeouts_sem <-struct{}{}
+    to := h.timeouts.Timeout(avgto, fudge, cbchmsg)
     log.Printf("TCPSession %p: new owned timeout %p", h, to)
-    
     return to
-}
-
-// Release all owned timeouts upon session closure
-func (h *TCPSession) release_timeouts() {
-    for {
-        var to *Timeout
-
-        // Get some owned timeout
-        <-h.timeouts_sem
-	    for k := range h.timeouts {
-		    to = k
-		    break
-	    }
-        h.timeouts_sem <-struct{}{}
-
-        if to == nil {
-            break
-        }
-
-        // synchronously calls ReleaseTimeout() and prevents further timeout events
-        to.Free()
-    }
 }

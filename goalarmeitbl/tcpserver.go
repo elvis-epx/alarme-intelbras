@@ -11,8 +11,7 @@ type TCPServer struct {
     Events chan Event
     listener net.Listener
 
-    timeouts map[*Timeout]bool  // Timeouts associated with this server
-    timeouts_sem chan struct {} // and its semaphore
+    timeouts *TimeoutOwner      // Timeouts associated with this server
 
     disowned bool               // For sessions calling Closed() after server Close()d
     disowned_sem chan struct {} // and its semaphore
@@ -26,16 +25,13 @@ type TCPServer struct {
 func NewTCPServer(addr string) (*TCPServer, error) {
     s := new(TCPServer)
     s.Events = make(chan Event, 1)
+    s.timeouts = NewTimeoutOwner(s.Events)
 
     listener, err := net.Listen("tcp", addr)
     if err != nil {
         return nil, err
     }
     s.listener = listener
-
-    s.timeouts = make(map[*Timeout]bool)
-    s.timeouts_sem = make(chan struct{}, 1)
-    s.timeouts_sem <-struct{}{}
 
     s.disowned = false
     s.disowned_sem = make(chan struct{}, 1)
@@ -58,7 +54,7 @@ func NewTCPServer(addr string) (*TCPServer, error) {
         }
 
         listener.Close()
-        s.release_timeouts()
+        s.timeouts.Release()
 
         <-s.disowned_sem
         s.disowned = true
@@ -84,49 +80,12 @@ func (s *TCPServer) Closed(session *TCPSession) {
     s.disowned_sem <-struct{}{}
 }
 
-// Should not be called by user. This is called by the owned Timeout upon Timeout.Free()
-func (s *TCPServer) ReleaseTimeout(to *Timeout) {
-    <-s.timeouts_sem
-    if _, ok := s.timeouts[to]; ok {
-        log.Printf("TCPServer %p: released timeout %p", s, to)
-        delete(s.timeouts, to)
-    }
-    s.timeouts_sem <-struct{}{}
-}
-
 // Create new Timeout owned by this server 
 // (meaning it is automatically stopped and released when the server is closed)
 func (s *TCPServer) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
-    to := NewTimeout(avgto, fudge, s.Events, cbchmsg, s)
-
-    <-s.timeouts_sem
-    s.timeouts[to] = true
-    s.timeouts_sem <-struct{}{}
+    to := s.timeouts.Timeout(avgto, fudge, cbchmsg)
     log.Printf("TCPServer %p: new owned timeout %p", s, to)
-    
     return to
-}
-
-// Release all owned timeouts upon server closure
-func (s *TCPServer) release_timeouts() {
-    for {
-        var to *Timeout
-
-        // Get some owned timeout
-        <-s.timeouts_sem
-	    for k := range s.timeouts {
-		    to = k
-		    break
-	    }
-        s.timeouts_sem <-struct{}{}
-
-        if to == nil {
-            break
-        }
-
-        // synchronously calls ReleaseTimeout() and prevents further timeout events
-        to.Free()
-    }
 }
 
 // Stops TCP server. It is guaranteed that no new Events are emitted after this.
