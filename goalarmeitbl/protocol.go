@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
     "slices"
+    "time"
 )
 
 var EventosContactID map[int]map[string]string
@@ -270,4 +271,39 @@ func PacoteIsecNet2Parse(dados []byte) (int, []byte) {
 
 func PacoteIsecNet2Bye() []byte {
     return PacoteIsecNet2(0xf0f1, nil)
+}
+
+type PacoteRIP struct {
+    longo bool
+    payload []byte
+}
+
+func (p PacoteRIP) Encode() []byte {
+    if p.longo {
+        pacote := slices.Concat([]byte{byte(len(p.payload))}, p.payload)
+        pacote = append(pacote, Checksum(pacote))
+        return pacote
+    } else {
+        return p.payload
+    }
+}
+
+func RIPRespostaGenerica() PacoteRIP {
+     return PacoteRIP{false, []byte{0xfe}}
+}
+
+func RIPRespostaDataHora(t time.Time) PacoteRIP {
+    year := t.Year()
+    month := int(t.Month())
+    day := t.Day()
+    hour := t.Hour()
+    minute := t.Minute()
+    second := t.Second()
+    // em Go, time.Weekday() retorna 0 para domingo
+    // e o protocolo da central adota a mesma convenção
+    dow := int(t.Weekday())
+    fmt.Printf("TratadorReceptorIP: %04d-%02d-%02d %02d:%02d:%02d\n", year, month, day, hour, minute, second)
+
+    resposta := []byte{0x80, BCD(year - 2000), BCD(month), BCD(day), BCD(dow), BCD(hour), BCD(minute), BCD(second)}
+    return PacoteRIP{true, resposta}
 }

@@ -73,23 +73,10 @@ func (t *TratadorReceptorIP) ev_para_gancho(codigo int, particao int, zona int, 
     t.receptor.InvocaGancho("ev", msg)
 }
 
-func (t *TratadorReceptorIP) enviar(pacote []byte) {
-    log.Print("TratadorReceptorIP: Enviando ", HexPrint(pacote))
-    t.tcp.Send(pacote)
-}
-
-func (t *TratadorReceptorIP) enquadrar(dados []byte) []byte {
-    pacote := slices.Concat([]byte{byte(len(dados))}, dados)
-    pacote = append(pacote, Checksum(pacote))
-    return pacote
-}
-
-func (t *TratadorReceptorIP) enviar_longo(dados []byte) {
-    t.enviar(t.enquadrar(dados))
-}
-
-func (t *TratadorReceptorIP) enviar_curto(dados []byte) {
-    t.enviar(dados)
+func (t *TratadorReceptorIP) enviar(pacote PacoteRIP) {
+    wiredata := pacote.Encode()
+    log.Print("TratadorReceptorIP: Enviando ", HexPrint(wiredata))
+    t.tcp.Send(wiredata)
 }
 
 func (t *TratadorReceptorIP) parse() {
@@ -99,6 +86,7 @@ func (t *TratadorReceptorIP) parse() {
 }
 
 func (t *TratadorReceptorIP) consome_msg() bool {
+// proto?
     if t.consome_frame_curto() || t.consome_frame_longo() {
         if t.to_incompleta != nil {
             t.to_incompleta.Free()
@@ -116,6 +104,7 @@ func (t *TratadorReceptorIP) consome_msg() bool {
     return false
 }
 
+// proto?
 func (t *TratadorReceptorIP) consome_frame_curto() bool {
     if len(t.buffer) > 0 && t.buffer[0] == 0xf7 {
         t.buffer = t.buffer[1:]
@@ -126,6 +115,7 @@ func (t *TratadorReceptorIP) consome_frame_curto() bool {
     return false
 }
 
+// proto?
 func (t *TratadorReceptorIP) consome_frame_longo() bool {
     if len(t.buffer) < 2 {
         return false
@@ -175,16 +165,16 @@ func (t *TratadorReceptorIP) consome_frame_longo() bool {
 }
 
 func (t *TratadorReceptorIP) resposta_generica() {
-    resposta := []byte{0xfe}
-    t.enviar_curto(resposta)
+    t.enviar(RIPRespostaGenerica())
 }
 
 func (t *TratadorReceptorIP) identificacao_central(msg []byte) {
-    resposta := []byte{0xfe}
+    defer t.resposta_generica()
 
+    // proto?
     if len(msg) != 7 {
         fmt.Printf("TratadorReceptorIP: tamanho inesperado %s\n", HexPrint(msg))
-        t.enviar_curto(resposta)
+        return
     }
 
     // canal := msg[0] // 'E' (0x45)=Ethernet, 'G'=GPRS, 'H'=GPRS2
@@ -200,27 +190,11 @@ func (t *TratadorReceptorIP) identificacao_central(msg []byte) {
         t.to_ident.Free()
         t.to_ident = nil
     }
-
-    t.enviar_curto(resposta)
 }
 
 func (t *TratadorReceptorIP) solicita_data_hora(msg []byte) {
     fmt.Println("TratadorReceptorIP: solicitacao de data/hora pela central")
-    agora := time.Now()
-
-    year := agora.Year()
-	month := int(agora.Month())
-	day := agora.Day()
-	hour := agora.Hour()
-	minute := agora.Minute()
-	second := agora.Second()
-    // em Go, time.Weekday() retorna 0 para domingo
-    // e o protocolo da central adota a mesma convenção
-    dow := int(agora.Weekday())
-    fmt.Printf("TratadorReceptorIP: %04d-%02d-%02d %02d:%02d:%02d\n", year, month, day, hour, minute, second)
-
-    resposta := []byte{0x80, BCD(year - 2000), BCD(month), BCD(day), BCD(dow), BCD(hour), BCD(minute), BCD(second)}
-    t.enviar_longo(resposta)
+    t.enviar(RIPRespostaDataHora(time.Now()))
 }
 
 func (t *TratadorReceptorIP) evento_alarme(msg []byte, com_foto bool) {
