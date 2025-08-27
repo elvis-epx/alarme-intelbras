@@ -36,8 +36,10 @@ func NewReceptorIP(cfg ReceptorIPConfig) (*ReceptorIP, error) {
             case "new":
                 r.centrais_conectadas += 1
                 NewTratadorReceptorIP(r, evt.Cargo.(*TCPSession))
-            case "closed": // FIXME evento não implementado
+                fmt.Printf("ReceptorIP: %d centrais conectadas\n", r.centrais_conectadas)
+            case "closed":
                 r.centrais_conectadas -= 1
+                fmt.Printf("ReceptorIP: %d centrais conectadas\n", r.centrais_conectadas)
             case "Watchdog":
                 r.Watchdog(evt.Cargo.(*Timeout))
             case "Central_nc":

@@ -13,7 +13,13 @@ type tcpsessionevent struct {
     data []byte
 }
 
+type TCPSessionOwner interface {
+    Closed(*TCPSession)
+}
+
 type TCPSession struct {
+    owner TCPSessionOwner
+
     Events chan Event
     queue_depth int
 
@@ -46,11 +52,12 @@ type TCPSession struct {
 // Timeout API: Timeout() to create timeouts owned by this session
 // All APIs must not be called after Close()
 
-func NewTCPSession() *TCPSession {
+func NewTCPSession(owner TCPSessionOwner) *TCPSession {
     // FIXME allow configuration of queue depths for high-throughput applications
     // FIXME allow configuration of recv buffer size
 
     h := new(TCPSession)
+    h.owner = owner
     // rationale for +1: "Sent" events + at least one "Recv"/error event
     h.queue_depth = 1
     h.send_queue_depth = 2
@@ -87,6 +94,7 @@ func (h *TCPSession) Start(conn *net.TCPConn) {
         // it won't block on h.Events
         h.release_timeouts()
         close(h.Events) // disengage user
+        h.owner.Closed(h) // called only if session was Start()ed
         log.Printf("TCPSession %p: exited -------------", h)
     }()
 

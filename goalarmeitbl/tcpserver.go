@@ -13,6 +13,9 @@ type TCPServer struct {
 
     timeouts map[*Timeout]bool  // Timeouts associated with this server
     timeouts_sem chan struct {} // and its semaphore
+
+    disowned bool               // For sessions calling Closed() after server Close()d
+    disowned_sem chan struct {} // and its semaphore
 }
 
 // Create TCP server
@@ -45,7 +48,7 @@ func NewTCPServer(addr string) (*TCPServer, error) {
                 continue
             }
             log.Print("TCPServer: accept new connection")
-            session := NewTCPSession()
+            session := NewTCPSession(s)
             session.Start(conn.(*net.TCPConn))
             s.Events <-Event{"new", session}
         }
@@ -53,12 +56,28 @@ func NewTCPServer(addr string) (*TCPServer, error) {
         listener.Close()
         s.release_timeouts()
 
+        <-s.disowned_sem
+        s.disowned = true
+        s.disowned_sem <-struct{}{}
+
         close(s.Events) // disengage user
         log.Printf("TCPServer: exited")
     }()
 
     log.Print("TCPServer: started")
     return s, nil
+}
+
+// Should not be called by user.
+func (s *TCPServer) Closed(session *TCPSession) {
+    <-s.disowned_sem
+    if !s.disowned {
+        s.Events <-Event{"closed", session}
+        log.Printf("TCPServer %p: closed owned TCPSession %p", s, session)
+    } else {
+        log.Printf("TCPServer %p: closed disowned TCPSession %p", s, session)
+    }
+    s.disowned_sem <-struct{}{}
 }
 
 // Should not be called by user. This is called by the owned Timeout upon Timeout.Free()
