@@ -2,6 +2,7 @@ package goalarmeitbl
 
 import (
     "fmt"
+    "time"
     "sync"
     "os/exec"
 )
@@ -10,6 +11,8 @@ type ReceptorIP struct {
     tcp *TCPServer
     cfg ReceptorIPConfig
     wg sync.WaitGroup
+    centrais_conectadas int
+    cnc_alarme bool
 }
 
 func NewReceptorIP(cfg ReceptorIPConfig) (*ReceptorIP, error) {
@@ -25,9 +28,20 @@ func NewReceptorIP(cfg ReceptorIPConfig) (*ReceptorIP, error) {
     fmt.Println("ReceptorIP: inicio")
 
     go func() {
+        r.tcp.Timeout(15 * time.Second, 0, "Watchdog")
+        r.tcp.Timeout(3600 * time.Second, 0, "Central_nc")
+
         for evt := range r.tcp.Events {
-            if evt.Name == "new" {
+            switch evt.Name {
+            case "new":
+                r.centrais_conectadas += 1
                 NewTratadorReceptorIP(r, evt.Cargo.(*TCPSession))
+            case "closed": // FIXME evento não implementado
+                r.centrais_conectadas -= 1
+            case "Watchdog":
+                r.Watchdog(evt.Cargo.(*Timeout))
+            case "Central_nc":
+                r.CentralNaoConectada(evt.Cargo.(*Timeout))
             }
         }
         r.wg.Done()
@@ -49,4 +63,26 @@ func (r *ReceptorIP) InvocaGancho(tipo string, msg string) {
     } else {
         fmt.Printf("ReceptorIP: script %s %s executado com sucesso\n", tipo, script)
     }
+}
+
+func (r *ReceptorIP) Watchdog(to *Timeout) {
+    fmt.Println("receptor em funcionamento")
+    r.InvocaGancho("watchdog", "")
+    to.Reset(3600 * time.Second, 0)
+}
+
+func (r *ReceptorIP) CentralNaoConectada(to *Timeout) {
+    if r.centrais_conectadas <= 0 {
+        if !r.cnc_alarme {
+            r.cnc_alarme = true
+            fmt.Println("nenhuma central conectada")
+            r.InvocaGancho("central", ", 1")
+        }
+    } else {
+        if r.cnc_alarme {
+            r.cnc_alarme = false
+            r.InvocaGancho("central", ", 0")
+        }
+    }
+    to.Restart()
 }

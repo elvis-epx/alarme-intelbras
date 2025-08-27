@@ -2,6 +2,7 @@ package goalarmeitbl
 
 import (
     "net"
+    "time"
     "log"
     "errors"
 )
@@ -9,11 +10,16 @@ import (
 type TCPServer struct {
     Events chan Event
     listener net.Listener
+
+    timeouts map[*Timeout]bool  // Timeouts associated with this server
+    timeouts_sem chan struct {} // and its semaphore
 }
 
 // Create TCP server
-// User must listen "new" Events channel to get TCPSession's
-// User must listen the TCPSession events for subsidiary connections and Close() them
+// User must listen "new" Events channel to get TCPSession's and handle the sessions, at least Close() them
+// Timeout API: Timeout() to create timeouts owned by this server
+// All APIs must not be called after Close()
+
 func NewTCPServer(addr string) (*TCPServer, error) {
     s := new(TCPServer)
     s.Events = make(chan Event, 1)
@@ -23,6 +29,10 @@ func NewTCPServer(addr string) (*TCPServer, error) {
         return nil, err
     }
     s.listener = listener
+
+    s.timeouts = make(map[*Timeout]bool)
+    s.timeouts_sem = make(chan struct{}, 1)
+    s.timeouts_sem <-struct{}{}
 
     go func() {
         for {
@@ -41,6 +51,8 @@ func NewTCPServer(addr string) (*TCPServer, error) {
         }
 
         listener.Close()
+        s.release_timeouts()
+
         close(s.Events) // disengage user
         log.Printf("TCPServer: exited")
     }()
@@ -49,9 +61,59 @@ func NewTCPServer(addr string) (*TCPServer, error) {
     return s, nil
 }
 
-// Stops TCP server.
-// There may be new connections outstanding after this call, so the user must
-// still handle remaining Events and close the (now unnecessary) sessions
-func (s *TCPServer) Stop() {
+// Should not be called by user. This is called by the owned Timeout upon Timeout.Free()
+func (s *TCPServer) ReleaseTimeout(to *Timeout) {
+    <-s.timeouts_sem
+    if _, ok := s.timeouts[to]; ok {
+        log.Printf("TCPServer %p: released timeout %p", s, to)
+        delete(s.timeouts, to)
+    }
+    s.timeouts_sem <-struct{}{}
+}
+
+// Create new Timeout owned by this server 
+// (meaning it is automatically stopped and released when the server is closed)
+func (s *TCPServer) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
+    to := NewTimeout(avgto, fudge, s.Events, cbchmsg, s)
+
+    <-s.timeouts_sem
+    s.timeouts[to] = true
+    s.timeouts_sem <-struct{}{}
+    log.Printf("TCPServer %p: new owned timeout %p", s, to)
+    
+    return to
+}
+
+// Release all owned timeouts upon server closure
+func (s *TCPServer) release_timeouts() {
+    for {
+        var to *Timeout
+
+        // Get some owned timeout
+        <-s.timeouts_sem
+	    for k := range s.timeouts {
+		    to = k
+		    break
+	    }
+        s.timeouts_sem <-struct{}{}
+
+        if to == nil {
+            break
+        }
+
+        // synchronously calls ReleaseTimeout() and prevents further timeout events
+        to.Free()
+    }
+}
+
+// Stops TCP server. It is guaranteed that no new Events are emitted after this.
+// Sessions already accepted by the user are not affected.
+func (s *TCPServer) Close() {
     s.listener.Close()
+    for evt := range s.Events {
+        log.Printf("TCPSserver %p: drained %s", s, evt.Name)
+        if evt.Name == "new" {
+            (evt.Cargo.(*TCPSession)).Close()
+        }
+    }
 }
