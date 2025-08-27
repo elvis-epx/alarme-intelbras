@@ -95,10 +95,7 @@ func (t *TratadorReceptorIP) enviar_curto(dados []byte) {
 func (t *TratadorReceptorIP) parse() {
     log.Print("TratadorReceptorIP: Recebido até agora ", HexPrint(t.buffer))
     t.to_comm.Restart()
-
-    for t.consome_msg() {
-        // pass
-    }
+    for t.consome_msg() { }
 }
 
 func (t *TratadorReceptorIP) consome_msg() bool {
@@ -280,30 +277,30 @@ func (t *TratadorReceptorIP) evento_alarme(msg []byte, com_foto bool) {
 
     t.ev_para_gancho(codigo, particao, zona, qualificador)
 
-    evento_contact_id, eok := EventosContactID[codigo]
-    squalif := ""
+    evento_contact_id, evento_conhecido := EventosContactID[codigo]
+    qualif_string := ""
     desconhecido := true
 
-    if tipo_msg == 18 && eok {
+    if tipo_msg == 18 && evento_conhecido {
         if qualificador == 1 {
-            squalif = "aber"
-            _, sok := evento_contact_id[squalif]
-            if !sok {
-                squalif = "*"
+            qualif_string = "aber"
+            _, qualif_conhecido := evento_contact_id[qualif_string]
+            if !qualif_conhecido {
+                qualif_string = "*"
             }
         } else if qualificador == 3 {
-            squalif = "rest"
-            _, sok := evento_contact_id[squalif]
-            if !sok {
-                squalif = "*"
+            qualif_string = "rest"
+            _, qualif_conhecido := evento_contact_id[qualif_string]
+            if !qualif_conhecido {
+                qualif_string = "*"
             }
         } else {
-            squalif = "*"
+            qualif_string = "*"
         }
 
-        padr_descricao, sok := evento_contact_id[squalif]
+        padr_descricao, qualif_conhecido := evento_contact_id[qualif_string]
 
-        if sok {
+        if qualif_conhecido {
             desconhecido = false
             descricao_humana := fmt.Sprintf(padr_descricao, zona, particao)
             if com_foto {
