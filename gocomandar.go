@@ -1,11 +1,11 @@
 package main
 
 import (
-    "os"
     "fmt"
     "strconv"
     "github.com/elvis-epx/alarme-intelbras/goalarmeitbl"
-    // "log"
+    "log"
+    "os"
     // "io"
 )
 
@@ -38,6 +38,7 @@ func usage(err string) {
 
 func main() {
     // log.SetOutput(io.Discard)
+    log.SetOutput(os.Stderr)
     if len(os.Args) < 5 {
         usage("Forneça os parâmetros necessários")
     }

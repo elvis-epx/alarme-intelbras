@@ -58,7 +58,7 @@ func (r *ReceptorIP) Wait() {
 }
 
 func (r *ReceptorIP) InvocaGancho(tipo string, msg string) {
-    script := r.cfg.Ganchos[tipo]
+    script := r.cfg.Ganchos["gancho_" + tipo]
     cmd := exec.Command(script, msg)
     if err := cmd.Run(); err != nil {
         fmt.Printf("ReceptorIP: script %s %s falhou com erro %v\n", tipo, script, err) 

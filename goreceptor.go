@@ -1,11 +1,11 @@
 package main
 
 import (
-    "log"
-    // "io"
-    "os"
     "fmt"
     "github.com/elvis-epx/alarme-intelbras/goalarmeitbl"
+    "log"
+    "os"
+    // "io"
 )
 
 func usage(err string) {
@@ -16,6 +16,8 @@ func usage(err string) {
 
 func main() {
     // log.SetOutput(io.Discard)
+    log.SetOutput(os.Stderr)
+
     if len(os.Args) < 2 {
         usage("arquivo de configuração não especificado")
     }
