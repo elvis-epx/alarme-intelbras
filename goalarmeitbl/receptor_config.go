@@ -16,7 +16,7 @@ type ReceptorIPConfig struct {
 func NewReceptorIPConfig(in io.Reader) (ReceptorIPConfig, error) {
     sec := "receptorip"
     ganchos := []string{"gancho_arquivo", "gancho_central", "gancho_ev", "gancho_msg", "gancho_watchdog"}
-    c := ReceptorIPConfig{}
+    c := ReceptorIPConfig{make(map[string]string), "", 9009}
 
     p, err := configparser.ParseReaderWithOptions(in)
     if err != nil {
@@ -29,21 +29,19 @@ func NewReceptorIPConfig(in io.Reader) (ReceptorIPConfig, error) {
 
     addr, err := p.Get(sec, "addr")
     if err != nil {
-        return c, errors.New("addr não encontrado na config")
+        if addr == "0.0.0.0" || addr == "::" {
+            addr = ""
+        }
+        c.Addr = addr
     }
-    if addr == "0.0.0.0" || addr == "::" {
-        addr = ""
-    }
-    c.Addr = addr
 
     port, err := p.GetInt64(sec, "port")
     if err != nil {
-        return c, errors.New("port não encontrado na config")
+        if port <= 0 || port >= 65536 {
+            port = 9009
+        }
+        c.Port = int(port)
     }
-    if port <= 0 {
-        port = 9009
-    }
-    c.Port = int(port)
 
     for _, gancho := range ganchos {
         script, err := p.Get(sec, gancho)
