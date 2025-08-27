@@ -138,6 +138,10 @@ func TestTCPServer(t *testing.T) {
     go func() {
         // Handles only one session and quits
         evt := <-srv.Events
+        if evt.Name != "new" {
+            t.Error("TCP Server unexpected event", evt.Name)
+            return
+        }
         session := evt.Cargo.(*TCPSession)
 
         sd := new(TestServerDelegate)
@@ -148,6 +152,12 @@ func TestTCPServer(t *testing.T) {
                 t.Error("Unhandled session event ", session_evt)
                 break
             }
+        }
+
+        evt = <-srv.Events
+        if evt.Name != "closed" {
+            t.Error("TCP Server unexpected event ", evt.Name)
+            return
         }
 
         srv.Close()

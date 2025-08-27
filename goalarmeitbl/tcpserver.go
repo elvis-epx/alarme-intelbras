@@ -37,6 +37,10 @@ func NewTCPServer(addr string) (*TCPServer, error) {
     s.timeouts_sem = make(chan struct{}, 1)
     s.timeouts_sem <-struct{}{}
 
+    s.disowned = false
+    s.disowned_sem = make(chan struct{}, 1)
+    s.disowned_sem <-struct{}{}
+
     go func() {
         for {
             conn, err := listener.Accept()
