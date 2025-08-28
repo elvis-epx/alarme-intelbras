@@ -8,7 +8,8 @@ import (
 func TestTimeout(t *testing.T) {
     cbch := make(chan Event)
     lower_deadline := time.Now().Add(1 * time.Second)
-    NewTimeout(1 * time.Second, 0, cbch, "foo", nil)
+    lower_deadline2 := time.NewTimer(500 * time.Millisecond)
+    to := NewTimeout(1 * time.Second, 0, cbch, "foo", nil)
     upper_deadline := time.NewTimer(2 * time.Second)
 loop:
     for {
@@ -16,6 +17,12 @@ loop:
         case evt := <-cbch:
             now := time.Now()
             if now.After(lower_deadline) && evt.Name == "foo" {
+                if to.Alive() {
+                    t.Error("alive false Failed")
+                }
+                if to.Remaining() != 0 {
+                    t.Error("remaining 0 Failed")
+                }
                 break loop
             }
             t.Error("Failed", now, lower_deadline, evt.Name)
@@ -23,6 +30,14 @@ loop:
         case <-upper_deadline.C:
             t.Error("Failed")
             return
+        case <-lower_deadline2.C:
+            if to.Remaining() <= 0 {
+                t.Error("remaining >0 Failed")
+                return
+            }
+            if !to.Alive() {
+                t.Error("alive true Failed")
+            }
         }
     }
 }
