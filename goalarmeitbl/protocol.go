@@ -274,22 +274,23 @@ func PacoteIsecNet2Bye() []byte {
 }
 
 type PacoteRIP struct {
-    longo bool
-    payload []byte
+    Longo bool
+    Tipo int
+    Payload []byte
 }
 
 func (p PacoteRIP) Encode() []byte {
-    if p.longo {
-        pacote := slices.Concat([]byte{byte(len(p.payload))}, p.payload)
+    if p.Longo {
+        pacote := slices.Concat([]byte{byte(len(p.Payload))}, p.Payload)
         pacote = append(pacote, Checksum(pacote))
         return pacote
     } else {
-        return p.payload
+        return p.Payload
     }
 }
 
 func RIPRespostaGenerica() PacoteRIP {
-     return PacoteRIP{false, []byte{0xfe}}
+     return PacoteRIP{false, 0xfe, []byte{0xfe}}
 }
 
 func RIPRespostaDataHora(t time.Time) PacoteRIP {
@@ -302,8 +303,171 @@ func RIPRespostaDataHora(t time.Time) PacoteRIP {
     // em Go, time.Weekday() retorna 0 para domingo
     // e o protocolo da central adota a mesma convenção
     dow := int(t.Weekday())
-    fmt.Printf("TratadorReceptorIP: %04d-%02d-%02d %02d:%02d:%02d\n", year, month, day, hour, minute, second)
+    fmt.Printf("RIPRespostaDataHora: %04d-%02d-%02d %02d:%02d:%02d\n", year, month, day, hour, minute, second)
 
     resposta := []byte{0x80, BCD(year - 2000), BCD(month), BCD(day), BCD(dow), BCD(hour), BCD(minute), BCD(second)}
-    return PacoteRIP{true, resposta}
+    return PacoteRIP{true, 0x80, resposta}
+}
+
+func ExtrairFrameRIP(buffer []byte) (PacoteRIP, int) {
+    if len(buffer) < 1 {
+        return PacoteRIP{}, 0
+    }
+    
+    if buffer[0] == 0xf7 {
+        return PacoteRIP{false, 0xf7, buffer[0:1]}, 1
+    }
+
+    if len(buffer) < 2 {
+        return PacoteRIP{}, 0
+    }
+
+    esperado := int(buffer[0]) + 2 // comprimento + dados + checksum
+    if len(buffer) < esperado {
+        return PacoteRIP{}, 0
+    }
+
+    rawmsg := buffer[:esperado]
+
+    // checksum de pacote sufixado com checksum resulta em 0
+    if Checksum(rawmsg) != 0x00 {
+        fmt.Println("ExtrairFrameRIP: checksum errado, rawmsg =", HexPrint(rawmsg))
+        return PacoteRIP{true, 0x00, rawmsg}, esperado
+    }
+
+    // Mantém checksum no final pois, em algumas mensagens, o último octeto
+    // calcula como checksum mas tem outro significado (e.g. 0xb5)
+    msg := rawmsg[1:]
+
+    if len(msg) == 0 {
+        fmt.Println("ExtrairFrameRIP: mensagem nula")
+        return PacoteRIP{true, 0x00, msg}, esperado
+    }
+
+    tipo := int(msg[0])
+    msg = msg[1:]
+
+    return PacoteRIP{true, tipo, msg}, esperado
+}
+
+func ParseRIPIdentificacaoCentral(pacote PacoteRIP) (int, string, bool, string) {
+    if len(pacote.Payload) != 7 {
+        msg := fmt.Sprintf("ParseRIPIdentificacaoCentral: tamanho inesperado %s", HexPrint(pacote.Payload))
+        return 0, "", false, msg
+    }
+
+    // canal := msg[0] // 'E' (0x45)=Ethernet, 'G'=GPRS, 'H'=GPRS2
+    conta, _ := FromBCD(pacote.Payload[1:3])
+    macaddr := HexPrint(pacote.Payload[3:6])
+
+    return conta, macaddr, true, ""
+}
+
+type RIPAlarme struct {
+    Valido bool
+    Erro string
+    Canal int
+    ContactId int
+    Tipo int
+    Qualificador int
+    Codigo int
+    Particao int
+    Zona int
+    IndiceFotos int
+    NrFotos int
+    CodigoConhecido bool
+    DescricaoHumana string
+}      
+
+func ParseRIPAlarme(pacote PacoteRIP, com_foto bool) RIPAlarme {
+    res := RIPAlarme{}
+
+    compr := 17
+    if com_foto {
+        compr = 20
+    }
+
+    msg := pacote.Payload
+
+    if len(msg) != compr {
+        res.Erro = fmt.Sprintf("ParseRIPAlarme: evento de alarme tamanho inesperado %s", HexPrint(msg))
+        return res
+    }
+
+    res.Canal = int(msg[0]) // 0x11 Ethernet IP1, 0x12 IP2, 0x21 GPRS IP1, 0x22 IP2
+
+    var err error
+
+    res.ContactId, err = ContactIDDecode(msg[1:5])
+    if err != nil {
+        res.Erro = "ParseRIPAlarme: contact_id inválido"
+        return res
+    }
+
+    res.Tipo, err = ContactIDDecode(msg[5:7]) // 18 decimal = Contact ID
+    if err != nil {
+        res.Erro = "ParseRIPAlarme: tipo_msg inválido"
+        return res
+    }
+
+    res.Qualificador = int(msg[7])
+
+    res.Codigo, err = ContactIDDecode(msg[8:11])
+    if err != nil {
+        res.Erro = "ParseRIPAlarme: qualificador inválido"
+        return res
+    }
+
+    res.Particao, err = ContactIDDecode(msg[11:13])
+    if err != nil {
+        res.Erro = "ParseRIPAlarme: partição inválida"
+        return res
+    }
+
+    res.Zona, err = ContactIDDecode(msg[13:16])
+    if err != nil {
+        res.Erro = "ParseRIPAlarme: zona inválida"
+        return res
+    }
+
+    res.Valido = true
+
+    if com_foto {
+        // checksum := msg[16] // truque do protocolo de reposicionar o checksum
+        res.IndiceFotos = int(msg[17]) * 256 + int(msg[18])
+        res.NrFotos = int(msg[19])
+    }
+
+    evento_contact_id, codigo_conhecido := EventosContactID[res.Codigo]
+    qualif_string := ""
+
+    if res.Tipo == 18 && codigo_conhecido {
+        if res.Qualificador == 1 {
+            qualif_string = "aber"
+            _, qualif_conhecido := evento_contact_id[qualif_string]
+            if !qualif_conhecido {
+                qualif_string = "*"
+            }
+        } else if res.Qualificador == 3 {
+            qualif_string = "rest"
+            _, qualif_conhecido := evento_contact_id[qualif_string]
+            if !qualif_conhecido {
+                qualif_string = "*"
+            }
+        } else {
+            qualif_string = "*"
+        }
+
+        padr_descricao, qualif_conhecido := evento_contact_id[qualif_string]
+        if qualif_conhecido {
+            res.CodigoConhecido = true
+            res.DescricaoHumana = fmt.Sprintf(padr_descricao, res.Zona, res.Particao)
+            if com_foto {
+                fotos := fmt.Sprintf(" (com fotos, i=%d n=%d)", res.IndiceFotos, res.NrFotos)
+                res.DescricaoHumana += fotos
+            }
+        }
+    }
+
+    return res
 }
