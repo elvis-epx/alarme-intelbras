@@ -3,3 +3,4 @@ log
 *.jpeg
 *.txt
 receptorip.log
+*.out
