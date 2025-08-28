@@ -5,7 +5,6 @@ import (
     "time"
     "log"
     "context"
-    "sync"
 )
 
 type TCPClient struct {
@@ -15,7 +14,6 @@ type TCPClient struct {
     conntimeout time.Duration
     cancel context.CancelFunc
     state chan string
-    closeonce sync.Once
 }
 
 type tcpclientevent struct {
@@ -82,14 +80,11 @@ func (h *TCPClient) Send(data []byte) {
 
 // Close connection, or cancels it if still not established
 func (h *TCPClient) Close() {
-    // do this only once since h.state has a single message
-    h.closeonce.Do(func() {
-        // cancel context, if still relevant, to provoke closure of connect goroutine
-        h.cancel()
-        // wait for connection goroutine to report status, or read its past status
-        <-h.state
-        h.Session.Close()
-    })
+    // cancel context, if still relevant, to provoke closure of connect goroutine
+    h.cancel()
+    // wait for connection goroutine to report status, or read its past status
+    <-h.state
+    h.Session.Close()
 }
 
 func (h *TCPClient) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {

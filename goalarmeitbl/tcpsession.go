@@ -4,7 +4,6 @@ import (
     "net"
     "io"
     "log"
-    "sync"
     "time"
 )
 
@@ -29,8 +28,7 @@ type TCPSession struct {
     to_send chan []byte         // send queue
     send_queue_depth int
 
-    wg sync.WaitGroup           // check all goroutines have stopped
-    erronce sync.Once           // make sure Err event is emitted only once
+    waitgroup chan struct{}    // check all goroutines have stopped
 
     timeouts *TimeoutOwner     // Timeouts associated with this session
 }
@@ -69,8 +67,8 @@ func NewTCPSession(owner TCPSessionOwner) *TCPSession {
 
     h.timeouts = NewTimeoutOwner(h.Events)
 
-    h.wg = sync.WaitGroup{}
-    h.wg.Add(1)
+    // buffer must be >= 1 to avoid deadlock if Close() called upon unstarted session
+    h.waitgroup = make(chan struct{}, 1)
 
     h.conn = nil
 
@@ -80,18 +78,26 @@ func NewTCPSession(owner TCPSessionOwner) *TCPSession {
 func (h *TCPSession) Start(conn *net.TCPConn) {
     h.conn = conn
 
-    h.wg.Add(2)
     go h.recv()
     go h.send()
 
-    // Teardown when both goroutines are finished and users calls Close()
+    // "deferred" teardown, only for sessions that have been Start()ed
     go func() {
-        h.wg.Wait()
-        // Close() is still running and draining h.Events at this point, so if any timeout triggers,
-        // it won't block on h.Events
+        // wait on Close(), go send() and go recv()
+        <-h.waitgroup
+        <-h.waitgroup
+        <-h.waitgroup
+
+        // Close() is still running and draining h.Events at this point,
+        // so if any timeout triggers meanwhile, it won't block on h.Events
         h.timeouts.Release()
-        close(h.Events) // disengage user
-        h.owner.Closed(h) // called only if session was Start()ed
+
+        // Disengage user
+        close(h.Events)
+
+        // Notify owner e.g. TCPServer
+        h.owner.Closed(h)
+
         log.Printf("TCPSession %p: exited -------------", h)
     }()
 
@@ -109,9 +115,7 @@ func (h *TCPSession) recv() {
                 h.Events <- Event{"RecvEof", nil}
             } else {
                 log.Printf("TCPSession %p: gorecv: err or stop", h)
-                h.erronce.Do(func() {
-                    h.Events <- Event{"Err", nil}
-                })
+                h.Events <- Event{"Err", nil}
             }
             break // exit goroutine
         }
@@ -119,8 +123,10 @@ func (h *TCPSession) recv() {
         h.Events <- Event{"Recv", data[:n]}
     }
 
+    // Signals session teardown goroutine
+    h.waitgroup <- struct{}{}
+
     log.Printf("TCPSession %p: gorecv: exited", h)
-    h.wg.Done()
 }
 
 // Data sending goroutine. Stopped by closing channel h.to_send
@@ -143,9 +149,7 @@ loop:
                     h.Events <- Event{"SendEof", nil}
                 } else {
                     log.Printf("TCPSession %p: gosend: err", h)
-                    h.erronce.Do(func() {
-                        h.Events <- Event{"Err", nil}
-                    })
+                    h.Events <- Event{"Err", nil}
                 }
                 break loop
             }
@@ -161,8 +165,10 @@ loop:
     for range h.to_send {
     }
 
+    // Signals session teardown goroutine
+    h.waitgroup <-struct{}{}
+
     log.Printf("TCPSession %p: gosend: exited", h)
-    h.wg.Done()
 }
 
 // Public interface
@@ -189,8 +195,8 @@ func (h *TCPSession) Close() {
     // indirectly stops send goroutine, if running
     close(h.to_send)
 
-    // stops main session goroutine
-    h.wg.Done()
+    // Signals session teardown goroutine, if running
+    h.waitgroup <-struct{}{}
 
     // Blocks until h.Events is closed by main session' own goroutine
     for evt := range h.Events {

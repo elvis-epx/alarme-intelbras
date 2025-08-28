@@ -3,14 +3,13 @@ package goalarmeitbl
 import (
     "fmt"
     "time"
-    "sync"
     "os/exec"
 )
 
 type ReceptorIP struct {
     tcp *TCPServer
     cfg ReceptorIPConfig
-    wg sync.WaitGroup
+    wait chan struct{}
     centrais_conectadas int
     cnc_alarme bool
 }
@@ -23,8 +22,7 @@ func NewReceptorIP(cfg ReceptorIPConfig) (*ReceptorIP, error) {
     if err != nil {
         return r, err
     }
-    r.wg = sync.WaitGroup{}
-    r.wg.Add(1)
+    r.wait = make(chan struct{}, 1)
     fmt.Println("ReceptorIP: inicio")
 
     go func() {
@@ -46,7 +44,7 @@ func NewReceptorIP(cfg ReceptorIPConfig) (*ReceptorIP, error) {
                 r.CentralNaoConectada(evt.Cargo.(*Timeout))
             }
         }
-        r.wg.Done()
+        r.wait <-struct{}{}
         fmt.Println("ReceptorIP: fim ----")
     }()
 
@@ -54,7 +52,7 @@ func NewReceptorIP(cfg ReceptorIPConfig) (*ReceptorIP, error) {
 }
 
 func (r *ReceptorIP) Wait() {
-    r.wg.Wait()
+    <-r.wait
 }
 
 func (r *ReceptorIP) InvocaGancho(tipo string, msg string) {
