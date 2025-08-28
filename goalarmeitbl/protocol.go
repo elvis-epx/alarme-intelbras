@@ -333,12 +333,14 @@ func ExtrairFrameRIP(buffer []byte) (PacoteRIP, int) {
 
     // checksum de pacote sufixado com checksum resulta em 0
     if Checksum(rawmsg) != 0x00 {
-        fmt.Println("ExtrairFrameRIP: checksum errado, rawmsg =", HexPrint(rawmsg))
-        return PacoteRIP{true, 0x00, rawmsg}, esperado
+        fmt.Println("ExtrairFrameRIP: aviso: checksum errado, rawmsg =", HexPrint(rawmsg))
+        // A versão 2.3.1 da central AMT-8000 envia pedido 0x80 com checksum errado, como é Ethernet,
+        // não é corrupção de dados
+        // return PacoteRIP{true, 0x00, rawmsg}, esperado
     }
 
     // Mantém checksum no final pois, em algumas mensagens, o último octeto
-    // calcula como checksum mas tem outro significado (e.g. 0xb5)
+    // passa como checksum mas tem outro significado (e.g. 0xb5)
     msg := rawmsg[1:]
 
     if len(msg) == 0 {

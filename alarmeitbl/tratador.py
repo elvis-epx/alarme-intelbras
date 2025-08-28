@@ -232,8 +232,9 @@ class Tratador(TCPServerHandler, UtilsProtocolo):
 
         # checksum de pacote sufixado com checksum resulta em 0
         if self.checksum(rawmsg) != 0x00:
-            self.log_warn("checksum errado, rawmsg =", self.hexprint(rawmsg))
-            return True
+            self.log_warn("(aviso) checksum errado, rawmsg =", self.hexprint(rawmsg))
+            # Central 2.3.1 manda checksum errado na solicitação 0x80
+            # return True
 
         # Mantém checksum no final pois, em algumas mensagens, o último octeto
         # calcula como checksum mas tem outro significado (e.g. 0xb5)

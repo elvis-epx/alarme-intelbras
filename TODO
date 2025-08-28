@@ -1,4 +1,3 @@
-Mensagem para gancho_msg: incluir partição ao ativar/desativar alarme
-
 Versão Go:
     - Mais testes + coverage
+    - ReceptorIP - checagem checksum opcional?
