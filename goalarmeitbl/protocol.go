@@ -3,6 +3,8 @@ package goalarmeitbl
 import (
 	"encoding/hex"
 	"fmt"
+	"strconv"
+	"strings"
     "slices"
     "time"
 )
@@ -17,18 +19,18 @@ func init() {
         121: {"*": "Ativacao/desativacao sob coacao"},
         122: {"*": "Panico silencioso"},
         130: {
-            "aber": "Disparo de zona %[1]d",
-            "rest": "Restauracao de zona %[1]d",
+            "aber": "Disparo de zona {zona}",
+            "rest": "Restauracao de zona {zona}",
             },
-        133: {"*": "Disparo de zona 24h %[1]d"},
-        146: {"*": "Disparo silencioso %[1]d"},
+        133: {"*": "Disparo de zona 24h {zona}"},
+        146: {"*": "Disparo silencioso {zona}"},
         301: {
             "aber": "Falta de energia AC",
             "rest": "Retorno de energia AC",
             },
         342: {
-            "aber": "Falta de energia AC em componente sem fio %[1]d",
-            "rest": "Retorno energia AC em componente sem fio %[1]d",
+            "aber": "Falta de energia AC em componente sem fio {zona}",
+            "rest": "Retorno energia AC em componente sem fio {zona}",
             },
         302: {
             "aber": "Bateria do sistema baixa",
@@ -46,55 +48,55 @@ func init() {
             },
         354: {"*": "Falha ao comunicar evento"},
         147: {
-            "aber": "Falha de supervisao %[1]d",
-            "rest": "Recuperacao falha de supervisao %[1]d",
+            "aber": "Falha de supervisao {zona}",
+            "rest": "Recuperacao falha de supervisao {zona}",
             },
         145: {
-            "aber": "Tamper em dispositivo expansor %[1]d",
-            "rest": "Restauro tamper em dispositivo expansor %[1]d",
+            "aber": "Tamper em dispositivo expansor {zona}",
+            "rest": "Restauro tamper em dispositivo expansor {zona}",
             },
         383: {
-            "aber": "Tamper em sensor %[1]d",
-            "rest": "Restauro tamper em sensor %[1]d",
+            "aber": "Tamper em sensor {zona}",
+            "rest": "Restauro tamper em sensor {zona}",
             },
         384: {
-            "aber": "Bateria baixa em componente sem fio %[1]d",
-            "rest": "Recuperacao bateria baixa em componente sem fio %[1]d",
+            "aber": "Bateria baixa em componente sem fio {zona}",
+            "rest": "Recuperacao bateria baixa em componente sem fio {zona}",
             },
         401: {
-            "rest": "Ativacao manual P%[2]d",
-            "aber": "Desativacao manual P%[2]d",
+            "rest": "Ativacao manual P{particao}",
+            "aber": "Desativacao manual P{particao}",
             },
         403: {
-            "rest": "Ativacao automatica P%[2]d",
-            "aber": "Desativacao automatica P%[2]d",
+            "rest": "Ativacao automatica P{particao}",
+            "aber": "Desativacao automatica P{particao}",
             },
         404: {
-            "rest": "Ativacao remota P%[2]d",
-            "aber": "Desativacao remota P%[2]d",
+            "rest": "Ativacao remota P{particao}",
+            "aber": "Desativacao remota P{particao}",
             },
         407: {
-            "rest": "Ativacao remota app P%[2]d",
-            "aber": "Desativacao remota app P%[2]d",
+            "rest": "Ativacao remota app P{particao}",
+            "aber": "Desativacao remota app P{particao}",
             },
-        408: {"*": "Ativacao por uma tecla P%[2]d"},
+        408: {"*": "Ativacao por uma tecla P{particao}"},
         410: {"*": "Acesso remoto"},
         461: {"*": "Senha incorreta"},
         533: {
-            "aber": "Adicao de zona %[1]d",
-            "rest": "Remocao de zona %[1]d",
+            "aber": "Adicao de zona {zona}",
+            "rest": "Remocao de zona {zona}",
             },
         570: {
-            "aber": "Bypass de zona %[1]d",
-            "rest": "Cancel bypass de zona %[1]d",
+            "aber": "Bypass de zona {zona}",
+            "rest": "Cancel bypass de zona {zona}",
             },
         602: {"*": "Teste periodico"},
         621: {"*": "Reset do buffer de eventos"},
         601: {"*": "Teste manual"},
         616: {"*": "Solicitacao de manutencao"},
         422: {
-            "aber": "Acionamento de PGM %[1]d",
-            "rest": "Desligamento de PGM %[1]d",
+            "aber": "Acionamento de PGM {zona}",
+            "rest": "Desligamento de PGM {zona}",
             },
         625: {"*": "Data e hora reiniciados"},
     }
@@ -461,7 +463,9 @@ func ParseRIPAlarme(pacote PacoteRIP, com_foto bool) RIPAlarme {
         padr_descricao, qualif_conhecido := evento_contact_id[qualif_string]
         if qualif_conhecido {
             res.CodigoConhecido = true
-            res.DescricaoHumana = fmt.Sprintf(padr_descricao, res.Zona, res.Particao)
+            r := strings.NewReplacer("{zona}", strconv.Itoa(res.Zona),
+                                     "{particao}", strconv.Itoa(res.Particao))
+            res.DescricaoHumana = r.Replace(padr_descricao)
             if com_foto {
                 fotos := fmt.Sprintf(" (com fotos, i=%d n=%d)", res.IndiceFotos, res.NrFotos)
                 res.DescricaoHumana += fotos
