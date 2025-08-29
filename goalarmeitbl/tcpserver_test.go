@@ -21,6 +21,9 @@ type TestServerDelegate struct {
 func (d *TestServerDelegate) Handle(c *TCPSession, evt Event) bool {
     log.Printf("test server delegate: event %s", evt.Name)
     switch evt.Name {
+        case "Connected":
+            return true
+
         case "Recv":
             received, ok := evt.Cargo.([]byte)
             if !ok {

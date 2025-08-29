@@ -54,12 +54,11 @@ func NewTCPClient(addr string) *TCPClient {
         }
 
         log.Printf("TCPClient %p: conn success", h)
-        // start session in two phases to guarantee that
-        // a) "Connected" event goes first. Session event starts only after StartB()
-        // b) After StartA(), session methods like Send() or Close() can already be called.
-        h.Session.StartA(conn.(*net.TCPConn))
-        h.Events <- Event{"Connected", nil}
-        h.Session.StartB()
+        // "Connected" event ie emitted by TCPSession
+        // a) to guarantee it is the first one
+        // b) to guarantee that session methods like Send() or Close() can be called as soon as
+        //    Start() returns
+        h.Session.Start(conn.(*net.TCPConn))
         h.state <- "+"
 
         log.Printf("TCPClient %p: TCPSession %p in charge -------", h, h.Session)

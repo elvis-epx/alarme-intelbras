@@ -75,11 +75,10 @@ func NewTCPSession(owner TCPSessionOwner) *TCPSession {
     return h
 }
 
-func (h *TCPSession) StartA(conn *net.TCPConn) {
+func (h *TCPSession) Start(conn *net.TCPConn) {
     h.conn = conn
-}
+    h.Events <- Event{"Connected", nil}
 
-func (h *TCPSession) StartB() {
     go h.recv()
     go h.send()
 
