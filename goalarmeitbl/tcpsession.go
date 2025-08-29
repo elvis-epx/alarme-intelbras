@@ -75,9 +75,11 @@ func NewTCPSession(owner TCPSessionOwner) *TCPSession {
     return h
 }
 
-func (h *TCPSession) Start(conn *net.TCPConn) {
+func (h *TCPSession) StartA(conn *net.TCPConn) {
     h.conn = conn
+}
 
+func (h *TCPSession) StartB() {
     go h.recv()
     go h.send()
 

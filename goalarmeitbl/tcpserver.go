@@ -49,7 +49,8 @@ func NewTCPServer(addr string) (*TCPServer, error) {
             }
             log.Print("TCPServer: accept new connection")
             session := NewTCPSession(s)
-            session.Start(conn.(*net.TCPConn))
+            session.StartA(conn.(*net.TCPConn))
+            session.StartB()
             s.Events <-Event{"new", session}
         }
 
