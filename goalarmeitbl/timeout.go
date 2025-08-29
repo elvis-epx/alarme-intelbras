@@ -118,13 +118,13 @@ func (timeout *Timeout) Stop() {
 
 func (timeout *Timeout) Free() {
     // if called by the same goroutine that will call TCPSession.Close(), this guarantees that
-    // there won't be a race between section destructor and user freeing the Timeout in parallel
+    // there won't be a race between session destructor and user freeing the Timeout in parallel
     if timeout.owner != nil {
         timeout.owner.release_timeout(timeout)
         timeout.owner = nil
     }
     // Synchronously guarantees that this Timeout won't post events after Free() returns
-    // (possible because timeout.control is bufferless)
+    // (because timeout.control is bufferless)
     timeout.control <- TimeoutControl{"free", 0, 0}
 }
 
@@ -201,6 +201,9 @@ func (t *TimeoutOwner) Release() {
 // Create new owned Timeout
 func (t *TimeoutOwner) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
     <-t.timeouts_sem
+    // Create Timeout inside critical section because it could trigger an event and user could call Free()
+    // which would call TimeoutOwner.timeout_release() even before we annotated it in t.timeouts. We need
+    // Free() to block until the annotation is done.
     to := NewTimeout(avgto, fudge, t.cbch, cbchmsg, t)
     t.timeouts[to] = true
     t.timeouts_sem <-struct{}{}

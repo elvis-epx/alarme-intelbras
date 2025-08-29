@@ -13,7 +13,7 @@ type TCPServer struct {
 
     timeouts *TimeoutOwner      // Timeouts associated with this server
 
-    disowned bool               // For sessions calling Closed() after server Close()d
+    disowned bool               // For sessions calling Closed() after server already closed
     disowned_sem chan struct {} // and its semaphore
 }
 
@@ -55,12 +55,11 @@ func NewTCPServer(addr string) (*TCPServer, error) {
 
         listener.Close()
         s.timeouts.Release()
+        s.disown_sessions()
 
-        <-s.disowned_sem
-        s.disowned = true
-        s.disowned_sem <-struct{}{}
+        // disengage user
+        close(s.Events)
 
-        close(s.Events) // disengage user
         log.Printf("TCPServer: exited")
     }()
 
@@ -68,7 +67,14 @@ func NewTCPServer(addr string) (*TCPServer, error) {
     return s, nil
 }
 
-// Should not be called by user.
+// Disown TCPSessions still open because TCPServer is being closed
+func (s *TCPServer) disown_sessions() {
+    <-s.disowned_sem
+    s.disowned = true
+    s.disowned_sem <-struct{}{}
+}
+
+// Should not be called by user. This is a callback for TCPSessions.
 func (s *TCPServer) Closed(session *TCPSession) {
     <-s.disowned_sem
     if !s.disowned {
