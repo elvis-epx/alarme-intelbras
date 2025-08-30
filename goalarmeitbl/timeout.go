@@ -35,22 +35,33 @@ type Timeout struct {
 
     cbch chan Event
     cbchmsg string
-    owner *TimeoutOwner
+    ownerch chan TimeoutOwnerControl
 
     control chan TimeoutControl // must be bufferless, see Free() and "free" event
     info chan TimeoutInfo
 }
 
-type TimeoutCallback func (*Timeout)
+func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string, ownerch chan TimeoutOwnerControl) (*Timeout) {
+    timeout := new(Timeout)
+    timeout.avgto = avgto
+    timeout.fudge = fudge
+    timeout.eta = time.Now()
+    timeout.cbch = cbch
+    timeout.cbchmsg = cbchmsg
+    timeout.ownerch = ownerch
+    timeout.control = make(chan TimeoutControl)
+    timeout.info = make(chan TimeoutInfo)
 
-func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string, owner *TimeoutOwner) (*Timeout) {
-    timeout := Timeout{avgto, fudge, nil, false, time.Now(),
-                cbch, cbchmsg, owner,
-                make(chan TimeoutControl), make(chan TimeoutInfo)}
+    // add to owner here so we are sure this happens before timeout is started and potentially emits any events
+    if ownerch != nil {
+        ownerch <- TimeoutOwnerControl{"own", timeout}
+    }
+
     go timeout.handler()
-    // makes sure the first command the goroutine receives, is "restart"
+    // makes sure "restart" is the first command the goroutine receives,
+    // and any command sent right after the return will have to wait
     defer timeout.Restart()
-    return &timeout
+    return timeout
 }
 
 // Only this goroutine (and upstream methods) can touch private data
@@ -115,35 +126,45 @@ func (timeout *Timeout) restart() {
 
 // public methods for Timeout
 
+// Stop timeout but allow for Restart later
 func (timeout *Timeout) Stop() {
     timeout.control <- TimeoutControl{"stop", 0, 0}
 }
 
-func (timeout *Timeout) Free() {
-    // Non-reentrant, non-idempotent
-    // Caller must guarantee the timeout is not being Free()d by another goroutine
-    if timeout.owner != nil {
-        timeout.owner.release_timeout(timeout)
-        timeout.owner = nil
-    }
-    // Synchronously guarantees that this Timeout won't post events after Free() returns
-    // (because timeout.control is bufferless)
-    timeout.control <- TimeoutControl{"free", 0, 0}
-}
-
+// Restart timeout with the same parameters
 func (timeout *Timeout) Restart() {
     timeout.control <- TimeoutControl{"restart", 0, 0}
 }
 
+// Restart timemout with new parameters
 func (timeout *Timeout) Reset(avgto time.Duration, fudge time.Duration) {
     timeout.control <- TimeoutControl{"reset", avgto, fudge}
 }
 
+// Stop and free timeout. This timeout won't post events after the call returns.
+// Non-reentrant, non-idempotent!
+// Caller must guarantee the timeout isn't and won't be Free()d by another goroutine
+func (timeout *Timeout) Free() {
+    if timeout.ownerch != nil {
+        timeout.ownerch <- TimeoutOwnerControl{"disown", timeout}
+    }
+    timeout.free_in()
+}
+
+// Called directly by TimeoutOwner upon mass release
+func (timeout *Timeout) free_in() {
+    // Guarantees that this Timeout won't post events after return
+    // because timeout.control is bufferless and "free" will the last command to be processed
+    timeout.control <- TimeoutControl{"free", 0, 0}
+}
+
+// Returns timeout state
 func (timeout *Timeout) Alive() (bool) {
     info := <- timeout.info
     return info.alive
 }
 
+// Returns timeout state
 func (timeout *Timeout) Remaining() (time.Duration) {
     info := <- timeout.info
     if !info.alive {
@@ -156,60 +177,57 @@ func (timeout *Timeout) Remaining() (time.Duration) {
 
 type TimeoutOwner struct {
     cbch chan Event
-    timeouts map[*Timeout]bool  // Timeouts associated with this server
-    timeouts_sem chan struct {} // and its semaphore
+    timeouts map[*Timeout]bool             // Timeouts associated with this server
+    control chan TimeoutOwnerControl       // Changes to be applied to map above
+}
+
+type TimeoutOwnerControl struct {
+    name string     // control event name
+    to *Timeout 
 }
 
 func NewTimeoutOwner(cbch chan Event) *TimeoutOwner {
     t := new(TimeoutOwner)
     t.cbch = cbch
     t.timeouts = make(map[*Timeout]bool)
-    t.timeouts_sem = make(chan struct{}, 1)
-    t.timeouts_sem <-struct{}{}
+    t.control = make(chan TimeoutOwnerControl) // unbuffered, synchronous
+
+    // Actor goroutine
+    go func() {
+        for cmd := range t.control {
+            switch cmd.name {
+            case "own":
+                // Emitted by Timeout creation
+                // log.Printf("Owned timeout %p", cmd.to)
+                t.timeouts[cmd.to] = true
+
+            case "disown":
+                // Emitted by Timeout.Free()
+                log.Printf("Disowned timeout %p", cmd.to)
+                delete(t.timeouts, cmd.to)
+
+            case "release":
+                // Self-inflicted
+                for to := range t.timeouts {
+                    log.Printf("Released timeout %p", to)
+                    to.free_in() // does not emit "disown" command
+                }
+                t.timeouts = make(map[*Timeout]bool)
+                close(t.control)
+            }
+        }
+    }()
+
     return t
 }
 
-// This is called by the owned Timeout upon Timeout.Free()
-func (t *TimeoutOwner) release_timeout(to *Timeout) {
-    <-t.timeouts_sem
-    if _, ok := t.timeouts[to]; ok {
-        log.Printf("Released timeout %p", to)
-        delete(t.timeouts, to)
-    }
-    t.timeouts_sem <-struct{}{}
-}
-
-// Stop and release all owned Timeouts
+// Synchronously stop and release all owned Timeouts
+// Caller must guarantee it is not Free()ing the same timeouts in other goroutines
 func (t *TimeoutOwner) Release() {
-    for {
-        var to *Timeout
-
-        // Get some owned timeout
-        <-t.timeouts_sem
-	    for k := range t.timeouts {
-		    to = k
-		    break
-	    }
-        t.timeouts_sem <-struct{}{}
-
-        if to == nil {
-            break
-        }
-
-        // synchronously calls TimeoutOwner.release_timeout()
-        to.Free()
-    }
+    t.control <- TimeoutOwnerControl{"release", nil}
 }
 
 // Create new owned Timeout
 func (t *TimeoutOwner) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
-    <-t.timeouts_sem
-    // Create Timeout inside critical section because it could trigger an event and user could call Free()
-    // which would call TimeoutOwner.timeout_release() even before we annotated it in t.timeouts. We need
-    // Free() to block until the annotation is done.
-    to := NewTimeout(avgto, fudge, t.cbch, cbchmsg, t)
-    t.timeouts[to] = true
-    t.timeouts_sem <-struct{}{}
-
-    return to
+    return NewTimeout(avgto, fudge, t.cbch, cbchmsg, t.control)
 }
