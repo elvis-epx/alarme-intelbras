@@ -180,8 +180,9 @@ func (timeout *Timeout) Remaining() (time.Duration) {
 
 type TimeoutOwner struct {
     cbch chan Event
-    timeouts map[*Timeout]bool             // Timeouts associated with this server
-    control chan TimeoutOwnerControl       // Changes to be applied to map above
+    timeouts map[*Timeout]bool              // Timeouts associated with this server
+    control chan TimeoutOwnerControl        // Changes to be applied to map above
+    released chan struct{}                  // Closes on full release
 }
 
 type TimeoutOwnerControl struct {
@@ -194,6 +195,7 @@ func NewTimeoutOwner(cbch chan Event) *TimeoutOwner {
     t.cbch = cbch
     t.timeouts = make(map[*Timeout]bool)
     t.control = make(chan TimeoutOwnerControl) // unbuffered, synchronous
+    t.released = make(chan struct{})
 
     // Actor goroutine
     go func() {
@@ -217,6 +219,7 @@ func NewTimeoutOwner(cbch chan Event) *TimeoutOwner {
                 }
                 t.timeouts = make(map[*Timeout]bool)
                 close(t.control)
+                close(t.released)
             }
         }
     }()
@@ -228,6 +231,7 @@ func NewTimeoutOwner(cbch chan Event) *TimeoutOwner {
 // Caller must guarantee it is not Free()ing the same timeouts in other goroutines
 func (t *TimeoutOwner) Release() {
     t.control <- TimeoutOwnerControl{"release", nil}
+    <-t.released
 }
 
 // Create new owned Timeout
