@@ -76,6 +76,7 @@ func (s *TCPServer) disown_sessions() {
 
 // Should not be called by user. This is a callback for TCPSessions.
 func (s *TCPServer) Closed(session *TCPSession) {
+    // protect the whole thing because close(s.Events) may happen between the test and the event
     <-s.disowned_sem
     if !s.disowned {
         s.Events <-Event{"closed", session}
