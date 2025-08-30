@@ -93,7 +93,7 @@ func (h *TCPSession) Start(conn *net.TCPConn) {
         // so if any timeout triggers meanwhile, it won't block on h.Events
         h.timeouts.Release()
 
-        // Disengage user
+        // Disengage user and ongoing Close()
         close(h.Events)
 
         // Notify owner e.g. TCPServer

@@ -48,12 +48,13 @@ func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchm
                 cbch, cbchmsg, owner,
                 make(chan TimeoutControl), make(chan TimeoutInfo)}
     go timeout.handler()
+    // makes sure the first command the goroutine receives, is "restart"
     defer timeout.Restart()
     return &timeout
 }
 
+// Only this goroutine (and upstream methods) can touch private data
 func (timeout *Timeout) handler() {
-    // Only this goroutine (and upstream handle_command() and restart()) can touch Timeout private data
 loop:
     for {
         select {
@@ -67,6 +68,7 @@ loop:
     }
 }
 
+// called only by goroutine
 func (timeout *Timeout) handle_command(cmd TimeoutControl) (bool) {
     switch cmd.name {
     case "reset":
@@ -95,6 +97,7 @@ func (timeout *Timeout) handle_command(cmd TimeoutControl) (bool) {
     return true
 }
 
+// called only by goroutine
 func (timeout *Timeout) restart() {
     if timeout.impl != nil {
         timeout.impl.Stop()
@@ -117,8 +120,8 @@ func (timeout *Timeout) Stop() {
 }
 
 func (timeout *Timeout) Free() {
-    // if called by the same goroutine that will call TCPSession.Close(), this guarantees that
-    // there won't be a race between session destructor and user freeing the Timeout in parallel
+    // Non-reentrant, non-idempotent
+    // Caller must guarantee the timeout is not being Free()d by another goroutine
     if timeout.owner != nil {
         timeout.owner.release_timeout(timeout)
         timeout.owner = nil
@@ -176,7 +179,7 @@ func (t *TimeoutOwner) release_timeout(to *Timeout) {
     t.timeouts_sem <-struct{}{}
 }
 
-// Release all owned Timeouts and make sure they won't send further events
+// Stop and release all owned Timeouts
 func (t *TimeoutOwner) Release() {
     for {
         var to *Timeout
