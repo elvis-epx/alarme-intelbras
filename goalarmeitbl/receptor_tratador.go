@@ -18,7 +18,7 @@ type TratadorReceptorIP struct {
     to_incompleta *Timeout
 }
 
-func NewTratadorReceptorIP(receptor *ReceptorIP, tcp *TCPSession) {
+func NewTratadorReceptorIP(receptor *ReceptorIP, tcp *TCPSession) *TratadorReceptorIP {
     t := new(TratadorReceptorIP)
     t.receptor = receptor
     t.tcp = tcp
@@ -28,40 +28,34 @@ func NewTratadorReceptorIP(receptor *ReceptorIP, tcp *TCPSession) {
 
     go func() {
         for evt := range t.tcp.Events {
-            t.handle(evt)
+            switch evt.Name {
+            case "Recv":
+                buf, _ := evt.Cargo.([]byte)
+                t.buffer = slices.Concat(t.buffer, buf)
+                t.parse()
+            case "Sent":
+                // pass
+            case "to_ident":
+                fmt.Println("TratadorReceptorIP: timeout de identificação")
+                t.tcp.Close()
+            case "to_comm":
+                fmt.Println("TratadorReceptorIP: timeout de comunicação")
+                t.tcp.Close()
+            case "to_incompleta":
+                fmt.Println("TratadorReceptorIP: timeout de mensagem incompleta")
+                t.tcp.Close()
+            case "SendEof", "RecvEof", "Err":
+                fmt.Println("TratadorReceptorIP: Conexão terminada ", evt.Name)
+                t.tcp.Close()
+            }
         }
         fmt.Println("TratadorReceptorIP: fim ----")
     }()
+
+    return t
 }
 
-func (t *TratadorReceptorIP) Bye() {
-    t.tcp.Close()
-}
-
-// Handler dos eventos TCPClient/TCPSession
-// Não-reentrante
-func (t *TratadorReceptorIP) handle(evt Event) {
-    switch evt.Name {
-    case "Recv":
-        buf, _ := evt.Cargo.([]byte)
-        t.buffer = slices.Concat(t.buffer, buf)
-        t.parse()
-    case "Sent":
-        // pass
-    case "to_ident":
-        fmt.Println("TratadorReceptorIP: timeout de identificação")
-        t.Bye()
-    case "to_comm":
-        fmt.Println("TratadorReceptorIP: timeout de comunicação")
-        t.Bye()
-    case "to_incompleta":
-        fmt.Println("TratadorReceptorIP: timeout de mensagem incompleta")
-        t.Bye()
-    case "SendEof", "RecvEof", "Err":
-        fmt.Println("TratadorReceptorIP: Conexão terminada ", evt.Name)
-        t.Bye()
-    }
-}
+// Todos os métodos abaixo são invocados apenas pela goroutine e são privados
 
 func (t *TratadorReceptorIP) msg_para_gancho(msg string) {
     msg = strftime.Format("%Y-%m-%dT%H:%M:%S", time.Now()) + " " + msg
