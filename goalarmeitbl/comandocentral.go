@@ -77,14 +77,14 @@ func (comando *ComandoCentral) Wait() {
 func (comando *ComandoCentral) handle(evt Event) {
     switch evt.Name {
     case "Connected":
-        comando.Autenticar()
+        comando.autenticar()
     case "NotConnected":
         fmt.Println("ComandoCentral: Conexão falhou")
         comando.Bye()
     case "Recv":
         buf, _ := evt.Cargo.([]byte)
         comando.buffer = slices.Concat(comando.buffer, buf)
-        comando.Parse()
+        comando.parse()
     case "Timeout":
         fmt.Println("ComandoCentral: Timeout")
         comando.Bye()
@@ -107,14 +107,14 @@ func (comando *ComandoCentral) EnviarPacote(pacote []byte, tf TratadorResposta) 
 }
 
 // Envia pacote de autenticação
-func (comando *ComandoCentral) Autenticar() {
+func (comando *ComandoCentral) autenticar() {
     log.Print("ComandoCentral: Autenticando")
     pacote := PacoteIsecNet2Auth(comando.senha, comando.tam_senha)
-    comando.EnviarPacote(pacote, comando.RespostaAutenticacao)
+    comando.EnviarPacote(pacote, comando.resposta_autenticacao)
 }
 
 // Interpreta um pacote de resposta da central
-func (comando *ComandoCentral) Parse() {
+func (comando *ComandoCentral) parse() {
     log.Print("ComandoCentral: Recebido até agora ", HexPrint(comando.buffer))
     comprimento := PacoteIsecNet2Completo(comando.buffer)
     if comprimento == 0 {
@@ -134,7 +134,7 @@ func (comando *ComandoCentral) Parse() {
     log.Printf("ComandoCentral: Pacote resposta %04x", cmd)
 
     if cmd == 0xf0fd {
-        comando.ParseNak(payload)
+        comando.parse_nak(payload)
         comando.Bye()
         return
     } else if cmd == 0xf0f7 {
@@ -150,7 +150,7 @@ func (comando *ComandoCentral) Parse() {
     comando.tratador_resposta(comando, cmd, payload)
 }
 
-func (comando *ComandoCentral) RespostaAutenticacao(_ *ComandoCentral, cmd int, payload []byte) {
+func (comando *ComandoCentral) resposta_autenticacao(_ *ComandoCentral, cmd int, payload []byte) {
     if cmd != 0xf0f0 {
         fmt.Printf("ComandoCentral: auth resp inesperada %04x\n", cmd)
         comando.Bye()
@@ -182,7 +182,7 @@ func (comando *ComandoCentral) RespostaAutenticacao(_ *ComandoCentral, cmd int, 
 }
 
 // Interpreta pacote "NAK" de erro
-func (comando *ComandoCentral) ParseNak(payload []byte) {
+func (comando *ComandoCentral) parse_nak(payload []byte) {
     if len(payload) != 1 {
         fmt.Println("ComandoCentral: nak invalido")
         return
