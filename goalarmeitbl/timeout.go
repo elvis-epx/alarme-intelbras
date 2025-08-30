@@ -27,6 +27,13 @@ type TimeoutInfo struct {
 
 // Timeout struct
 type Timeout struct {
+    ownerch chan TimeoutOwnerControl
+    control chan TimeoutControl // must be bufferless, see Free() and "free" event
+    info chan TimeoutInfo
+}
+
+// Private parts of Timeout that should not be touched outside the goroutine
+type TimeoutPriv struct {
     avgto time.Duration
     fudge time.Duration
     impl *time.Timer
@@ -35,29 +42,27 @@ type Timeout struct {
 
     cbch chan Event
     cbchmsg string
-    ownerch chan TimeoutOwnerControl
-
-    control chan TimeoutControl // must be bufferless, see Free() and "free" event
-    info chan TimeoutInfo
 }
 
 func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string, ownerch chan TimeoutOwnerControl) (*Timeout) {
     timeout := new(Timeout)
-    timeout.avgto = avgto
-    timeout.fudge = fudge
-    timeout.eta = time.Now()
-    timeout.cbch = cbch
-    timeout.cbchmsg = cbchmsg
     timeout.ownerch = ownerch
     timeout.control = make(chan TimeoutControl)
     timeout.info = make(chan TimeoutInfo)
+
+    priv := new(TimeoutPriv)
+    priv.avgto = avgto
+    priv.fudge = fudge
+    priv.eta = time.Now()
+    priv.cbch = cbch
+    priv.cbchmsg = cbchmsg
 
     // add to owner here so we are sure this happens before timeout is started and potentially emits any events
     if ownerch != nil {
         ownerch <- TimeoutOwnerControl{"own", timeout}
     }
 
-    go timeout.handler()
+    go timeout.handler(priv)
     // makes sure "restart" is the first command the goroutine receives,
     // and any command sent right after the return will have to wait
     defer timeout.Restart()
@@ -65,41 +70,39 @@ func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchm
 }
 
 // Only this goroutine (and upstream methods) can touch private data
-func (timeout *Timeout) handler() {
+func (timeout *Timeout) handler(priv *TimeoutPriv) {
 loop:
     for {
         select {
         case cmd := <- timeout.control:
-           if !timeout.handle_command(cmd) {
+           if !timeout.handle_command(priv, cmd) {
                 break loop
             }
-        case timeout.info <- TimeoutInfo{timeout.eta, timeout.alive}:
+        case timeout.info <- TimeoutInfo{priv.eta, priv.alive}:
             continue
         }
     }
 }
 
 // called only by goroutine
-func (timeout *Timeout) handle_command(cmd TimeoutControl) (bool) {
+func (timeout *Timeout) handle_command(priv *TimeoutPriv, cmd TimeoutControl) (bool) {
     switch cmd.name {
     case "reset":
-        timeout.avgto = cmd.avgto
-        timeout.fudge = cmd.fudge
-        timeout.restart()
+        priv.avgto = cmd.avgto
+        priv.fudge = cmd.fudge
+        timeout.restart(priv)
     case "restart":
-        timeout.restart()
+        timeout.restart(priv)
     case "trigger":
-        timeout.alive = false
-        if timeout.cbch != nil {
-            timeout.cbch <- Event{timeout.cbchmsg, timeout}
-        }
+        priv.alive = false
+        priv.cbch <- Event{priv.cbchmsg, timeout}
     case "stop":
-        timeout.impl.Stop()
-        timeout.alive = false
+        priv.impl.Stop()
+        priv.alive = false
     case "free":
-        timeout.impl.Stop()
-        timeout.alive = false
-        timeout.cbch = nil
+        priv.impl.Stop()
+        priv.alive = false
+        priv.cbch = nil
         // make sure program will panic if anybody tries to use this afterwards
         close(timeout.control)
         close(timeout.info)
@@ -109,16 +112,16 @@ func (timeout *Timeout) handle_command(cmd TimeoutControl) (bool) {
 }
 
 // called only by goroutine
-func (timeout *Timeout) restart() {
-    if timeout.impl != nil {
-        timeout.impl.Stop()
+func (timeout *Timeout) restart(priv *TimeoutPriv) {
+    if priv.impl != nil {
+        priv.impl.Stop()
     }
 
-    relative_eta := timeout.avgto + 2 * timeout.fudge * time.Duration(rand.Float32() - 0.5)
-    timeout.eta = time.Now().Add(relative_eta)
-    timeout.alive = true 
+    relative_eta := priv.avgto + 2 * priv.fudge * time.Duration(rand.Float32() - 0.5)
+    priv.eta = time.Now().Add(relative_eta)
+    priv.alive = true
 
-    timeout.impl = time.AfterFunc(relative_eta, func() {
+    priv.impl = time.AfterFunc(relative_eta, func() {
         // goroutine context; make sure it goes through the control channel
         timeout.control <- TimeoutControl{"trigger", 0, 0}
     })
