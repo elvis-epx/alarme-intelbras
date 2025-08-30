@@ -175,7 +175,7 @@ func (comando *ComandoCentral) EnviarPacote(pacote []byte, tf TratadorResposta) 
 }
 
 // Encerra a comunicação com a central de forma "civilizada"
-// Invocado tanto aqui como pela subclasse
+// Invocado pela subclasse
 func (comando *ComandoCentral) Despedida() {
     log.Print("ComandoCentral: Despedindo")
     pacote := PacoteIsecNet2Bye()
