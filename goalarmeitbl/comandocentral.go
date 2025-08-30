@@ -52,58 +52,29 @@ func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serverad
 
     go func() {
         for evt := range comando.tcp.Events {
-            comando.handle(evt)
+            switch evt.Name {
+            case "Connected":
+                comando.autenticar()
+            case "NotConnected":
+                fmt.Println("ComandoCentral: Conexão falhou")
+                comando.Bye()
+            case "Recv":
+                buf, _ := evt.Cargo.([]byte)
+                comando.buffer = slices.Concat(comando.buffer, buf)
+                comando.parse()
+            case "Timeout":
+                fmt.Println("ComandoCentral: Timeout")
+                comando.Bye()
+            case "SendEof", "RecvEof", "Err":
+                log.Print("ComandoCentral: Conexão terminada ", evt.Name)
+                comando.Bye()
+            }
         }
         comando.wait <-struct{}{}
         log.Print("ComandoCentral: fim ----")
     }()
 
     return comando
-}
-
-// Aborta o comando
-func (comando *ComandoCentral) Bye() {
-    comando.observer.Resultado(comando.status)
-    comando.tcp.Close()
-}
-
-// Bloqueia até o comando ser concluído
-func (comando *ComandoCentral) Wait() {
-    <-comando.wait
-}
-
-// Handler dos eventos TCPClient/TCPSession
-// Não-reentrante
-func (comando *ComandoCentral) handle(evt Event) {
-    switch evt.Name {
-    case "Connected":
-        comando.autenticar()
-    case "NotConnected":
-        fmt.Println("ComandoCentral: Conexão falhou")
-        comando.Bye()
-    case "Recv":
-        buf, _ := evt.Cargo.([]byte)
-        comando.buffer = slices.Concat(comando.buffer, buf)
-        comando.parse()
-    case "Timeout":
-        fmt.Println("ComandoCentral: Timeout")
-        comando.Bye()
-    case "SendEof", "RecvEof", "Err":
-        log.Print("ComandoCentral: Conexão terminada ", evt.Name)
-        comando.Bye()
-    }
-}
-
-// Envia pacote de comando e implanta um tratador da resposta
-func (comando *ComandoCentral) EnviarPacote(pacote []byte, tf TratadorResposta) {
-    log.Print("ComandoCentral: Enviando ", HexPrint(pacote))
-    comando.timeout.Restart()
-    comando.tratador_resposta = tf
-    comando.tcp.Send(pacote)
-    if tf == nil {
-        // fecha conexão no sentido tx
-        comando.tcp.Send(nil)
-    }
 }
 
 // Envia pacote de autenticação
@@ -190,11 +161,38 @@ func (comando *ComandoCentral) parse_nak(payload []byte) {
     fmt.Printf("ComandoCentral: nak motivo %02x\n", int(payload[0]))
 }
 
+// Envia pacote de comando e implanta um tratador da resposta
+// Invocado tanto aqui como pela subclasse
+func (comando *ComandoCentral) EnviarPacote(pacote []byte, tf TratadorResposta) {
+    log.Print("ComandoCentral: Enviando ", HexPrint(pacote))
+    comando.timeout.Restart()
+    comando.tratador_resposta = tf
+    comando.tcp.Send(pacote)
+    if tf == nil {
+        // fecha conexão no sentido tx
+        comando.tcp.Send(nil)
+    }
+}
+
 // Encerra a comunicação com a central de forma "civilizada"
+// Invocado tanto aqui como pela subclasse
 func (comando *ComandoCentral) Despedida() {
     log.Print("ComandoCentral: Despedindo")
     pacote := PacoteIsecNet2Bye()
     comando.EnviarPacote(pacote, nil)
     // reportar sucesso para camadas superiores, ao encerrar
     comando.status = 0
+}
+
+// Aborta o comando
+// Invocado tanto aqui como pela subclasse
+func (comando *ComandoCentral) Bye() {
+    comando.observer.Resultado(comando.status)
+    comando.tcp.Close()
+}
+
+// Bloqueia até o comando ser concluído
+// Invocado pelo usuário
+func (comando *ComandoCentral) Wait() {
+    <-comando.wait
 }
