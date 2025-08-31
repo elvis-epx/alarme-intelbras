@@ -183,7 +183,7 @@ func (h *TCPSession) Close() {
 
 // Create new Timeout owned by this session
 func (h *TCPSession) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
-    to := h.timeouts.Timeout(avgto, fudge, cbchmsg)
+    to := h.timeouts.Timeout(avgto, fudge, h.Events, cbchmsg)
     log.Printf("TCPSession %p: new owned timeout %p", h, to)
     return to
 }

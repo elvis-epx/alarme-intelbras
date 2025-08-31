@@ -64,6 +64,9 @@ func NewTCPServer(addr string) (*TCPServer, error) {
     return s, nil
 }
 
+// I accept ideas on how to avoid usage of the mutex while keeping the semantic
+// i.e. TCPSession children may survive a closed TCPServer
+
 // Should not be called by user. This is a callback for TCPSessions. May be called by any goroutine
 func (s *TCPServer) Closed(session *TCPSession) {
     // make sure s.Events remains consistent (open and not nil, or closed and nil)
@@ -81,7 +84,7 @@ func (s *TCPServer) Closed(session *TCPSession) {
 // Create new Timeout owned by this server 
 // (meaning it is automatically stopped and released when the server is closed)
 func (s *TCPServer) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
-    to := s.timeouts.Timeout(avgto, fudge, cbchmsg)
+    to := s.timeouts.Timeout(avgto, fudge, s.Events, cbchmsg)
     log.Printf("TCPServer %p: new owned timeout %p", s, to)
     return to
 }

@@ -4,6 +4,7 @@ import (
     "time"
     "math/rand/v2"
     "log"
+    "sync"
 )
 
 // Base type of user-facing event loops
@@ -27,7 +28,7 @@ type TimeoutInfo struct {
 
 // Timeout struct
 type Timeout struct {
-    ownerch chan TimeoutOwnerControl
+    owner *TimeoutOwner
     control chan TimeoutControl // must be bufferless, see Free() and "free" event
     info chan TimeoutInfo
 }
@@ -44,9 +45,9 @@ type TimeoutPriv struct {
     cbchmsg string
 }
 
-func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string, ownerch chan TimeoutOwnerControl) (*Timeout) {
+func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string, owner *TimeoutOwner) (*Timeout) {
     timeout := new(Timeout)
-    timeout.ownerch = ownerch
+    timeout.owner = owner
     timeout.control = make(chan TimeoutControl)
     timeout.info = make(chan TimeoutInfo)
 
@@ -58,8 +59,8 @@ func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchm
     priv.cbchmsg = cbchmsg
 
     // add to owner here so we are sure this happens before timeout is started and potentially emits any events
-    if ownerch != nil {
-        ownerch <- TimeoutOwnerControl{"own", timeout}
+    if owner != nil {
+        owner.own(timeout)
     }
 
     go timeout.handler(priv)
@@ -139,8 +140,8 @@ func (timeout *Timeout) Reset(avgto time.Duration, fudge time.Duration) {
 // Non-reentrant, non-idempotent!
 // Caller must guarantee the timeout isn't and won't be Free()d by another goroutine
 func (timeout *Timeout) Free() {
-    if timeout.ownerch != nil {
-        timeout.ownerch <- TimeoutOwnerControl{"disown", timeout}
+    if timeout.owner != nil {
+        timeout.owner.disown(timeout)
     }
     timeout.free_in()
 }
@@ -167,63 +168,46 @@ func (timeout *Timeout) Remaining() (time.Duration) {
     return info.eta.Sub(time.Now()) 
 }
 
-// Timeout owner that is part of by e.g. TCPSession and TCPServer
+// Timeout owner that is part of a TCPSession or a TCPServer
 
 type TimeoutOwner struct {
-    cbch chan Event
-    control chan TimeoutOwnerControl        // Changes to be applied to map above
-    released chan struct{}                  // Closes on full release
-}
-
-type TimeoutOwnerControl struct {
-    name string     // control event name
-    to *Timeout 
+    timeouts map[*Timeout]bool
+    mutex sync.Mutex
 }
 
 func NewTimeoutOwner(cbch chan Event) *TimeoutOwner {
     t := new(TimeoutOwner)
-    t.cbch = cbch
-    t.control = make(chan TimeoutOwnerControl) // unbuffered, synchronous
-    t.released = make(chan struct{})
-
-    go func() {
-        timeouts := make(map[*Timeout]bool)
-
-        for cmd := range t.control {
-            switch cmd.name {
-            case "own":
-                // Emitted by Timeout creation
-                // log.Printf("Owned timeout %p", cmd.to)
-                timeouts[cmd.to] = true
-
-            case "disown":
-                // Emitted by Timeout.Free()
-                log.Printf("Disowned timeout %p", cmd.to)
-                delete(timeouts, cmd.to)
-
-            case "release":
-                // Emitted.by self.Release()
-                for to := range timeouts {
-                    log.Printf("Released timeout %p", to)
-                    to.free_in() // does not emit "disown" command
-                }
-                close(t.control)
-                close(t.released)
-            }
-        }
-    }()
-
+    t.timeouts = make(map[*Timeout]bool)
     return t
 }
 
+// Own a timeout. Called by NewTimeout()
+func (t *TimeoutOwner) own(to *Timeout) {
+    t.mutex.Lock()
+    defer t.mutex.Unlock()
+    t.timeouts[to] = true
+}
+
+// Disown a timeout. Called by Timeout.Free()
+func (t *TimeoutOwner) disown(to *Timeout) {
+    t.mutex.Lock()
+    defer t.mutex.Unlock()
+    delete(t.timeouts, to)
+    log.Printf("Disowned timeout %p", to)
+}
+
 // Synchronously stop and release all owned Timeouts
-// Caller must guarantee it is not Free()ing the same timeouts in other goroutines
 func (t *TimeoutOwner) Release() {
-    t.control <- TimeoutOwnerControl{"release", nil}
-    <-t.released
+    t.mutex.Lock()
+    defer t.mutex.Unlock()
+    for to := range t.timeouts {
+        to.free_in() // Freeing timeout this way won't call disown() back (would be a deadlock)
+        log.Printf("Released timeout %p", to)
+    }
+    t.timeouts = make(map[*Timeout]bool)
 }
 
 // Create new owned Timeout
-func (t *TimeoutOwner) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
-    return NewTimeout(avgto, fudge, t.cbch, cbchmsg, t.control)
+func (t *TimeoutOwner) Timeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string) (*Timeout) {
+    return NewTimeout(avgto, fudge, cbch, cbchmsg, t)
 }
