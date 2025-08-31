@@ -5,6 +5,7 @@ import (
     "io"
     "log"
     "time"
+    "sync"
 )
 
 type tcpsessionevent struct {
@@ -28,8 +29,7 @@ type TCPSession struct {
     to_send chan []byte         // send queue
     send_queue_depth int
 
-    waitgroup chan struct{}    // check all goroutines have stopped
-
+    waitgroup sync.WaitGroup
     timeouts *TimeoutOwner     // Timeouts associated with this session
 }
 
@@ -67,11 +67,6 @@ func NewTCPSession(owner TCPSessionOwner) *TCPSession {
 
     h.timeouts = NewTimeoutOwner(h.Events)
 
-    // buffer must be >= 1 to avoid deadlock if Close() called upon unstarted session
-    h.waitgroup = make(chan struct{}, 1)
-
-    h.conn = nil
-
     return h
 }
 
@@ -79,28 +74,8 @@ func (h *TCPSession) Start(conn *net.TCPConn) {
     h.conn = conn
     h.Events <- Event{"Connected", nil}
 
-    go h.recv()
-    go h.send()
-
-    // "deferred" teardown, only for sessions that have been Start()ed
-    go func() {
-        // wait on Close(), go send() and go recv()
-        <-h.waitgroup
-        <-h.waitgroup
-        <-h.waitgroup
-
-        // Close() is still running and draining h.Events at this point,
-        // so if any timeout triggers meanwhile, it won't block on h.Events
-        h.timeouts.Release()
-
-        // Disengage user and ongoing Close()
-        close(h.Events)
-
-        // Notify owner e.g. TCPServer
-        h.owner.Closed(h)
-
-        log.Printf("TCPSession %p: exited -------------", h)
-    }()
+    h.waitgroup.Go(h.recv)
+    h.waitgroup.Go(h.send)
 
     log.Printf("TCPSession %p ==================", h)
 }
@@ -123,9 +98,6 @@ func (h *TCPSession) recv() {
         log.Printf("TCPSession %p: gorecv: received %d", h, n)
         h.Events <- Event{"Recv", data[:n]}
     }
-
-    // Signals session teardown goroutine
-    h.waitgroup <- struct{}{}
 
     log.Printf("TCPSession %p: gorecv: exited", h)
 }
@@ -166,9 +138,6 @@ loop:
     for range h.to_send {
     }
 
-    // Signals session teardown goroutine
-    h.waitgroup <-struct{}{}
-
     log.Printf("TCPSession %p: gosend: exited", h)
 }
 
@@ -196,13 +165,20 @@ func (h *TCPSession) Close() {
     // indirectly stops send goroutine, if running
     close(h.to_send)
 
-    // Signals session teardown goroutine, if running
-    h.waitgroup <-struct{}{}
+    // To go in parallel with the events drainer
+    go func() {
+        h.timeouts.Release()
+        h.waitgroup.Wait()     // wait for send() and recv() to stop
+        close(h.Events)        // Disengage user, as well as events drainer
+        h.owner.Closed(h)      // Notify owner e.g. TCPServer
+    }()
 
-    // Blocks until h.Events is closed by main session' own goroutine
+    // Drains outstanding events until channel closed
     for evt := range h.Events {
         log.Printf("TCPSession %p: drained %s", h, evt.Name)
     }
+
+    log.Printf("TCPSession %p: exited -------------", h)
 }
 
 // Create new Timeout owned by this session
