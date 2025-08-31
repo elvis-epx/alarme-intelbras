@@ -5,16 +5,14 @@ import (
     "time"
     "log"
     "errors"
+    "sync"
 )
 
 type TCPServer struct {
     Events chan Event
     listener net.Listener
-
     timeouts *TimeoutOwner      // Timeouts associated with this server
-
-    disowned bool               // For sessions calling Closed() after server already closed
-    disowned_sem chan struct {} // and its semaphore
+    mutex sync.Mutex            // Necessary to close channel among multiple channel writers
 }
 
 // Create TCP server
@@ -32,10 +30,6 @@ func NewTCPServer(addr string) (*TCPServer, error) {
         return nil, err
     }
     s.listener = listener
-
-    s.disowned = false
-    s.disowned_sem = make(chan struct{}, 1)
-    s.disowned_sem <-struct{}{}
 
     go func() {
         for {
@@ -56,12 +50,11 @@ func NewTCPServer(addr string) (*TCPServer, error) {
         listener.Close()
         s.timeouts.Release()
 
-        <-s.disowned_sem
-        s.disowned = true
-        s.disowned_sem <-struct{}{}
-
-        // disengage user
-        close(s.Events)
+        // close and nullify Events in tandem
+        s.mutex.Lock()
+        close(s.Events) // disengage user
+        s.Events = nil
+        s.mutex.Unlock()
 
         log.Printf("TCPServer: exited")
     }()
@@ -72,15 +65,16 @@ func NewTCPServer(addr string) (*TCPServer, error) {
 
 // Should not be called by user. This is a callback for TCPSessions. May be called by any goroutine
 func (s *TCPServer) Closed(session *TCPSession) {
-    // protect the whole thing because close(s.Events) may happen between the test and the event
-    <-s.disowned_sem
-    if !s.disowned {
+    // make sure s.Events remains consistent (open and not nil, or closed and nil)
+    s.mutex.Lock()
+    defer s.mutex.Unlock()
+
+    if s.Events != nil {
         s.Events <-Event{"closed", session}
         log.Printf("TCPServer %p: closed owned TCPSession %p", s, session)
     } else {
         log.Printf("TCPServer %p: closed disowned TCPSession %p", s, session)
     }
-    s.disowned_sem <-struct{}{}
 }
 
 // Create new Timeout owned by this server 
@@ -94,8 +88,11 @@ func (s *TCPServer) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg st
 // Stops TCP server. It is guaranteed that no new Events are emitted after this.
 // Sessions already accepted by the user are not affected.
 func (s *TCPServer) Close() {
+    // copy because s.Events will be made nil
+    Events := s.Events
     s.listener.Close()
-    for evt := range s.Events {
+    // drain remaining events until goroutine closes channel
+    for evt := range Events {
         log.Printf("TCPSserver %p: drained %s", s, evt.Name)
         if evt.Name == "new" {
             (evt.Cargo.(*TCPSession)).Close()
