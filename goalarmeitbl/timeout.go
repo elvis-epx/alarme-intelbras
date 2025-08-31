@@ -69,46 +69,37 @@ func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchm
     return timeout
 }
 
-// Only this goroutine (and upstream methods) can touch private data
+// Only this goroutine (and upstream restart()) can touch private data
 func (timeout *Timeout) handler(priv *TimeoutPriv) {
 loop:
     for {
         select {
         case cmd := <- timeout.control:
-           if !timeout.handle_command(priv, cmd) {
+            switch cmd.name {
+            case "reset":
+                priv.avgto = cmd.avgto
+                priv.fudge = cmd.fudge
+                timeout.restart(priv)
+            case "restart":
+                timeout.restart(priv)
+            case "trigger":
+                priv.alive = false
+                priv.cbch <- Event{priv.cbchmsg, timeout}
+            case "stop":
+                priv.impl.Stop()
+                priv.alive = false
+            case "free":
+                priv.impl.Stop()
+                priv.alive = false
+                // make sure program will panic if anybody tries to use this afterwards
+                close(timeout.control)
+                close(timeout.info)
                 break loop
             }
         case timeout.info <- TimeoutInfo{priv.eta, priv.alive}:
             continue
         }
     }
-}
-
-// called only by goroutine
-func (timeout *Timeout) handle_command(priv *TimeoutPriv, cmd TimeoutControl) (bool) {
-    switch cmd.name {
-    case "reset":
-        priv.avgto = cmd.avgto
-        priv.fudge = cmd.fudge
-        timeout.restart(priv)
-    case "restart":
-        timeout.restart(priv)
-    case "trigger":
-        priv.alive = false
-        priv.cbch <- Event{priv.cbchmsg, timeout}
-    case "stop":
-        priv.impl.Stop()
-        priv.alive = false
-    case "free":
-        priv.impl.Stop()
-        priv.alive = false
-        priv.cbch = nil
-        // make sure program will panic if anybody tries to use this afterwards
-        close(timeout.control)
-        close(timeout.info)
-        return false
-    }
-    return true
 }
 
 // called only by goroutine
@@ -180,7 +171,6 @@ func (timeout *Timeout) Remaining() (time.Duration) {
 
 type TimeoutOwner struct {
     cbch chan Event
-    timeouts map[*Timeout]bool              // Timeouts associated with this server
     control chan TimeoutOwnerControl        // Changes to be applied to map above
     released chan struct{}                  // Closes on full release
 }
@@ -193,31 +183,30 @@ type TimeoutOwnerControl struct {
 func NewTimeoutOwner(cbch chan Event) *TimeoutOwner {
     t := new(TimeoutOwner)
     t.cbch = cbch
-    t.timeouts = make(map[*Timeout]bool)
     t.control = make(chan TimeoutOwnerControl) // unbuffered, synchronous
     t.released = make(chan struct{})
 
-    // Actor goroutine
     go func() {
+        timeouts := make(map[*Timeout]bool)
+
         for cmd := range t.control {
             switch cmd.name {
             case "own":
                 // Emitted by Timeout creation
                 // log.Printf("Owned timeout %p", cmd.to)
-                t.timeouts[cmd.to] = true
+                timeouts[cmd.to] = true
 
             case "disown":
                 // Emitted by Timeout.Free()
                 log.Printf("Disowned timeout %p", cmd.to)
-                delete(t.timeouts, cmd.to)
+                delete(timeouts, cmd.to)
 
             case "release":
-                // Self-inflicted
-                for to := range t.timeouts {
+                // Emitted.by self.Release()
+                for to := range timeouts {
                     log.Printf("Released timeout %p", to)
                     to.free_in() // does not emit "disown" command
                 }
-                t.timeouts = make(map[*Timeout]bool)
                 close(t.control)
                 close(t.released)
             }
