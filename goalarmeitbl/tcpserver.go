@@ -22,6 +22,7 @@ type TCPServer struct {
 
 func NewTCPServer(addr string) (*TCPServer, error) {
     s := new(TCPServer)
+    // TODO configurable queue length
     s.Events = make(chan Event, 1)
     s.timeouts = NewTimeoutOwner(s.Events)
 
