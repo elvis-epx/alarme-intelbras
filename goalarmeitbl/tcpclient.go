@@ -54,7 +54,7 @@ func NewTCPClient(addr string) *TCPClient {
         }
 
         log.Printf("TCPClient %p: conn success", h)
-        // "Connected" event ie emitted by TCPSession
+        // "Connected" event is emitted by TCPSession
         // a) to guarantee it is the first one
         // b) to guarantee that session methods like Send() or Close() can be called as soon as
         //    Start() returns
