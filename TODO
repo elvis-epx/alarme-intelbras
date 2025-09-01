@@ -1,3 +1,4 @@
 Versão Go:
     - Mais testes + coverage
-    - ReceptorIP - checagem checksum opcional?
+    - Ligar/desligar log detalhado no config.cfg
+    - Revisar log x printf
