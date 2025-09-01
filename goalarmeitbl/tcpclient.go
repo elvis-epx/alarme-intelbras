@@ -16,11 +16,6 @@ type TCPClient struct {
     state chan string
 }
 
-type tcpclientevent struct {
-    name string
-    conn *net.TCPConn
-}
-
 // Creates a new TCPClient, that will embed a TCPSession if connection is successful
 // User should handle Connected || NotConnected events, and the TCPSession events after Connected
 func NewTCPClient(addr string) *TCPClient {
