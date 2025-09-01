@@ -6,6 +6,9 @@ para centrais de alarme Intelbras.
 Um objetivo secundário do projeto é fornecer uma documentação alternativa
 para os protocolos dessas centrais de alarme, no espírito "code-as-documentation".
 
+NOVIDADE: estamos trabalhando em uma [uma reimplementação em go](Go.md) que pode
+vir a ser a principal no futuro. [Verifique esta página](Go.md) para mais detalhes.
+
 ## Estado da implementação
 
 No momento, o receptor implementa o protocolo da forma mais correta
