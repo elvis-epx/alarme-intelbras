@@ -11,12 +11,6 @@ import (
 // Função que vai tratar a resposta vinda da central
 type TratadorResposta func (*ComandoCentral, int, []byte)
 
-// Observador do resultado final do comando
-type ObserverComando interface {
-    // invocado quando conexão termina
-    Resultado(int)
-}
-
 // Implementação ("subclasse") do comando à central
 type ComandoCentralSub interface {
     Autenticado(*ComandoCentral)
@@ -27,7 +21,7 @@ type ComandoCentralSub interface {
 type ComandoCentral struct {
     tcp *TCPClient
     sub ComandoCentralSub
-    observer ObserverComando
+    resultado chan int
     timeout *Timeout
     senha int
     tam_senha int
@@ -38,12 +32,12 @@ type ComandoCentral struct {
 }
 
 // Cria novo comando e inicia a conexão à central
-// Usuário deve chamar Wait() e receber o resultado através do callback ao observador
-func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serveraddr string, senha int, tam_senha int) *ComandoCentral {
+// Usuário deve chamar Resultado(), que bloqueia até a resoluç˜åo
+func NewComandoCentral(sub ComandoCentralSub, serveraddr string, senha int, tam_senha int) *ComandoCentral {
     comando := new(ComandoCentral)
     comando.tcp = NewTCPClient(serveraddr)
     comando.sub = sub
-    comando.observer = observer
+    comando.resultado = make(chan int)
     comando.timeout = comando.tcp.Timeout(15 * time.Second, 0, "Timeout")
     comando.senha = senha
     comando.tam_senha = tam_senha
@@ -186,12 +180,13 @@ func (comando *ComandoCentral) Despedida() {
 // Aborta o comando
 // Invocado tanto aqui como pela subclasse
 func (comando *ComandoCentral) Bye() {
-    comando.observer.Resultado(comando.status)
+    comando.resultado <-comando.status
+    // garante que fila de eventos é drenada e fechada
     comando.tcp.Close()
 }
 
 // Bloqueia até o comando ser concluído
 // Invocado pelo usuário
-func (comando *ComandoCentral) Wait() {
-    comando.wg.Wait()
+func (comando *ComandoCentral) Resultado() int {
+    return <-comando.resultado
 }

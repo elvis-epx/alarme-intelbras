@@ -9,18 +9,6 @@ import (
     // "io"
 )
 
-type Observador struct {
-}
-
-func (o *Observador) Resultado(res int) {
-    if (res == 0) {
-        fmt.Println("Sucesso")
-    } else {
-        fmt.Println("Fracasso")
-        os.Exit(2)
-    }
-}
-
 func usage(err string) {
     fmt.Printf("Uso: %s <endereço:porta> <senha> <tamanho senha> <comando> [partição ou zona]\n", os.Args[0])
     fmt.Println()
@@ -81,6 +69,12 @@ func main() {
         usage(errstring)
     }
     
-    c := goalarmeitbl.NewComandoCentral(sub, new(Observador), serveraddr, senha, tam_senha)
-    c.Wait()
+    c := goalarmeitbl.NewComandoCentral(sub, serveraddr, senha, tam_senha)
+    res := c.Resultado() // bloqueia
+    if (res == 0) {
+        fmt.Println("Sucesso")
+    } else {
+        fmt.Println("Fracasso")
+        os.Exit(2)
+    }
 }
