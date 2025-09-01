@@ -4,12 +4,13 @@ import (
     "fmt"
     "time"
     "os/exec"
+    "sync"
 )
 
 type ReceptorIP struct {
     tcp *TCPServer
     cfg ReceptorIPConfig
-    wait chan struct{}
+    wg sync.WaitGroup
     centrais_conectadas int
     cnc_alarme bool
 }
@@ -22,10 +23,9 @@ func NewReceptorIP(cfg ReceptorIPConfig) (*ReceptorIP, error) {
     if err != nil {
         return r, err
     }
-    r.wait = make(chan struct{}, 1)
     fmt.Println("ReceptorIP: inicio")
 
-    go func() {
+    r.wg.Go(func() {
         r.tcp.Timeout(15 * time.Second, 0, "Watchdog")
         r.tcp.Timeout(3600 * time.Second, 0, "Central_nc")
 
@@ -44,15 +44,15 @@ func NewReceptorIP(cfg ReceptorIPConfig) (*ReceptorIP, error) {
                 r.CentralNaoConectada(evt.Cargo.(*Timeout))
             }
         }
-        r.wait <-struct{}{}
+
         fmt.Println("ReceptorIP: fim ----")
-    }()
+    })
 
     return r, nil
 }
 
 func (r *ReceptorIP) Wait() {
-    <-r.wait
+    r.wg.Wait()
 }
 
 func (r *ReceptorIP) InvocaGancho(tipo string, msg string) {

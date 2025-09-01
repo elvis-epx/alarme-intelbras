@@ -5,6 +5,7 @@ import (
     "fmt"
     "time"
     "slices"
+    "sync"
 )
 
 // Função que vai tratar a resposta vinda da central
@@ -33,7 +34,7 @@ type ComandoCentral struct {
     buffer []byte
     tratador_resposta TratadorResposta
     status int
-    wait chan struct{}
+    wg sync.WaitGroup
 }
 
 // Cria novo comando e inicia a conexão à central
@@ -47,10 +48,9 @@ func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serverad
     comando.senha = senha
     comando.tam_senha = tam_senha
     comando.status = 1 // erro
-    comando.wait = make(chan struct{}, 1)
     log.Print("ComandoCentral: inicio")
 
-    go func() {
+    comando.wg.Go(func() {
         for evt := range comando.tcp.Events {
             switch evt.Name {
             case "Connected":
@@ -70,9 +70,8 @@ func NewComandoCentral(sub ComandoCentralSub, observer ObserverComando, serverad
                 comando.Bye()
             }
         }
-        comando.wait <-struct{}{}
         log.Print("ComandoCentral: fim ----")
-    }()
+    })
 
     return comando
 }
@@ -194,5 +193,5 @@ func (comando *ComandoCentral) Bye() {
 // Bloqueia até o comando ser concluído
 // Invocado pelo usuário
 func (comando *ComandoCentral) Wait() {
-    <-comando.wait
+    comando.wg.Wait()
 }
