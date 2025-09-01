@@ -16,7 +16,7 @@ type ReceptorIPConfig struct {
 
 func NewReceptorIPConfig(in io.Reader) (ReceptorIPConfig, error) {
     sec := "receptorip"
-    ganchos := []string{"gancho_arquivo", "gancho_central", "gancho_ev", "gancho_msg", "gancho_watchdog"}
+    ganchos := []string{"gancho_central", "gancho_ev", "gancho_msg", "gancho_watchdog"}
     c := ReceptorIPConfig{make(map[string]string), "", 9010, ""}
 
     p, err := configparser.ParseReaderWithOptions(in)
