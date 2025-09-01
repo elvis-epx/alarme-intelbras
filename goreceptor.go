@@ -5,7 +5,7 @@ import (
     "github.com/elvis-epx/alarme-intelbras/goalarmeitbl"
     "log"
     "os"
-    // "io"
+    "io"
 )
 
 func usage(err string) {
@@ -15,12 +15,16 @@ func usage(err string) {
 }
 
 func main() {
-    // log.SetOutput(io.Discard)
-    log.SetOutput(os.Stderr)
+    if os.Getenv("LOGITBL") != "" {
+        log.SetOutput(os.Stderr)
+    } else {
+        log.SetOutput(io.Discard)
+    }
 
     if len(os.Args) < 2 {
         usage("arquivo de configuração não especificado")
     }
+
     f, err := os.Open(os.Args[1])
     if err != nil {
         log.Print(err)
@@ -31,6 +35,11 @@ func main() {
         usage(fmt.Sprintf("Arquivo de configuração inválido: %v", err))
     }
     f.Close()
+
+    if cfg.LogLevel != "" {
+        log.SetOutput(os.Stderr)
+    }
+
     srv, err := goalarmeitbl.NewReceptorIP(cfg)
     if err != nil {
         usage(fmt.Sprintf("Falha ao iniciar receptor IP: %v", err))

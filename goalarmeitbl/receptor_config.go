@@ -11,12 +11,13 @@ type ReceptorIPConfig struct {
     Ganchos map[string]string
     Addr string
     Port int
+    LogLevel string
 }
 
 func NewReceptorIPConfig(in io.Reader) (ReceptorIPConfig, error) {
     sec := "receptorip"
     ganchos := []string{"gancho_arquivo", "gancho_central", "gancho_ev", "gancho_msg", "gancho_watchdog"}
-    c := ReceptorIPConfig{make(map[string]string), "", 9010}
+    c := ReceptorIPConfig{make(map[string]string), "", 9010, ""}
 
     p, err := configparser.ParseReaderWithOptions(in)
     if err != nil {
@@ -47,6 +48,11 @@ func NewReceptorIPConfig(in io.Reader) (ReceptorIPConfig, error) {
         }
     } else {
         fmt.Printf("Aviso: port não especificado, ouvindo na porta default %d\n", c.Port)
+    }
+
+    loglevel, err := p.Get(sec, "loglevel")
+    if err == nil {
+        c.LogLevel = loglevel
     }
 
     for _, gancho := range ganchos {

@@ -6,7 +6,7 @@ import (
     "github.com/elvis-epx/alarme-intelbras/goalarmeitbl"
     "log"
     "os"
-    // "io"
+    "io"
 )
 
 func usage(err string) {
@@ -25,8 +25,11 @@ func usage(err string) {
 }
 
 func main() {
-    // log.SetOutput(io.Discard)
-    log.SetOutput(os.Stderr)
+    if os.Getenv("LOGITBL") != "" {
+        log.SetOutput(os.Stderr)
+    } else {
+        log.SetOutput(io.Discard)
+    }
     if len(os.Args) < 5 {
         usage("Forneça os parâmetros necessários")
     }

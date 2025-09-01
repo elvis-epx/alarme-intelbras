@@ -1,4 +1,2 @@
 Versão Go:
     - Mais testes + coverage
-    - Ligar/desligar log detalhado no config.cfg
-    - Revisar log x printf
