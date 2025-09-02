@@ -22,7 +22,8 @@ Os recursos inexistentes na versão Go podem ser portados no futuro, se houver i
 
 ## Como rodar
 
-Construa o programa `goreceptor` usando o toolchain do Go.
+Construa o programa `goreceptor` usando o toolchain do Go, ou obtenha uma versão pré-compilada 
+[aqui.](builds/)
 
 Invoque o programa via linha de comando
 
@@ -67,7 +68,9 @@ devem existir e ser executáveis, mesmo que não façam nada útil.
 
 ## Enviar comandos à central
 
-Construa o programa `goreceptor` usando o toolchain do Go.
+Construa o programa `gocomandar` usando o toolchain do Go, ou obtenha uma versão pré-compilada 
+[aqui.](builds/)
+
 
 Invoque o programa via linha de comando
 
