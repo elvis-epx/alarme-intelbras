@@ -60,8 +60,6 @@ func (r *ReceptorIP) InvocaGancho(tipo string, msg string) {
     cmd := exec.Command(script, msg)
     if err := cmd.Run(); err != nil {
         fmt.Printf("ReceptorIP: script %s %s falhou com erro %v\n", tipo, script, err) 
-    } else {
-        fmt.Printf("ReceptorIP: script %s %s executado com sucesso\n", tipo, script)
     }
 }
 
