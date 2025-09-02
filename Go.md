@@ -8,15 +8,15 @@ visto que executáveis Go não têm dependências externas. Basta compilar e usa
 - A versão Go não suporta download de fotos, uma vez que não temos mais o sensor
 IVP 8000 Ex que possuía este recurso, e nunca fizemos uso dele na prática.
 
-- Não suporta limitação do número de conexões ou filtar pelo endereço MAC da central,
+- Não suporta limitação do número de conexões ou filtrar pelo endereço MAC da central,
 pois também eram recursos sem valor para nosso caso de uso.
 
 - Por consequência, o arquivo de configuração possui menos variáveis.
 
-- Os parâmetros do utilitário `gocomandar`, análogo à versão Python `comandar`, são
-fornecidos em ordem ligeiramente diferente, e mais lógica.
+- Os parâmetros do utilitário `gocomandar`, análogo à versão Python `comandar`, devem ser
+fornecidos em ordem ligeiramente diferente, e (em nossa opinião) mais lógica.
 
-Os recursos inexistentes na versão Go podem ser implementados no futuro, se houver interesse.
+Os recursos inexistentes na versão Go podem ser portados no futuro, se houver interesse.
 
 ## Como rodar
 
@@ -34,35 +34,34 @@ Exemplo de uso:
 goreceptor config.cfg
 ```
 
+Em produção, recomenda-se usar algum supervisor como `systemd`, Docker, etc.
+
 ## Arquivo de configuração
 
 O arquivo de configuração ``config.cfg`` é fornecido como modelo. Os parâmetros
 contidos dele, e relevantes para a implementação Go, são os seguintes:
 
 ``addr`` - interface de rede em que o Receptor IP aceitará conexões.
-Deve ser um endereço IPv4 válido. Use o endereço `0.0.0.0` se a interface
-é indiferente, ou se não tem certeza do endereço correto.
-
+Deve ser um endereço IPv4 válido, ou `0.0.0.0` para aceitar conexão via qualquer interface.
 Se não fornecido, o default é 0.0.0.0.
 
 ``port`` - porta em que o Receptor IP aceitará conexões. Deve ser um número.
-Normalmente será `9009`.
-
 Se não fornecido, o default é 9010.
 
-``loglevel`` - se presente, aumenta o nível de log, para fins de depuração. O mesmo efeito pode ser obtido setando a variável de ambiente LOGITBL para um valor qualquer.
+``loglevel`` - se presente, aumenta o nível de log, para fins de depuração. (O mesmo efeito pode ser obtido 
+com a variável de ambiente LOGITBL.)
 
-``gancho_msg`` - script invocado com mensagens humanamente legíveis de eventos.
+``gancho_msg`` - programa invocado com mensagens humanamente legíveis de eventos.
 
-``gancho_ev`` - script invocado com dados numéricos de eventos.
+``gancho_ev`` - programa invocado com dados numéricos de eventos.
 
-``gancho_central`` - script invocado quando nenhuma central está conectada ao Receptor,
+``gancho_central`` - programa invocado quando nenhuma central está conectada ao Receptor,
 para fins de detecção de falha de rede ou central sem comunicação.
 
-``gancho_watchdog`` - script invocado a cada 1h para fins de watchdog.
+``gancho_watchdog`` - programa invocado a cada 1h para fins de watchdog.
 
-Os parâmetros de gancho são obrigatórios e devem apontar para scripts vazios, porém executáveis e válidos, se não forem
-relevantes para seu caso de uso.
+Os parâmetros de gancho são obrigatórios, e os programas (ou mais provavelmente scripts) apontados por eles
+devem existir e ser executáveis, mesmo que não façam nada útil.
 
 ## Enviar comandos à central
 
@@ -74,8 +73,56 @@ Invoque o programa via linha de comando
 gocomandar <endereço:porta> <senha> <tamanho senha> <comando> [partição ou zona]
 ```
 
-O programa retorna status 0 se bem-sucedido e diferente de 0 em caso de falha, o que permite seu uso em scripts shell mais
-elaborados.
+Exemplo, com parte da saída:
+
+```
+$ gocomandar 192.168.50.12:9009 876543 6 status
+
+*******************************************
+Central AMT-8000
+Versão de firmware 2.3.1
+Status geral:
+	 Partição(ões) armada(s)
+	Zonas em alarme: Não
+	Zonas canceladas: Não
+	Todas zonas fechadas: Sim
+	Sirene: Não
+	Problemas: Não
+Partição 00:
+	Stay: Não
+	Delay de saída: Não
+	Pronto para armar: Sim
+	Alame ocorreu: Não
+	Em alarme: Não
+	Armado modo stay: Não
+	Armado: Não
+Partição 01:
+	Stay: Não
+	Delay de saída: Não
+	Pronto para armar: Sim
+	Alame ocorreu: Não
+	Em alarme: Não
+	Armado modo stay: Não
+	Armado: Sim
+Partição 02:
+	Stay: Não
+	Delay de saída: Não
+	Pronto para armar: Sim
+	Alame ocorreu: Não
+	Em alarme: Não
+	Armado modo stay: Não
+	Armado: Não
+Zonas abertas:
+Zonas em alarme:
+Zonas em bypass:
+Sirenes ligadas:
+*******************************************
+
+Sucesso
+```
+
+O programa `gocomandar` retorna status 0 se bem-sucedido e diferente de 0 em caso de falha, o que permite a integração com scripts
+shell e rotinas de automação.
 
 Comandos disponíveis: 
 
