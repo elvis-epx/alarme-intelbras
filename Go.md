@@ -1,7 +1,9 @@
 # Receptor IP Intelbras em Go
 
-A principal motivação de reimplementar este projeto em Go é a facilidade de instalação,
-visto que executáveis Go não têm dependências externas. Basta compilar e usar. 
+A principal motivação de reimplementar este projeto em Go é a facilidade de instalação
+e distribuição, visto que executáveis Go não têm dependências externas.
+
+Informalmente, oferecemos [versões pré-compiladas dos programas](builds/) para quem não deseja instalar o toolchain Go.
 
 ## Diferenças em relação à versão Python
 
