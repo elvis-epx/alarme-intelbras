@@ -1,6 +1,7 @@
 package goalarmeitbl
 
 import (
+    "fmt"
     "net"
     "io"
     "log"
@@ -18,7 +19,8 @@ type TCPSessionOwner interface {
 }
 
 type TCPSession struct {
-    owner TCPSessionOwner
+    parent *Parent
+    parent_mutex sync.Mutex     // concurrency between Disonwed() and Close()
 
     Events chan Event
     queue_depth int
@@ -49,12 +51,12 @@ type TCPSession struct {
 // Timeout API: Timeout() to create timeouts owned by this session
 // All APIs must not be called after Close()
 
-func NewTCPSession(owner TCPSessionOwner) *TCPSession {
+func NewTCPSession(parent *Parent) *TCPSession {
     // FIXME allow configuration of queue depths for high-throughput applications
     // FIXME allow configuration of recv buffer size
 
     h := new(TCPSession)
-    h.owner = owner
+    h.parent = parent
     // rationale for +1: "Sent" events + at least one "Recv"/error event
     h.queue_depth = 1
     h.send_queue_depth = 2
@@ -65,7 +67,7 @@ func NewTCPSession(owner TCPSessionOwner) *TCPSession {
     h.Events = make(chan Event, h.send_queue_depth + h.queue_depth)
     h.to_send = make(chan []byte, h.send_queue_depth)
 
-    h.timeouts = NewParent()
+    h.timeouts = NewParent("TCPSession", "Timeout", nil)
 
     return h
 }
@@ -170,7 +172,13 @@ func (h *TCPSession) Close() {
         h.timeouts.DisownAll()
         h.waitgroup.Wait()     // wait for send() and recv() to stop
         close(h.Events)        // Disengage user, as well as events drainer
-        h.owner.Closed(h)      // Notify owner e.g. TCPServer
+
+        h.parent_mutex.Lock()
+        if h.parent != nil {
+            h.parent.Died(h)   // Notify parent
+            h.parent = nil
+        }
+        h.parent_mutex.Unlock()
     }()
 
     // Drains outstanding events until channel closed
@@ -186,4 +194,15 @@ func (h *TCPSession) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg s
     to := NewTimeout(avgto, fudge, h.Events, cbchmsg, h.timeouts)
     log.Printf("TCPSession %p: new owned timeout %p", h, to)
     return to
+}
+
+// Does not do much (a session does not die because the server stopped)
+func (h *TCPSession) Disowned() {
+    h.parent_mutex.Lock()
+    h.parent = nil
+    h.parent_mutex.Unlock()
+}
+
+func (h *TCPSession) GetChildId() ChildId {
+    return ChildId(fmt.Sprintf("%p", h))
 }

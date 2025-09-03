@@ -102,7 +102,7 @@ func (timeout *Timeout) Free() {
     defer timeout.mutex.Unlock()
 
     if timeout.parent != nil {
-        timeout.parent.Disown(timeout)
+        timeout.parent.Died(timeout)
         timeout.parent = nil
     }
     timeout._stop()

@@ -20,7 +20,7 @@ type TCPClient struct {
 // User should handle Connected || NotConnected events, and the TCPSession events after Connected
 func NewTCPClient(addr string) *TCPClient {
     h := new(TCPClient)
-    h.Session = NewTCPSession(h)
+    h.Session = NewTCPSession(nil)
 
     // using TCPSession channel allows the user to keep listening to the same channel
     // regardless of TCPClient or TCPSession being in charge
@@ -60,10 +60,6 @@ func NewTCPClient(addr string) *TCPClient {
     }()
 
     return h
-}
-
-// not used, implemented just to satisfy the interface
-func (h *TCPClient) Closed(_ *TCPSession) {
 }
 
 // Public interface

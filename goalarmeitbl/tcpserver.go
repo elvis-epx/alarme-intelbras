@@ -5,18 +5,17 @@ import (
     "time"
     "log"
     "errors"
-    "sync"
 )
 
 type TCPServer struct {
     Events chan Event
     listener net.Listener
     timeouts *Parent            // Timeouts associated with this server
-    mutex sync.Mutex            // Necessary to close channel among multiple channel writers
+    sessions *Parent            // Sessions associated with this server
 }
 
 // Create TCP server
-// User must listen "new" Events channel to get TCPSession's and handle the sessions, at least Close() them
+// User must listen "New" Events channel to get TCPSession's and handle the sessions, at least Close() them
 // Timeout API: Timeout() to create timeouts owned by this server
 // All APIs must not be called after Close()
 
@@ -24,7 +23,8 @@ func NewTCPServer(addr string) (*TCPServer, error) {
     s := new(TCPServer)
     // TODO configurable queue length
     s.Events = make(chan Event, 1)
-    s.timeouts = NewParent()
+    s.timeouts = NewParent("TCPServer", "Timeout", nil)
+    s.sessions = NewParent("TCPServer", "TCPSession", s)
 
     listener, err := net.Listen("tcp", addr)
     if err != nil {
@@ -43,19 +43,15 @@ func NewTCPServer(addr string) (*TCPServer, error) {
                 continue
             }
             log.Print("TCPServer: accept new connection")
-            session := NewTCPSession(s)
+            session := NewTCPSession(s.sessions)
             session.Start(conn.(*net.TCPConn))
-            s.Events <-Event{"new", session}
+            s.Events <-Event{"New", session}
         }
 
         listener.Close()
         s.timeouts.DisownAll()
-
-        // close and nullify Events in tandem
-        s.mutex.Lock()
+        s.sessions.DisownAll()
         close(s.Events) // disengage user
-        s.Events = nil
-        s.mutex.Unlock()
 
         log.Printf("TCPServer: exited")
     }()
@@ -64,21 +60,11 @@ func NewTCPServer(addr string) (*TCPServer, error) {
     return s, nil
 }
 
-// I accept ideas on how to avoid usage of the mutex while keeping the semantic
-// i.e. TCPSession children may survive a closed TCPServer
-
-// Should not be called by user. This is a callback for TCPSessions. May be called by any goroutine
-func (s *TCPServer) Closed(session *TCPSession) {
-    // make sure s.Events remains consistent (open and not nil, or closed and nil)
-    s.mutex.Lock()
-    defer s.mutex.Unlock()
-
-    if s.Events != nil {
-        s.Events <-Event{"closed", session}
-        log.Printf("TCPServer %p: closed owned TCPSession %p", s, session)
-    } else {
-        log.Printf("TCPServer %p: closed disowned TCPSession %p", s, session)
-    }
+// Called back by TCPServer.sessions, before s.timeouts.DisownAll()
+func (s *TCPServer) ChildDied(_ string, _ string, child Child) {
+    session := child.(*TCPSession)
+    s.Events <-Event{"Closed", session}
+    // log.Printf("TCPServer %p: closed TCPSession %p", s, session)
 }
 
 // Create new Timeout owned by this server 
@@ -98,7 +84,7 @@ func (s *TCPServer) Close() {
     // drain remaining events until goroutine closes channel
     for evt := range Events {
         log.Printf("TCPSserver %p: drained %s", s, evt.Name)
-        if evt.Name == "new" {
+        if evt.Name == "New" {
             (evt.Cargo.(*TCPSession)).Close()
         }
     }
