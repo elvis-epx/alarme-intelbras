@@ -49,11 +49,12 @@ func (t *Parent) Adopt(child Child) {
 // called back by child
 func (t *Parent) Died(child Child) {
     t.mutex.Lock()
-    defer t.mutex.Unlock()
 
     child_id := child.GetChildId()
     delete(t.children, child_id)
     log.Printf("%s: Died %s %s", t.parent_name, t.child_name, child_id)
+
+    t.mutex.Unlock()
 
     if t.observer != nil {
         t.observer.ChildDied(t.parent_name, t.child_name, child)
@@ -66,7 +67,7 @@ func (t *Parent) DisownAll() {
     defer t.mutex.Unlock()
 
     for child_id := range t.children {
-        t.children[child_id].Disowned()
+        t.children[child_id].Disowned() // must not terminate siblings!
         log.Printf("%s: Disowned %s %s", t.parent_name, t.child_name, child_id)
     }
     t.children = make(map[ChildId]Child)
