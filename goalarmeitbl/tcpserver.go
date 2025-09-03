@@ -11,7 +11,7 @@ import (
 type TCPServer struct {
     Events chan Event
     listener net.Listener
-    timeouts *TimeoutOwner      // Timeouts associated with this server
+    timeouts *Parent            // Timeouts associated with this server
     mutex sync.Mutex            // Necessary to close channel among multiple channel writers
 }
 
@@ -24,7 +24,7 @@ func NewTCPServer(addr string) (*TCPServer, error) {
     s := new(TCPServer)
     // TODO configurable queue length
     s.Events = make(chan Event, 1)
-    s.timeouts = NewTimeoutOwner(s.Events)
+    s.timeouts = NewParent()
 
     listener, err := net.Listen("tcp", addr)
     if err != nil {
@@ -49,7 +49,7 @@ func NewTCPServer(addr string) (*TCPServer, error) {
         }
 
         listener.Close()
-        s.timeouts.Release()
+        s.timeouts.DisownAll()
 
         // close and nullify Events in tandem
         s.mutex.Lock()
@@ -84,7 +84,7 @@ func (s *TCPServer) Closed(session *TCPSession) {
 // Create new Timeout owned by this server 
 // (meaning it is automatically stopped and released when the server is closed)
 func (s *TCPServer) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
-    to := s.timeouts.Timeout(avgto, fudge, s.Events, cbchmsg)
+    to := NewTimeout(avgto, fudge, s.Events, cbchmsg, s.timeouts)
     log.Printf("TCPServer %p: new owned timeout %p", s, to)
     return to
 }

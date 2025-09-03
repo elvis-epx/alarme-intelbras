@@ -30,7 +30,7 @@ type TCPSession struct {
     send_queue_depth int
 
     waitgroup sync.WaitGroup
-    timeouts *TimeoutOwner     // Timeouts associated with this session
+    timeouts *Parent            // Timeouts associated with this session
 }
 
 // Creates new TCPSession. Indirectly invoked by TCPServer and TCPClient
@@ -65,7 +65,7 @@ func NewTCPSession(owner TCPSessionOwner) *TCPSession {
     h.Events = make(chan Event, h.send_queue_depth + h.queue_depth)
     h.to_send = make(chan []byte, h.send_queue_depth)
 
-    h.timeouts = NewTimeoutOwner(h.Events)
+    h.timeouts = NewParent()
 
     return h
 }
@@ -167,7 +167,7 @@ func (h *TCPSession) Close() {
 
     // To go in parallel with the events drainer
     go func() {
-        h.timeouts.Release()
+        h.timeouts.DisownAll()
         h.waitgroup.Wait()     // wait for send() and recv() to stop
         close(h.Events)        // Disengage user, as well as events drainer
         h.owner.Closed(h)      // Notify owner e.g. TCPServer
@@ -183,7 +183,7 @@ func (h *TCPSession) Close() {
 
 // Create new Timeout owned by this session
 func (h *TCPSession) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
-    to := h.timeouts.Timeout(avgto, fudge, h.Events, cbchmsg)
+    to := NewTimeout(avgto, fudge, h.Events, cbchmsg, h.timeouts)
     log.Printf("TCPSession %p: new owned timeout %p", h, to)
     return to
 }
