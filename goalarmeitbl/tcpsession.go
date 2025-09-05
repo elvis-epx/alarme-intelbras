@@ -9,11 +9,6 @@ import (
     "sync"
 )
 
-type tcpsessionevent struct {
-    name string
-    data []byte
-}
-
 type TCPSessionOwner interface {
     Closed(*TCPSession)
 }
