@@ -57,8 +57,8 @@ func (timeout *Timeout) _restart() {
 
     timeout.impl = time.AfterFunc(relative_eta, func() {
         timeout.mutex.Lock()
-        defer timeout.mutex.Unlock()
         timeout.alive = false
+        timeout.mutex.Unlock()
         timeout.cbch <- Event{timeout.cbchmsg, timeout}
     })
 }
