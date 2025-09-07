@@ -64,11 +64,17 @@ func (t *Parent) Died(child Child) {
 // called by real parent
 func (t *Parent) DisownAll() {
     t.mutex.Lock()
-    defer t.mutex.Unlock()
+    // copy list of children
+    children := make(map[ChildId]Child)
+    for k, v := range t.children {
+        children[k] = v
+    }
+    // clean list of children
+    t.children = make(map[ChildId]Child)
+    t.mutex.Unlock()
 
-    for child_id := range t.children {
-        t.children[child_id].Disowned() // must not terminate siblings!
+    for child_id, child := range children {
+        child.Disowned()
         log.Printf("%s: Disowned %s %s", t.parent_name, t.child_name, child_id)
     }
-    t.children = make(map[ChildId]Child)
 }

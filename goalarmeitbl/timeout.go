@@ -99,13 +99,14 @@ func (timeout *Timeout) Reset(avgto time.Duration, fudge time.Duration) {
 // Stop and free timeout. This timeout won't post events after the call returns.
 func (timeout *Timeout) Free() {
     timeout.mutex.Lock()
-    defer timeout.mutex.Unlock()
-
-    if timeout.parent != nil {
-        timeout.parent.Died(timeout)
-        timeout.parent = nil
-    }
     timeout._stop()
+    parent := timeout.parent
+    timeout.parent = nil
+    timeout.mutex.Unlock()
+
+    if parent != nil {
+        parent.Died(timeout)
+    }
 }
 
 // Called by Parent.DisownAll() - involuntary mass disown of all children
