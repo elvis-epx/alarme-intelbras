@@ -13,7 +13,7 @@ type TCPClient struct {
 
     conntimeout time.Duration
     cancel context.CancelFunc
-    state chan string
+    result chan string
 }
 
 // Creates a new TCPClient, that will embed a TCPSession if connection is successful
@@ -28,7 +28,8 @@ func NewTCPClient(addr string) *TCPClient {
 
     // FIXME allow to configure connection timeout, or allow to pass a context
     h.conntimeout = 60 * time.Second
-    h.state = make(chan string, 1)
+    // With buffer because reading connection result may be well after
+    h.result = make(chan string, 1)
 
     log.Printf("TCPClient %p ==================", h)
 
@@ -44,7 +45,7 @@ func NewTCPClient(addr string) *TCPClient {
             log.Printf("TCPClient %p: conn fail %v", h, err) // including ctx cancellation
             h.Events <- Event{"NotConnected", nil}
             close(h.Events) // user disengages
-            h.state <- "-"
+            h.result <- "-"
             return
         }
 
@@ -54,7 +55,7 @@ func NewTCPClient(addr string) *TCPClient {
         // b) to guarantee that session methods like Send() or Close() can be called as soon as
         //    Start() returns
         h.Session.Start(conn.(*net.TCPConn))
-        h.state <- "+"
+        h.result <- "+"
 
         log.Printf("TCPClient %p: TCPSession %p in charge -------", h, h.Session)
     }()
@@ -76,8 +77,8 @@ func (h *TCPClient) Send(data []byte) {
 func (h *TCPClient) Close() {
     // cancel context, if still relevant, to provoke closure of connect goroutine
     h.cancel()
-    // wait for connection goroutine to report status, or read its past status
-    <-h.state
+    // wait for connection goroutine to report, or get the past report
+    <-h.result
     h.Session.Close()
 }
 

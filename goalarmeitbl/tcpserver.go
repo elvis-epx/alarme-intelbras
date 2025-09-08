@@ -21,8 +21,8 @@ type TCPServer struct {
 
 func NewTCPServer(addr string) (*TCPServer, error) {
     s := new(TCPServer)
-    // TODO configurable queue length
-    s.Events = make(chan Event, 1)
+    // TODO configurable queue length. May be bufferless
+    s.Events = make(chan Event)
     s.timeouts = NewParent("TCPServer", "Timeout", nil)
     s.sessions = NewParent("TCPServer", "TCPSession", s)
 
@@ -78,11 +78,9 @@ func (s *TCPServer) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg st
 // Stops TCP server. It is guaranteed that no new Events are emitted after this.
 // Sessions already accepted by the user are not affected.
 func (s *TCPServer) Close() {
-    // copy because s.Events will be made nil
-    Events := s.Events
     s.listener.Close()
     // drain remaining events until goroutine closes channel
-    for evt := range Events {
+    for evt := range s.Events {
         log.Printf("TCPSserver %p: drained %s", s, evt.Name)
         if evt.Name == "New" {
             (evt.Cargo.(*TCPSession)).Close()

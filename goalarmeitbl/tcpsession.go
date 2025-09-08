@@ -52,10 +52,14 @@ func NewTCPSession(parent *Parent) *TCPSession {
 
     h := new(TCPSession)
     h.parent = parent
-    // rationale for +1: "Sent" events + at least one "Recv"/error event
     h.queue_depth = 1
     h.send_queue_depth = 2
-    if h.send_queue_depth <= 0 {
+    if h.queue_depth < 1 {
+        // At least 1 for the "Connected" event posted on Start(), when there is no one is reading Events
+        h.queue_depth = 1
+    }
+    if h.send_queue_depth < 1 {
+        // Should have a buffer of any sort otherwise Send() may block for unbound time
         h.send_queue_depth = 1
     }
     h.recv_buffer_size = 1500
@@ -169,11 +173,13 @@ func (h *TCPSession) Close() {
         close(h.Events)        // Disengage user, as well as events drainer
 
         h.parent_mutex.Lock()
-        if h.parent != nil {
-            h.parent.Died(h)   // Notify parent
-            h.parent = nil
-        }
+        parent := h.parent
+        h.parent = nil
         h.parent_mutex.Unlock()
+
+        if parent != nil {
+            parent.Died(h)
+        }
     }()
 
     // Drains outstanding events until channel closed
