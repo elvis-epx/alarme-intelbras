@@ -51,7 +51,7 @@ func (timeout *Timeout) _restart() {
         timeout.impl.Stop()
     }
 
-    relative_eta := timeout.avgto + 2 * timeout.fudge * time.Duration(rand.Float32() - 0.5)
+    relative_eta := timeout.avgto + time.Duration(2 * float64(timeout.fudge) * (rand.Float64() - 0.5))
     timeout.eta = time.Now().Add(relative_eta)
     timeout.alive = true
 
