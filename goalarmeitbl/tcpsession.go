@@ -1,6 +1,7 @@
 package goalarmeitbl
 
 import (
+    "fmt"
     "net"
     "io"
     "log"
@@ -8,17 +9,13 @@ import (
     "sync"
 )
 
-type tcpsessionevent struct {
-    name string
-    data []byte
-}
-
 type TCPSessionOwner interface {
     Closed(*TCPSession)
 }
 
 type TCPSession struct {
-    owner TCPSessionOwner
+    parent *Parent
+    parent_mutex sync.Mutex     // concurrency between Disonwed() and Close()
 
     Events chan Event
     queue_depth int
@@ -30,7 +27,7 @@ type TCPSession struct {
     send_queue_depth int
 
     waitgroup sync.WaitGroup
-    timeouts *TimeoutOwner     // Timeouts associated with this session
+    timeouts *Parent            // Timeouts associated with this session
 }
 
 // Creates new TCPSession. Indirectly invoked by TCPServer and TCPClient
@@ -49,23 +46,27 @@ type TCPSession struct {
 // Timeout API: Timeout() to create timeouts owned by this session
 // All APIs must not be called after Close()
 
-func NewTCPSession(owner TCPSessionOwner) *TCPSession {
+func NewTCPSession(parent *Parent) *TCPSession {
     // FIXME allow configuration of queue depths for high-throughput applications
     // FIXME allow configuration of recv buffer size
 
     h := new(TCPSession)
-    h.owner = owner
-    // rationale for +1: "Sent" events + at least one "Recv"/error event
+    h.parent = parent
     h.queue_depth = 1
     h.send_queue_depth = 2
-    if h.send_queue_depth <= 0 {
+    if h.queue_depth < 1 {
+        // At least 1 for the "Connected" event posted on Start(), when there is no one is reading Events
+        h.queue_depth = 1
+    }
+    if h.send_queue_depth < 1 {
+        // Should have a buffer of any sort otherwise Send() may block for unbound time
         h.send_queue_depth = 1
     }
     h.recv_buffer_size = 1500
     h.Events = make(chan Event, h.send_queue_depth + h.queue_depth)
     h.to_send = make(chan []byte, h.send_queue_depth)
 
-    h.timeouts = NewTimeoutOwner(h.Events)
+    h.timeouts = NewParent("TCPSession", "Timeout", nil)
 
     return h
 }
@@ -167,10 +168,18 @@ func (h *TCPSession) Close() {
 
     // To go in parallel with the events drainer
     go func() {
-        h.timeouts.Release()
+        h.timeouts.DisownAll()
         h.waitgroup.Wait()     // wait for send() and recv() to stop
         close(h.Events)        // Disengage user, as well as events drainer
-        h.owner.Closed(h)      // Notify owner e.g. TCPServer
+
+        h.parent_mutex.Lock()
+        parent := h.parent
+        h.parent = nil
+        h.parent_mutex.Unlock()
+
+        if parent != nil {
+            parent.Died(h)
+        }
     }()
 
     // Drains outstanding events until channel closed
@@ -183,7 +192,18 @@ func (h *TCPSession) Close() {
 
 // Create new Timeout owned by this session
 func (h *TCPSession) Timeout(avgto time.Duration, fudge time.Duration, cbchmsg string) (*Timeout) {
-    to := h.timeouts.Timeout(avgto, fudge, h.Events, cbchmsg)
+    to := NewTimeout(avgto, fudge, h.Events, cbchmsg, h.timeouts)
     log.Printf("TCPSession %p: new owned timeout %p", h, to)
     return to
+}
+
+// Does not do much (a session does not die because the server stopped)
+func (h *TCPSession) Disowned() {
+    h.parent_mutex.Lock()
+    h.parent = nil
+    h.parent_mutex.Unlock()
+}
+
+func (h *TCPSession) GetChildId() ChildId {
+    return ChildId(fmt.Sprintf("%p", h))
 }

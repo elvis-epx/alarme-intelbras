@@ -31,11 +31,11 @@ func NewReceptorIP(cfg ReceptorIPConfig) (*ReceptorIP, error) {
 
         for evt := range r.tcp.Events {
             switch evt.Name {
-            case "new":
+            case "New":
                 r.centrais_conectadas += 1
                 NewTratadorReceptorIP(r, evt.Cargo.(*TCPSession))
                 fmt.Printf("ReceptorIP: %d centrais conectadas\n", r.centrais_conectadas)
-            case "closed":
+            case "Closed":
                 r.centrais_conectadas -= 1
                 fmt.Printf("ReceptorIP: %d centrais conectadas\n", r.centrais_conectadas)
             case "Watchdog":

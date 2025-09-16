@@ -3,8 +3,8 @@ package goalarmeitbl
 import (
     "time"
     "math/rand/v2"
-    "log"
     "sync"
+    "fmt"
 )
 
 // Base type of user-facing event loops
@@ -15,7 +15,7 @@ type Event struct {
 
 type Timeout struct {
     mutex sync.Mutex
-    owner *TimeoutOwner
+    parent *Parent
 
     avgto time.Duration
     fudge time.Duration
@@ -27,18 +27,18 @@ type Timeout struct {
     cbchmsg string
 }
 
-func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string, owner *TimeoutOwner) (*Timeout) {
+func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string, parent *Parent) (*Timeout) {
     timeout := new(Timeout)
-    timeout.owner = owner
+    timeout.parent = parent
     timeout.avgto = avgto
     timeout.fudge = fudge
     timeout.eta = time.Now()
     timeout.cbch = cbch
     timeout.cbchmsg = cbchmsg
 
-    // add to owner here so we are sure this happens before timeout is started and potentially emits any events
-    if owner != nil {
-        owner.own(timeout)
+    // add to parent here so we are sure this happens before timeout is started and potentially emits any events
+    if parent != nil {
+        parent.Adopt(timeout)
     }
 
     timeout._restart()
@@ -51,14 +51,14 @@ func (timeout *Timeout) _restart() {
         timeout.impl.Stop()
     }
 
-    relative_eta := timeout.avgto + 2 * timeout.fudge * time.Duration(rand.Float32() - 0.5)
+    relative_eta := timeout.avgto + time.Duration(2 * float64(timeout.fudge) * (rand.Float64() - 0.5))
     timeout.eta = time.Now().Add(relative_eta)
     timeout.alive = true
 
     timeout.impl = time.AfterFunc(relative_eta, func() {
         timeout.mutex.Lock()
-        defer timeout.mutex.Unlock()
         timeout.alive = false
+        timeout.mutex.Unlock()
         timeout.cbch <- Event{timeout.cbchmsg, timeout}
     })
 }
@@ -99,13 +99,28 @@ func (timeout *Timeout) Reset(avgto time.Duration, fudge time.Duration) {
 // Stop and free timeout. This timeout won't post events after the call returns.
 func (timeout *Timeout) Free() {
     timeout.mutex.Lock()
+    timeout._stop()
+    parent := timeout.parent
+    timeout.parent = nil
+    timeout.mutex.Unlock()
+
+    if parent != nil {
+        parent.Died(timeout)
+    }
+}
+
+// Called by Parent.DisownAll() - involuntary mass disown of all children
+func (timeout *Timeout) Disowned() {
+    timeout.mutex.Lock()
     defer timeout.mutex.Unlock()
 
-    if timeout.owner != nil {
-        timeout.owner.disown(timeout)
-        timeout.owner = nil
-    }
+    timeout.parent = nil
     timeout._stop()
+}
+
+// Returns a unique ChildId
+func (timeout *Timeout) GetChildId() ChildId {
+    return ChildId(fmt.Sprintf("%p", timeout))
 }
 
 func (timeout *Timeout) Alive() (bool) {
@@ -123,51 +138,4 @@ func (timeout *Timeout) Remaining() (time.Duration) {
         return 0
     }
     return timeout.eta.Sub(time.Now()) 
-}
-
-// Timeout owner that is part of a TCPSession or a TCPServer
-
-type TimeoutOwner struct {
-    timeouts map[*Timeout]bool
-    mutex sync.Mutex
-}
-
-func NewTimeoutOwner(cbch chan Event) *TimeoutOwner {
-    t := new(TimeoutOwner)
-    t.timeouts = make(map[*Timeout]bool)
-    return t
-}
-
-// Own a timeout. Called by NewTimeout()
-func (t *TimeoutOwner) own(to *Timeout) {
-    t.mutex.Lock()
-    defer t.mutex.Unlock()
-
-    t.timeouts[to] = true
-}
-
-// Disown a timeout. Called by Timeout.Free()
-func (t *TimeoutOwner) disown(to *Timeout) {
-    t.mutex.Lock()
-    defer t.mutex.Unlock()
-
-    delete(t.timeouts, to)
-    log.Printf("Disowned timeout %p", to)
-}
-
-// Synchronously stop and release all owned Timeouts
-func (t *TimeoutOwner) Release() {
-    t.mutex.Lock()
-    defer t.mutex.Unlock()
-
-    for to := range t.timeouts {
-        to.Stop() // Timeout won't call disown(), no need to
-        log.Printf("Released timeout %p", to)
-    }
-    t.timeouts = make(map[*Timeout]bool)
-}
-
-// Create new owned Timeout
-func (t *TimeoutOwner) Timeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string) (*Timeout) {
-    return NewTimeout(avgto, fudge, cbch, cbchmsg, t)
 }

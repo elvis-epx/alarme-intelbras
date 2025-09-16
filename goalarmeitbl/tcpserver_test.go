@@ -138,10 +138,13 @@ func TestTCPServer(t *testing.T) {
         t.Error("TCP Server creation failed")
         return
     }
+
+    server_stopped := make(chan struct{})
+
     go func() {
         // Handles only one session and quits
         evt := <-srv.Events
-        if evt.Name != "new" {
+        if evt.Name != "New" {
             t.Error("TCP Server unexpected event", evt.Name)
             return
         }
@@ -158,12 +161,13 @@ func TestTCPServer(t *testing.T) {
         }
 
         evt = <-srv.Events
-        if evt.Name != "closed" {
+        if evt.Name != "Closed" {
             t.Error("TCP Server unexpected event ", evt.Name)
             return
         }
 
         srv.Close()
+        server_stopped <-struct{}{}
     }()
 
     // auxiliary client that exercises the server
@@ -179,4 +183,5 @@ func TestTCPServer(t *testing.T) {
             break
         }
     }
+    <-server_stopped
 }
