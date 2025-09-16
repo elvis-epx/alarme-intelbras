@@ -3,7 +3,10 @@
 A principal motivação de reimplementar este projeto em Go é a facilidade de instalação
 e distribuição, visto que executáveis Go não têm dependências externas.
 
-Informalmente, oferecemos [versões pré-compiladas dos programas](builds/) para quem não deseja instalar o toolchain Go.
+Informalmente, oferecemos [versões pré-compiladas dos programas](builds/) para quem não quer lidar com toolchains e
+instruções de compilação.
+
+Quem quiser fazer o build por conta própria, pode consultar o Makefile.
 
 ## Diferenças em relação à versão Python
 
