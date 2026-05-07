@@ -6,8 +6,19 @@ para centrais de alarme Intelbras.
 Um objetivo secundário do projeto é fornecer uma documentação alternativa
 para os protocolos dessas centrais de alarme, no espírito "code-as-documentation".
 
-NOVIDADE: estamos trabalhando em uma [uma reimplementação em Go](Go.md) que pode
-vir a ser a principal no futuro. [Verifique esta página](Go.md) para mais detalhes.
+# Por que a linguagem Go?
+
+A principal motivação de reimplementar este projeto em Go é a facilidade de instalação
+e distribuição, visto que executáveis Go não têm dependências externas.
+
+Informalmente, oferecemos [versões pré-compiladas dos programas](builds/) para quem não quer lidar com toolchains e
+instruções de compilação.
+
+Quem quiser fazer o build por conta própria, pode consultar o Makefile.
+
+E quem estiver interessado no código antigo em Python, consulte 
+[o branch "python"](https://github.com/elvis-epx/alarme-intelbras/tree/python) do
+repositório.
 
 ## Estado da implementação
 
@@ -15,9 +26,6 @@ No momento, o receptor implementa o protocolo da forma mais correta
 possível (até onde vai nosso entendimento) e interpreta todos os eventos
 listados na documentação (arme, desarme, disparo de zona, fechamento de
 zona, etc.), reportando mensagens legíveis.
-
-O programa também é capaz de fazer o download de fotos de disparos do sensor
-IVP-8000 Pet Cam.
 
 Há potencial de extensão, que reside nos ganchos. Os ganchos são scripts
 invocados em disparos (`gancho_msg`, `gancho_ev`, `gancho_arquivo` e outros).
@@ -37,15 +45,31 @@ protocolo pareça ser o mesmo para todas as centrais monitoradas via Internet.
 Uma vez que o protocolo não é criptografado, utilizamos VPN entre alarme e
 Receptor, e recomendamos que você faça o mesmo!
 
+## Como rodar
+
+Construa o programa `goreceptor` usando o toolchain do Go, ou obtenha uma versão pré-compilada 
+[aqui.](builds/)
+
+Invoque o programa via linha de comando
+
+```
+goreceptor <arquivo de configuração>
+```
+
+Exemplo de uso:
+
+```
+goreceptor config.cfg
+```
+
+Em produção, recomenda-se usar algum supervisor como `systemd`, Docker, etc.
+
 ## Limitações atuais
 
 No momento o receptor é apenas um programa de linha de comando.
-Não há pacote pronto de instalação nem imagem Docker. É
+Não há pacote Debian ou imagem Docker pronto para uso. É
 necessário que o usuário possua algum conhecimento de "devops"
 para fazer uso deste programa.
-
-O Receptor não verifica a versão de Python instalada em seu sistema, mas
-deve ser razoavelmente atual (mínimo absoluto 3.5, recomendado 3.8 ou acima).
 
 O programa é voltado para o nosso caso de uso, onde uma (ou poucas) centrais
 conectam-se a ele. Certamente o código pode ser adaptado para uso profissional
@@ -53,87 +77,32 @@ conectam-se a ele. Certamente o código pode ser adaptado para uso profissional
 centrais conectadas, com o log e os eventos de cada uma sendo tratados de forma
 independente, etc. mas não é nossa prioridade.
 
-## Como rodar
-
-Invoque o programa via linha de comando
-
-```
-./receptorip <arquivo de configuração>
-```
-
-Exemplo de uso:
-
-```
-./receptorip config.cfg
-```
-
 ## Arquivo de configuração
 
 O arquivo de configuração ``config.cfg`` é fornecido como modelo. Os parâmetros
-contidos dele são os seguintes:
+contidos dele, e relevantes para a implementação Go, são os seguintes:
 
 ``addr`` - interface de rede em que o Receptor IP aceitará conexões.
-Deve ser um endereço IPv4 válido. Use o endereço `0.0.0.0` se a interface
-é indiferente, ou se não tem certeza do endereço correto.
+Deve ser um endereço IPv4 válido, ou `0.0.0.0` para aceitar conexão via qualquer interface.
+Se não fornecido, o default é 0.0.0.0.
 
 ``port`` - porta em que o Receptor IP aceitará conexões. Deve ser um número.
-Normalmente será `9009`.
+Se não fornecido, o default é 9010.
 
-``caddr`` - endereço IP da central de alarme. Deve ser um endereço ou hostname válido,
-ou então `auto` para detecção automática.
+``loglevel`` - se presente, aumenta o nível de log, para fins de depuração. (O mesmo efeito pode ser obtido 
+com a variável de ambiente LOGITBL.)
 
-``cport`` - porta da central de alarme. Deve ser um número. Normalmente será 9009.
+``gancho_msg`` - programa invocado com mensagens humanamente legíveis de eventos.
 
-``senha`` - senha de acesso remoto da central (usuário 98), a mesma utilizada
-para acesso via app AMT Mobile. Deve ser um número.
+``gancho_ev`` - programa invocado com dados numéricos de eventos.
 
-``tamanho`` - tamanho da senha acima. Deve ser igual a `4` ou `6`.
+``gancho_central`` - programa invocado quando nenhuma central está conectada ao Receptor,
+para fins de detecção de falha de rede ou central sem comunicação.
 
-``folder_dlfoto`` - pasta em que serão gravadas as fotos obtidas de sensores IVP-8000 Pet Cam.
+``gancho_watchdog`` - programa invocado a cada 1h para fins de watchdog.
 
-``centrais`` - expressão regular que determina os IDs das centrais aceitas para conexão.
-
-``maxconn`` - número máximo de centrais conectadas e identificadas. Uma vez atingido esse número, conexões novas não são tratadas e acabam fechando por timeout.
-
-``logfile`` - arquivo de log (que também é ecoado no stdout). Informar ``None`` se não quiser que o log seja gravado em um arquivo.
-
-``gancho_msg`` - script invocado com mensagens humanamente legíveis de eventos.
-
-``gancho_ev`` - script invocado com dados numéricos de eventos.
-
-``gancho_arquivo`` - script invocado quando uma foto é obtida do IVP-8000 Pet Cam.
-
-``gancho_central`` - script invocado quando nenhuma central está conectada ao programa, para fins de detecção de falha de rede ou central sem comunicação.
-
-``gancho_watchdog`` - script invocado a cada 1h para fins de watchdog.
-
-Todos os parâmetros são obrigatórios e devem ser sintaticamente corretos, mesmo que não sejam utilizados no seu caso.
-
-Os parâmetros `caddr`, `cport`, `senha`, `tamanho` e `folder_dlfoto` são relevantes apenas para obter fotos 
-capturadas pelos sensores IVP-8000 Pet Cam. Se você não possui esse sensor, os valores não importam. Se deseja que
-o receptor IP não obtenha as fotos, informe uma senha incorreta.
-
-## Mais sobre autenticação da central
-
-Exemplos de expressões regulares válidas para ``centrais``:
-
-``.*`` qualquer ID de central
-
-``aa:bb:cc`` apenas a central com ID `aa:bb:cc`. (O ID da central é um pedaço de endereço MAC, com dígitos hexa minúsculos.)
-
-``aa:bb:(cd|ef)`` aceita as centrais `aa:bb:cd` e `aa:bb:ef`.
-
-``aa:bb:cd|aa:bb:ef`` idem.
-
-Utilize o script ``testa_re`` para testar sua expressão e ver se dá match :)
-
-As configurações ``centrais`` e ``maxconn`` são um mecanismo básico
-de filtragem contra conexões espúrias, para um Receptor IP rodando na nuvem e exposto
-à Internet.
-
-Porém, é totalmente desaconselhado contar apenas com isso
-para sua segurança! O ideal é usar VPN. Uma solução temporária razoável seria
-filtrar pela faixa de IPs do provedor que fornece conectividade à central de alarme.
+Os parâmetros de gancho são obrigatórios, e os programas (ou mais provavelmente scripts) apontados por eles
+devem existir e ser executáveis, mesmo que não façam nada útil.
 
 ## Mais sobre o número máximo de conexões
 
@@ -158,21 +127,6 @@ conexão continuamente, o que pode ser confuso quando a não se conhece a causa.
 
 De todo modo, a solução ideal é fazer o update de firmware para 2.0.6, o que
 pode inclusive ser comandado pelo app de configuração AMT Remoto Mobile.
-
-## Download de fotos versus NAT
-
-Quando o Receptor IP recebe uma conexão da central de alarme, o endereço IP
-de origem é anotado. Se o parâmetro ``caddr`` for igual a ``auto``, esse
-mesmo endereço é utilizado para fazer o callback à central na hora de obter as fotos
-do sensor IVP 8000 Pet Cam.
-
-Porém, isto não funcionará se o Receptor IP e a central estiverem em lados opostos
-de um roteador NAT e/ou de um provedor CGNAT. Será preciso usar alguma técnica para
-"furar o bloqueio", seja VPN, IP quente fixo, NAT reverso, etc.  O parâmetro ``caddr``
-deve ser preenchido com o endereço IP ou hostname através do qual se possa conectar à central.
-
-Note que expor sua central à conexões vindas da Internet é um furo de segurança.
-Alguma providência adicional (VPN, firewall) deve ser adotada.
 
 ## Scripts de gancho
 
@@ -219,54 +173,86 @@ Para o script `gancho_central`, sugerimos que ele envie uma notificação
 ao usuário, usando o mesmo método que o script `gancho_msg`, pois a falta
 de conexão da central é tão preocupante quanto um disparo de alarme.
 
-## Supervisão e deploy
-
-O aplicativo `receptorip` é construído e testado para ser robusto.
-Porém, devido a algum imprevisto, ou mesmo algum bug, ele pode parar
-inesperadamente. Alguma espécie de supervisor deve ser empregado para
-reiniciar o Receptor IP quando isto acontecer, de preferência notificando
-por e-mail para que a causa-raiz seja descoberta e consertada.
-
-Como somos da velha guarda, não somos muito fãs de Docker. Se serve de sugestão,
-a forma que nós mesmos rodamos nosso Receptor IP na nuvem é a seguinte:
-
-- Usamos o [PyInstaller](https://pyinstaller.org/en/stable/) para transformar os scripts ``receptorip`` e (se necessário) o ``comandar`` em executáveis de arquivo único, que podem ser copiados para ``/usr/local/bin`` e usados como se fossem utilitários Unix comuns.
-
-- Posicionar o arquivo de configuração e os scripts de gancho numa pasta em ``/etc``.
-
-- Usar o `systemd` como meio de iniciar e supervisionar o serviço `receptorip`.
-
 ## Enviar comandos à central
 
-O Receptor IP apenas recebe eventos da central. Em algumas situações, pode ser interessante
-enviar comandos à central. Por exemplo, ativar ou desativar o alarme de forma integrada com a
-automação residencial.
+Construa o programa `gocomandar` usando o toolchain do Go, ou obtenha uma versão pré-compilada 
+[aqui.](builds/)
 
-Para esse fim, oferecemos o script `comandar`.
 
-- Este script funciona de forma independente do Receptor IP, nem faz uso do arquivo de configuração. Você não precisa ter um Receptor IP funcionando para fazer uso deste script.
+Invoque o programa via linha de comando
 
-- Todos os parâmetros (endereço IP da central, senha) devem ser passados como parâmetros de linha de comando.
+```
+gocomandar <endereço:porta> <senha> <tamanho senha> <comando> [partição ou zona]
+```
 
-- Rode o script sem parâmetros para obter um texto de ajuda, bem como a lista de comandos suportados.
+Exemplo, com parte da saída:
 
-- O utilitário ainda está em desenvolvimento, ou seja, ainda estamos adicionando comandos e recursos.
+```
+$ gocomandar 192.168.50.12:9009 876543 6 status
 
-- O protocolo ISECNet v2, utilizado nesses comandos, é o mesmo utilizado para download de fotos do sensor IVP 8000 Pet Cam, e acreditamos que seja implementado apenas pela central AMT 8000.
+*******************************************
+Central AMT-8000
+Versão de firmware 2.3.1
+Status geral:
+	 Partição(ões) armada(s)
+	Zonas em alarme: Não
+	Zonas canceladas: Não
+	Todas zonas fechadas: Sim
+	Sirene: Não
+	Problemas: Não
+Partição 00:
+	Stay: Não
+	Delay de saída: Não
+	Pronto para armar: Sim
+	Alame ocorreu: Não
+	Em alarme: Não
+	Armado modo stay: Não
+	Armado: Não
+Partição 01:
+	Stay: Não
+	Delay de saída: Não
+	Pronto para armar: Sim
+	Alame ocorreu: Não
+	Em alarme: Não
+	Armado modo stay: Não
+	Armado: Sim
+Partição 02:
+	Stay: Não
+	Delay de saída: Não
+	Pronto para armar: Sim
+	Alame ocorreu: Não
+	Em alarme: Não
+	Armado modo stay: Não
+	Armado: Não
+Zonas abertas:
+Zonas em alarme:
+Zonas em bypass:
+Sirenes ligadas:
+*******************************************
 
-(Nota: O ISECNet também pode trafegar de forma multiplexada através da conexão entre a central e
-o Receptor IP, evitando a necessidade de abrir nova conexão TCP/IP com a central. Não
-implementamos essa modalidade, mas ela existe.)
+Sucesso
+```
 
-### Download manual de fotos
+O programa `gocomandar` retorna status 0 se bem-sucedido e diferente de 0 em caso de falha, o que permite a integração com scripts
+shell e rotinas de automação.
 
-O receptor tenta fazer o download de fotos de disparo assim que eles ocorrem.
-Mas é possível também fazê-lo a posteriori usando o script `comandar` abordado logo acima.
+Comandos disponíveis: 
 
-Para fazer download de uma foto, devem ser informados dois números: índice e número
-da foto. O índice da foto é informado na mensagem de disparo. O número da foto começa
-em 0. No caso do sensor IVP-8000 Pet Cam, duas fotos são tiradas por disparo (números
-de foto 0 e 1).
+- `nulo` apenas autentica na central.
+
+- `status` retorna informações sobre o status da central.
+
+- `ativar [partição]` ativa o alarme. Se a partição não for especificada, ativa todas.
+
+- `desativar [partição]` desativa o alarme.
+
+- `desligarsirene [partição]` desliga a sirene. Se a partição não for especificada, desliga para todas.
+
+- `limpardisparo` limpa registro de disparo
+
+- `bypass [zona]` Ativa o bypass de uma zona, ou seja, deixa de monitorá-la para fins de alarme. É obrigatório especificar a zona.
+
+- `cancelbypass [zona]` Desativa o bypass de uma zona.
 
 ## Motivação
 
