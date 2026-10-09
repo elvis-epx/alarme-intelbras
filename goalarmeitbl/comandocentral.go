@@ -32,7 +32,7 @@ type ComandoCentral struct {
 }
 
 // Cria novo comando e inicia a conexão à central
-// Usuário deve chamar Resultado(), que bloqueia até a resoluç˜åo
+// Usuário deve chamar Resultado(), que bloqueia até a resolução
 func NewComandoCentral(sub ComandoCentralSub, serveraddr string, senha int, tam_senha int) *ComandoCentral {
     comando := new(ComandoCentral)
     comando.tcp = NewTCPClient(serveraddr)
@@ -92,6 +92,7 @@ func (comando *ComandoCentral) parse() {
     if !PacoteIsecNet2Correto(pacote) {
         fmt.Println("ComandoCentral: Pacote incorreto, desistindo")
         comando.Bye()
+        return
     }
 
     cmd, payload := PacoteIsecNet2Parse(pacote)
@@ -110,6 +111,7 @@ func (comando *ComandoCentral) parse() {
     if comando.tratador_resposta == nil {
         log.Print("ComandoCentral: sem tratador")
         comando.Bye()
+        return
     }
     comando.tratador_resposta(comando, cmd, payload)
 }

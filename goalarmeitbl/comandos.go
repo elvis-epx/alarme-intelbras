@@ -66,6 +66,13 @@ func (comando *SolicitarStatus) RespostaStatus(super *ComandoCentral, cmd int, p
         return
     }
 
+    // Último campo interpretado é payload[63:65], após o octeto prefixado abaixo
+    if len(payload) < 64 {
+        fmt.Printf("RespostaStatus: resposta curta demais (%d octetos)\n", len(payload))
+        super.Bye()
+        return
+    }
+
     payload = slices.Concat([]byte{0x00}, payload)
     fmt.Println()
     fmt.Println()
