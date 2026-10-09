@@ -5,6 +5,7 @@ import (
     "log"
     "time"
     "slices"
+    "strconv"
     "github.com/ncruces/go-strftime"
 )
 
@@ -63,8 +64,8 @@ func (t *TratadorReceptorIP) msg_para_gancho(msg string) {
 }
 
 func (t *TratadorReceptorIP) ev_para_gancho(codigo int, particao int, zona int, qualificador int) {
-    msg := fmt.Sprintf("%d %d %d %d", codigo, particao, zona, qualificador)
-    t.receptor.InvocaGancho("ev", msg)
+    t.receptor.InvocaGancho("ev", strconv.Itoa(codigo), strconv.Itoa(particao),
+                            strconv.Itoa(zona), strconv.Itoa(qualificador))
 }
 
 func (t *TratadorReceptorIP) enviar(pacote PacoteRIP) {
@@ -155,7 +156,9 @@ func (t *TratadorReceptorIP) solicita_data_hora(pacote PacoteRIP) {
 }
 
 func (t *TratadorReceptorIP) evento_alarme(pacote PacoteRIP, com_foto bool) {
-    defer t.resposta_generica()
+    // Confirma recebimento imediatamente, antes de acionar os ganchos,
+    // para a central não retransmitir o evento
+    t.resposta_generica()
 
     evento := ParseRIPAlarme(pacote, com_foto)
     if !evento.Valido {

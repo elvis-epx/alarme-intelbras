@@ -1,11 +1,23 @@
 package goalarmeitbl
 
 import (
+    "context"
     "fmt"
     "time"
     "os/exec"
     "sync"
 )
+
+// Tempo máximo de execução de um script de gancho
+const timeoutGancho = 120 * time.Second
+
+// Profundidade da fila de ganchos pendentes
+const filaGanchos = 256
+
+type invocacaoGancho struct {
+    tipo string
+    args []string
+}
 
 type ReceptorIP struct {
     tcp *TCPServer
@@ -13,17 +25,28 @@ type ReceptorIP struct {
     wg sync.WaitGroup
     centrais_conectadas int
     cnc_alarme bool
+    ganchos chan invocacaoGancho
 }
 
 func NewReceptorIP(cfg ReceptorIPConfig) (*ReceptorIP, error) {
     r := new(ReceptorIP)
     r.cfg = cfg
+    r.ganchos = make(chan invocacaoGancho, filaGanchos)
     var err error
     r.tcp, err = NewTCPServer(fmt.Sprintf("%s:%d", cfg.Addr, cfg.Port))
     if err != nil {
         return r, err
     }
     fmt.Println("ReceptorIP: inicio")
+
+    // Ganchos são executados em série, numa goroutine dedicada, para que
+    // a) scripts lentos não bloqueiem a comunicação com as centrais, e
+    // b) a ordem dos eventos seja preservada
+    go func() {
+        for g := range r.ganchos {
+            r.executaGancho(g.tipo, g.args)
+        }
+    }()
 
     r.wg.Go(func() {
         r.tcp.Timeout(15 * time.Second, 0, "Watchdog")
@@ -55,17 +78,28 @@ func (r *ReceptorIP) Wait() {
     r.wg.Wait()
 }
 
-func (r *ReceptorIP) InvocaGancho(tipo string, msg string) {
+// Enfileira a invocação de um script de gancho. Não espera a execução.
+func (r *ReceptorIP) InvocaGancho(tipo string, args ...string) {
+    r.ganchos <- invocacaoGancho{tipo, args}
+}
+
+func (r *ReceptorIP) executaGancho(tipo string, args []string) {
     script := r.cfg.Ganchos["gancho_" + tipo]
-    cmd := exec.Command(script, msg)
+    ctx, cancel := context.WithTimeout(context.Background(), timeoutGancho)
+    defer cancel()
+    cmd := exec.CommandContext(ctx, script, args...)
     if err := cmd.Run(); err != nil {
-        fmt.Printf("ReceptorIP: script %s %s falhou com erro %v\n", tipo, script, err) 
+        if ctx.Err() != nil {
+            fmt.Printf("ReceptorIP: script %s %s abortado por timeout\n", tipo, script)
+        } else {
+            fmt.Printf("ReceptorIP: script %s %s falhou com erro %v\n", tipo, script, err)
+        }
     }
 }
 
 func (r *ReceptorIP) Watchdog(to *Timeout) {
     fmt.Println("receptor em funcionamento")
-    r.InvocaGancho("watchdog", "")
+    r.InvocaGancho("watchdog")
     to.Reset(3600 * time.Second, 0)
 }
 
@@ -74,12 +108,12 @@ func (r *ReceptorIP) CentralNaoConectada(to *Timeout) {
         if !r.cnc_alarme {
             r.cnc_alarme = true
             fmt.Println("nenhuma central conectada")
-            r.InvocaGancho("central", ", 1")
+            r.InvocaGancho("central", "1")
         }
     } else {
         if r.cnc_alarme {
             r.cnc_alarme = false
-            r.InvocaGancho("central", ", 0")
+            r.InvocaGancho("central", "0")
         }
     }
     to.Restart()
