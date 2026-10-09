@@ -418,7 +418,7 @@ func ParseRIPAlarme(pacote PacoteRIP, com_foto bool) RIPAlarme {
 
 	res.Codigo, err = ContactIDDecode(msg[8:11])
 	if err != nil {
-		res.Erro = "ParseRIPAlarme: qualificador inválido"
+		res.Erro = "ParseRIPAlarme: código inválido"
 		return res
 	}
 

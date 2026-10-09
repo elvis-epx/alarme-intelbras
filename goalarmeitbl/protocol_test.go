@@ -2,7 +2,9 @@ package goalarmeitbl
 
 import (
 	"bytes"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestChecksum(t *testing.T) {
@@ -191,5 +193,46 @@ func TestPacoteIsecNet2Parse(t *testing.T) {
 	if cmd != 0xcafe || !bytes.Equal(payload, []byte{0xba, 0xbe}) {
 		t.Errorf("failed II %x %d", cmd, len(payload))
 		return
+	}
+}
+
+func TestRIPRespostaDataHora(t *testing.T) {
+	// domingo
+	data := time.Date(2026, time.October, 11, 23, 4, 59, 0, time.Local)
+	esperado := []byte{0x08, 0x80, 0x26, 0x10, 0x11, 0x00, 0x23, 0x04, 0x59}
+	esperado = append(esperado, Checksum(esperado))
+	if r := RIPRespostaDataHora(data).Encode(); !bytes.Equal(r, esperado) {
+		t.Errorf("RIPRespostaDataHora: %s, esperado %s", HexPrint(r), HexPrint(esperado))
+	}
+}
+
+func TestParseRIPAlarmeTamanhoErrado(t *testing.T) {
+	if r := ParseRIPAlarme(PacoteRIP{true, 0xb0, make([]byte, 16)}, false); r.Valido {
+		t.Error("evento curto deveria ser inválido")
+	}
+	if r := ParseRIPAlarme(PacoteRIP{true, 0xb5, make([]byte, 17)}, true); r.Valido {
+		t.Error("evento com fotos curto deveria ser inválido")
+	}
+}
+
+func TestParseRIPAlarmeCampoInvalido(t *testing.T) {
+	valido := []byte{0x11, 1, 2, 3, 4, 1, 8, 1, 1, 3, 0x0a, 0x0a, 1, 0x0a, 0x0a, 5, 0x00}
+	casos := []struct {
+		posicao int
+		erro    string
+	}{
+		{1, "contact_id"},
+		{5, "tipo_msg"},
+		{8, "código"},
+		{11, "partição"},
+		{13, "zona"},
+	}
+	for _, caso := range casos {
+		dados := bytes.Clone(valido)
+		dados[caso.posicao] = 0x0f
+		r := ParseRIPAlarme(PacoteRIP{true, 0xb0, dados}, false)
+		if r.Valido || !strings.Contains(r.Erro, caso.erro) {
+			t.Errorf("posição %d: erro %q, esperado %q", caso.posicao, r.Erro, caso.erro)
+		}
 	}
 }
