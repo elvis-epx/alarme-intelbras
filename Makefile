@@ -1,28 +1,21 @@
-all: builds/goreceptor.linux.amd64 builds/goreceptor.linux.arm64 builds/goreceptor.darwin.amd64 builds/goreceptor.darwin.arm64 builds/gocomandar.linux.amd64 builds/gocomandar.linux.arm64 builds/gocomandar.darwin.amd64 builds/gocomandar.darwin.arm64
+PROGRAMAS = goreceptor gocomandar
+PLATAFORMAS = linux.amd64 linux.arm64 darwin.amd64 darwin.arm64
+
+BINARIOS = $(foreach p,$(PROGRAMAS),$(foreach s,$(PLATAFORMAS),builds/$(p).$(s)))
+FONTES = $(wildcard goalarmeitbl/*.go) go.mod go.sum
+
+all: $(BINARIOS)
 
 clean:
 	rm -f builds/*
 
-builds/goreceptor.linux.amd64: goreceptor.go goalarmeitbl/*.go
-	( GOOS=linux GOARCH=amd64 go build -o $@ goreceptor.go )
+test:
+	go vet ./...
+	go test -race ./...
 
-builds/goreceptor.linux.arm64: goreceptor.go goalarmeitbl/*.go
-	( GOOS=linux GOARCH=arm64 go build -o $@ goreceptor.go )
+# builds/<programa>.<os>.<arch>
+builds/%: $(FONTES) $(wildcard cmd/*/*.go)
+	GOOS=$(word 2,$(subst ., ,$*)) GOARCH=$(word 3,$(subst ., ,$*)) \
+		go build -trimpath -o $@ ./cmd/$(word 1,$(subst ., ,$*))
 
-builds/goreceptor.darwin.amd64: goreceptor.go goalarmeitbl/*.go
-	( GOOS=darwin GOARCH=amd64 go build -o $@ goreceptor.go )
-
-builds/goreceptor.darwin.arm64: goreceptor.go goalarmeitbl/*.go
-	( GOOS=darwin GOARCH=arm64 go build -o $@ goreceptor.go )
-
-builds/gocomandar.linux.amd64: gocomandar.go goalarmeitbl/*.go
-	( GOOS=linux GOARCH=amd64 go build -o $@ gocomandar.go )
-
-builds/gocomandar.linux.arm64: gocomandar.go goalarmeitbl/*.go
-	( GOOS=linux GOARCH=arm64 go build -o $@ gocomandar.go )
-
-builds/gocomandar.darwin.amd64: gocomandar.go goalarmeitbl/*.go
-	( GOOS=darwin GOARCH=amd64 go build -o $@ gocomandar.go )
-
-builds/gocomandar.darwin.arm64: gocomandar.go goalarmeitbl/*.go
-	( GOOS=darwin GOARCH=arm64 go build -o $@ gocomandar.go )
+.PHONY: all clean test

@@ -11,10 +11,18 @@ para os protocolos dessas centrais de alarme, no espírito "code-as-documentatio
 A principal motivação de reimplementar este projeto em Go é a facilidade de instalação
 e distribuição, visto que executáveis Go não têm dependências externas.
 
-Informalmente, oferecemos [versões pré-compiladas dos programas](builds/) para quem não quer lidar com toolchains e
+Informalmente, oferecemos [versões pré-compiladas dos programas](https://github.com/elvis-epx/alarme-intelbras/releases) para quem não quer lidar com toolchains e
 instruções de compilação.
 
-Quem quiser fazer o build por conta própria, pode consultar o Makefile.
+Quem quiser fazer o build por conta própria, pode usar o toolchain do Go diretamente:
+
+```
+go install github.com/elvis-epx/alarme-intelbras/cmd/goreceptor@latest
+go install github.com/elvis-epx/alarme-intelbras/cmd/gocomandar@latest
+```
+
+ou clonar o repositório e rodar `make`, que gera os executáveis de todas as
+plataformas no diretório `builds/`.
 
 E quem estiver interessado no código antigo em Python, consulte 
 [o branch "python"](https://github.com/elvis-epx/alarme-intelbras/tree/python) do
@@ -54,7 +62,7 @@ restrinja os endereços de origem.
 ## Como rodar
 
 Construa o programa `goreceptor` usando o toolchain do Go, ou obtenha uma versão pré-compilada 
-[aqui.](builds/)
+[aqui.](https://github.com/elvis-epx/alarme-intelbras/releases)
 
 Invoque o programa via linha de comando
 
@@ -185,7 +193,7 @@ de conexão da central é tão preocupante quanto um disparo de alarme.
 ## Enviar comandos à central
 
 Construa o programa `gocomandar` usando o toolchain do Go, ou obtenha uma versão pré-compilada 
-[aqui.](builds/)
+[aqui.](https://github.com/elvis-epx/alarme-intelbras/releases)
 
 
 Invoque o programa via linha de comando

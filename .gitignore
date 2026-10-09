@@ -4,5 +4,6 @@ log
 *.txt
 receptorip.log
 *.out
-goreceptor
-gocomandar
+/goreceptor
+/gocomandar
+builds/
