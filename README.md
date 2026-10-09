@@ -28,7 +28,7 @@ listados na documentação (arme, desarme, disparo de zona, fechamento de
 zona, etc.), reportando mensagens legíveis.
 
 Há potencial de extensão, que reside nos ganchos. Os ganchos são scripts
-invocados em disparos (`gancho_msg`, `gancho_ev`, `gancho_arquivo` e outros).
+invocados em disparos (`gancho_msg`, `gancho_ev` e outros).
 Neles, você pode adicionar código e fazer o compartilhamento dos eventos
 via e-mail, SMS, Telegram, PushOver, etc.
 
@@ -44,6 +44,12 @@ protocolo pareça ser o mesmo para todas as centrais monitoradas via Internet.
 
 Uma vez que o protocolo não é criptografado, utilizamos VPN entre alarme e
 Receptor, e recomendamos que você faça o mesmo!
+
+Note também que o Receptor IP aceita conexões de qualquer central, sem
+autenticação. Se a porta estiver exposta na Internet, qualquer um pode
+conectar-se a ela e injetar eventos falsos, que serão repassados aos
+ganchos. Mais um motivo para usar VPN, ou ao menos um firewall que
+restrinja os endereços de origem.
 
 ## Como rodar
 
@@ -121,31 +127,34 @@ Uma solução de contorno é cadastrar o Receptor 2 com um IP/porta inválido, m
 aí a central reportará falhas de entrega de evento ao Receptor 1 (de vez em quando),
 por não conseguir falar com o Receptor 2.
 
-Mencionamos estes problemas nesta seção porque, se você configurar o Receptor IP
-para aceitar apenas 1 conexão, a central pode ficar tentando criar uma segunda
-conexão continuamente, o que pode ser confuso quando a não se conhece a causa.
+A versão Go do Receptor IP não limita o número de conexões, portanto cada
+conexão paralela gera sua própria cópia dos eventos. (A versão Python permitia
+limitar as conexões; nesse caso, a central fica tentando criar uma segunda
+conexão continuamente, o que pode ser confuso quando não se conhece a causa.)
 
 De todo modo, a solução ideal é fazer o update de firmware para 2.0.6, o que
 pode inclusive ser comandado pelo app de configuração AMT Remoto Mobile.
 
 ## Scripts de gancho
 
-Se você deseja compartilhar as mensagens e fotos de disparo através
+Se você deseja compartilhar as mensagens de disparo através
 de algum serviço (email, SMS, WhatsApp, etc.) faça-o através dos
-scripts-gancho (`gancho_msg`, `gancho_ev` e `gancho_arquivo`).
+scripts-gancho (`gancho_msg` e `gancho_ev`).
 
 A localização dos diversos scripts de gancho é especificada no arquivo de configuração.
 Todos devem existir e ser executáveis; use scripts inócuos para ganchos que você
 não precise utilizar.
 
+Os ganchos são executados um de cada vez, na ordem em que os eventos ocorreram,
+sem bloquear a comunicação com a central (que recebe a confirmação do evento
+imediatamente). Um script que demore mais de 2 minutos é abortado.
+
 O script `gancho_msg` recebe e encaminha as mensagens de eventos.
 
-O script `gancho_ev` recebe e encaminha os códigos numéricos de eventos. Para
-conhecer os códigos, consulte a documentação da Intelbras ou o início do arquivo
-`alarmeitbl/tratador.py`.
-
-O script `gancho_arquivo` recebe e encaminha arquivos, mais especificamente
-as fotos capturadas pelo sensor IVP 8000 Pet Cam.
+O script `gancho_ev` recebe e encaminha os códigos numéricos de eventos, em quatro
+parâmetros: código do evento, partição, zona e qualificador. Para
+conhecer os códigos, consulte a documentação da Intelbras ou a tabela `EventosContactID`
+no início do arquivo `goalarmeitbl/protocol.go`.
 
 ## Ganchos de monitoramento
 
