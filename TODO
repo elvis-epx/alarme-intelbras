@@ -1,3 +1,8 @@
+Distribuição:
+    - Após merge do branch "claude" no main, criar a primeira tag de versão
+      (git tag v1.0.0 && git push origin v1.0.0) para publicar os binários
+      em GitHub Releases; até lá, os links do README apontam para página vazia
+
 Versão Go:
     - Download de fotos do sensor IVP-8000 Pet Cam (e gancho para repassá-las)
     - Autorizar apenas centrais conhecidas (conta e/ou MAC), como na versão Python
