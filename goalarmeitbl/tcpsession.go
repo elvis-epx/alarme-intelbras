@@ -153,15 +153,17 @@ loop:
 
 // Send data
 // empty slice = shutdown connection for sending
-// Returns false if send queue is full (data not queued)
+// Returns remaining send queue capacity, i.e. how many further Send() calls are
+// guaranteed to succeed, assuming a single sender; and false if send queue is full
+// (data not queued)
 // Listen for the "Sent" event to know when the queue is empty again
-func (h *TCPSession) Send(data []byte) bool {
+func (h *TCPSession) Send(data []byte) (int, bool) {
 	log.Printf("TCPSession %p: Send %d", h, len(data))
 	select {
 	case h.to_send <- data:
-		return true
+		return cap(h.to_send) - len(h.to_send), true
 	default:
-		return false
+		return 0, false
 	}
 }
 

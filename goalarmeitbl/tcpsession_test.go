@@ -26,7 +26,10 @@ func TestTCPSessionManyReplies(t *testing.T) {
 		var buf []byte
 		var pending [][]byte
 		flush := func() {
-			for len(pending) > 0 && session.Send(pending[0]) {
+			for len(pending) > 0 {
+				if _, ok := session.Send(pending[0]); !ok {
+					break
+				}
 				pending = pending[1:]
 			}
 		}
@@ -69,4 +72,19 @@ func TestTCPSessionManyReplies(t *testing.T) {
 
 	conn.Close()
 	<-server_stopped
+}
+
+// Send() reports remaining queue capacity, and failure when queue is full
+func TestTCPSessionSendCapacity(t *testing.T) {
+	// not started, so nothing consumes the send queue
+	s := NewTCPSession(nil)
+	for _, expected := range []int{1, 0} {
+		if n, ok := s.Send([]byte("x")); !ok || n != expected {
+			t.Errorf("Send() = %d, %v; expected %d, true", n, ok, expected)
+		}
+	}
+	if n, ok := s.Send([]byte("x")); ok || n != 0 {
+		t.Errorf("Send() = %d, %v; expected 0, false", n, ok)
+	}
+	s.Close()
 }
