@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 )
@@ -206,4 +207,35 @@ func TestTCPServerSessionOutlivesServer(t *testing.T) {
 	session.Close()
 	// parent notification happens in background, after Close() returns
 	time.Sleep(100 * time.Millisecond)
+}
+
+// Sessions closed (e.g. by peer) concurrently with server closure
+func TestTCPServerSessionsCloseWithServer(t *testing.T) {
+	for range 50 {
+		srv, err := NewTCPServer("127.0.0.1:54325")
+		if err != nil {
+			t.Fatal("TCP Server creation failed")
+		}
+		conns := make([]net.Conn, 8)
+		for i := range conns {
+			conns[i], err = net.Dial("tcp", "127.0.0.1:54325")
+			if err != nil {
+				t.Fatal("Dial failed")
+			}
+		}
+		// collect all sessions first, otherwise a "Closed" event could be taken as "New"
+		sessions := make([]*TCPSession, len(conns))
+		for i := range sessions {
+			sessions[i] = (<-srv.Events).Cargo.(*TCPSession)
+		}
+		var wg sync.WaitGroup
+		for _, session := range sessions {
+			wg.Go(session.Close)
+		}
+		srv.Close()
+		wg.Wait()
+		for _, conn := range conns {
+			conn.Close()
+		}
+	}
 }

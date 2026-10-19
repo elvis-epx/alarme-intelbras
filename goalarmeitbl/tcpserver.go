@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -12,6 +13,9 @@ type TCPServer struct {
 	listener net.Listener
 	timeouts *Parent // Timeouts associated with this server
 	sessions *Parent // Sessions associated with this server
+
+	closed_mutex sync.Mutex // concurrency between ChildDied() and closure of Events
+	closed       bool
 }
 
 // Create TCP server
@@ -51,7 +55,10 @@ func NewTCPServer(addr string) (*TCPServer, error) {
 		listener.Close()
 		s.timeouts.DisownAll()
 		s.sessions.DisownAll()
+		s.closed_mutex.Lock()
+		s.closed = true
 		close(s.Events) // disengage user
+		s.closed_mutex.Unlock()
 
 		log.Printf("TCPServer: exited")
 	}()
@@ -60,8 +67,13 @@ func NewTCPServer(addr string) (*TCPServer, error) {
 	return s, nil
 }
 
-// Called back by TCPServer.sessions, before s.timeouts.DisownAll()
+// Called back by TCPServer.sessions, possibly concurrently with server closure
 func (s *TCPServer) ChildDied(_ string, _ string, child Child) {
+	s.closed_mutex.Lock()
+	defer s.closed_mutex.Unlock()
+	if s.closed {
+		return
+	}
 	session := child.(*TCPSession)
 	s.Events <- Event{"Closed", session}
 	// log.Printf("TCPServer %p: closed TCPSession %p", s, session)
