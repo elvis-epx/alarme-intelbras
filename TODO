@@ -11,10 +11,3 @@ TCPSession/TCPServer/TCPClient/Timeout (avaliar um a um; tentativa de solução 
       conexão. Janela estreita
     - Timeout: callback do AfterFunc pode enviar para Events depois de close(Events) em
       TCPSession.Close() (pânico); callback não é esperado por DisownAll(). Janela estreita
-    - TCPSession: deadlock se o par enviar vários pacotes em sequência e o tratador
-      responder com Send() a cada um (to_send e Events cheios ao mesmo tempo). Não ocorre
-      no protocolo Intelbras (um pacote por vez); relevante para reuso em outros protocolos
-    - TCPSession: evento "Sent" a cada bloco enviado ocupa Events; talvez um só quando a
-      fila esvazia (depende do item anterior)
-    - TCPSession: Send() após Close() causa pânico. Contrato já proíbe; provavelmente
-      não precisa mudar

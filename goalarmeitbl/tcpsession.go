@@ -36,7 +36,7 @@ type TCPSession struct {
 //
 // User must handle the following Events:
 // "Recv" + []byte: data received
-// "Sent" + int: data chunk sent, "n" chunks to go
+// "Sent" + int: send queue emptied (always 0)
 // "RecvEof": connection closed in rx direction
 // "SendEof": connection closed in tx direction
 // "Err": error, connection no longer valid (still must call Close() to release it)
@@ -132,7 +132,9 @@ loop:
 			data = data[n:]
 		}
 
-		h.Events <- Event{"Sent", len(h.to_send)}
+		if len(h.to_send) == 0 {
+			h.Events <- Event{"Sent", 0}
+		}
 	}
 
 	// Drain channel until closure
@@ -146,11 +148,16 @@ loop:
 
 // Send data
 // empty slice = shutdown connection for sending
-// May block if send queue is full. Session should have send queue deep enough for the use case
-// Listen for the "Sent" event to manage the queue
-func (h *TCPSession) Send(data []byte) {
+// Returns false if send queue is full (data not queued)
+// Listen for the "Sent" event to know when the queue is empty again
+func (h *TCPSession) Send(data []byte) bool {
 	log.Printf("TCPSession %p: Send %d", h, len(data))
-	h.to_send <- data
+	select {
+	case h.to_send <- data:
+		return true
+	default:
+		return false
+	}
 }
 
 // Close connection and release resources
