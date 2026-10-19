@@ -141,6 +141,22 @@ func TestComandosFalha(t *testing.T) {
 	}
 }
 
+func TestComandoNaoConectado(t *testing.T) {
+	// porta livre, sem ninguém escutando
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := listener.Addr().String()
+	listener.Close()
+
+	comando := NewComandoCentral(nil, addr, 1234, 4)
+	if comando.Resultado() != 1 {
+		t.Error("conexão falha deveria resultar em falha")
+	}
+	comando.wg.Wait()
+}
+
 func TestComandoChecksumErrado(t *testing.T) {
 	pacote := PacoteIsecNet2(0xf0f0, []byte{0x00})
 	pacote[len(pacote)-1] ^= 0xff

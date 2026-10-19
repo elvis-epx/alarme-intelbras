@@ -51,17 +51,17 @@ func NewComandoCentral(sub ComandoCentralSub, serveraddr string, senha int, tam_
 				comando.autenticar()
 			case "NotConnected":
 				fmt.Println("ComandoCentral: Conexão falhou")
-				comando.Bye()
+				comando.Bye(false) // TCPClient.Close() não pode ser chamado após NotConnected
 			case "Recv":
 				buf, _ := evt.Cargo.([]byte)
 				comando.buffer = slices.Concat(comando.buffer, buf)
 				comando.parse()
 			case "Timeout":
 				fmt.Println("ComandoCentral: Timeout")
-				comando.Bye()
+				comando.Bye(true)
 			case "SendEof", "RecvEof", "Err":
 				log.Print("ComandoCentral: Conexão terminada ", evt.Name)
-				comando.Bye()
+				comando.Bye(true)
 			}
 		}
 		log.Print("ComandoCentral: fim ----")
@@ -91,7 +91,7 @@ func (comando *ComandoCentral) parse() {
 
 	if !PacoteIsecNet2Correto(pacote) {
 		fmt.Println("ComandoCentral: Pacote incorreto, desistindo")
-		comando.Bye()
+		comando.Bye(true)
 		return
 	}
 
@@ -100,17 +100,17 @@ func (comando *ComandoCentral) parse() {
 
 	if cmd == 0xf0fd {
 		comando.parse_nak(payload)
-		comando.Bye()
+		comando.Bye(true)
 		return
 	} else if cmd == 0xf0f7 {
 		fmt.Println("ComandoCentral: central ocupada")
-		comando.Bye()
+		comando.Bye(true)
 		return
 	}
 
 	if comando.tratador_resposta == nil {
 		log.Print("ComandoCentral: sem tratador")
-		comando.Bye()
+		comando.Bye(true)
 		return
 	}
 	comando.tratador_resposta(comando, cmd, payload)
@@ -119,13 +119,13 @@ func (comando *ComandoCentral) parse() {
 func (comando *ComandoCentral) resposta_autenticacao(_ *ComandoCentral, cmd int, payload []byte) {
 	if cmd != 0xf0f0 {
 		fmt.Printf("ComandoCentral: auth resp inesperada %04x\n", cmd)
-		comando.Bye()
+		comando.Bye(true)
 		return
 	}
 
 	if len(payload) != 1 {
 		fmt.Println("ComandoCentral: auth resp invalida")
-		comando.Bye()
+		comando.Bye(true)
 		return
 	}
 
@@ -138,7 +138,7 @@ func (comando *ComandoCentral) resposta_autenticacao(_ *ComandoCentral, cmd int,
 
 	if resposta > 0 {
 		fmt.Printf("ComandoCentral: auth falhou por motivo %d\n", resposta)
-		comando.Bye()
+		comando.Bye(true)
 		return
 	}
 
@@ -181,10 +181,13 @@ func (comando *ComandoCentral) Despedida() {
 
 // Aborta o comando
 // Invocado tanto aqui como pela subclasse
-func (comando *ComandoCentral) Bye() {
+// fechar = false somente se a conexão não chegou a ser estabelecida
+func (comando *ComandoCentral) Bye(fechar bool) {
 	comando.resultado <- comando.status
-	// garante que fila de eventos é drenada e fechada
-	comando.tcp.Close()
+	if fechar {
+		// garante que fila de eventos é drenada e fechada
+		comando.tcp.Close()
+	}
 }
 
 // Bloqueia até o comando ser concluído

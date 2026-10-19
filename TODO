@@ -1,7 +1,4 @@
 TCPSession/TCPServer/TCPClient/Timeout (avaliar um a um; tentativa de solução no branch tcpsession-robustez):
-    - TCPClient: Close() após NotConnected fecha Events duas vezes (pânico). Reproduzível;
-      ComandoCentral.Bye() faz isso. Decidir se o contrato permite Close() após NotConnected
-      ou se ComandoCentral deve evitar a chamada
     - TCPServer: sessão fechada concorrentemente com TCPServer.Close() posta "Closed" em
       Events já fechado (pânico). O contrato diz que sessões sobrevivem ao servidor, então
       é alcançável; Parent.Died() remove o filho antes de chamar ChildDied(), e

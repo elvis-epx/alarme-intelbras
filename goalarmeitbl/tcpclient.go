@@ -74,6 +74,7 @@ func (h *TCPClient) Send(data []byte) bool {
 }
 
 // Close connection, or cancels it if still not established
+// Must not be called after NotConnected event (Events channel is already closed)
 func (h *TCPClient) Close() {
 	// cancel context, if still relevant, to provoke closure of connect goroutine
 	h.cancel()

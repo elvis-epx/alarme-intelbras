@@ -62,14 +62,14 @@ func sim_nao(valor int) string {
 func (comando *SolicitarStatus) RespostaStatus(super *ComandoCentral, cmd int, payload []byte) {
 	if cmd != 0x0b4a {
 		fmt.Printf("RespostaStatus: resp inesperada %04x\n", cmd)
-		super.Bye()
+		super.Bye(true)
 		return
 	}
 
 	// Último campo interpretado é payload[63:65], após o octeto prefixado abaixo
 	if len(payload) < 64 {
 		fmt.Printf("RespostaStatus: resposta curta demais (%d octetos)\n", len(payload))
-		super.Bye()
+		super.Bye(true)
 		return
 	}
 
@@ -138,7 +138,7 @@ func (comando *DesativarCentral) Autenticado(super *ComandoCentral) {
 func (comando *DesativarCentral) RespostaDesativarCentral(super *ComandoCentral, cmd int, payload []byte) {
 	if cmd != 0x401e {
 		fmt.Printf("DesativarCentral: resp inesperada %04x\n", cmd)
-		super.Bye()
+		super.Bye(true)
 		return
 	}
 
@@ -171,7 +171,7 @@ func (comando *AtivarCentral) Autenticado(super *ComandoCentral) {
 func (comando *AtivarCentral) RespostaAtivarCentral(super *ComandoCentral, cmd int, payload []byte) {
 	if cmd != 0x401e {
 		fmt.Printf("AtivarCentral: resp inesperada %04x\n", cmd)
-		super.Bye()
+		super.Bye(true)
 		return
 	}
 
@@ -202,7 +202,7 @@ func (comando *DesligarSirene) Autenticado(super *ComandoCentral) {
 func (comando *DesligarSirene) RespostaDesligarSirene(super *ComandoCentral, cmd int, payload []byte) {
 	if cmd != 0xf0fe {
 		fmt.Printf("DesligarSirene: resp inesperada %04x\n", cmd)
-		super.Bye()
+		super.Bye(true)
 		return
 	}
 
@@ -233,7 +233,7 @@ func (comando *BypassZona) Autenticado(super *ComandoCentral) {
 func (comando *BypassZona) RespostaBypassZona(super *ComandoCentral, cmd int, payload []byte) {
 	if cmd != 0xf0fe {
 		fmt.Printf("BypassZona: resp inesperada %04x\n", cmd)
-		super.Bye()
+		super.Bye(true)
 		return
 	}
 
@@ -263,7 +263,7 @@ func (comando *ReativarZona) Autenticado(super *ComandoCentral) {
 func (comando *ReativarZona) RespostaReativarZona(super *ComandoCentral, cmd int, payload []byte) {
 	if cmd != 0xf0fe {
 		fmt.Printf("ReativarZona: resp inesperada %04x\n", cmd)
-		super.Bye()
+		super.Bye(true)
 		return
 	}
 
@@ -291,7 +291,7 @@ func (comando *LimparDisparo) Autenticado(super *ComandoCentral) {
 func (comando *LimparDisparo) RespostaLimparDisparo(super *ComandoCentral, cmd int, payload []byte) {
 	if cmd != 0xf0fe {
 		fmt.Printf("LimparDisparo: resp inesperada %04x\n", cmd)
-		super.Bye()
+		super.Bye(true)
 		return
 	}
 
