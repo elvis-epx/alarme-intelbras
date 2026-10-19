@@ -1,5 +1,20 @@
-Versão Go:
-    - Download de fotos do sensor IVP-8000 Pet Cam (e gancho para repassá-las)
-    - Autorizar apenas centrais conhecidas (conta e/ou MAC), como na versão Python
-    - Limitar o número de conexões simultâneas, como na versão Python
-    - gocomandar: interpretar mais campos do status; cancelbypass de todas as zonas
+TCPSession/TCPServer/TCPClient/Timeout (avaliar um a um; tentativa de solução no branch tcpsession-robustez):
+    - TCPClient: Close() após NotConnected fecha Events duas vezes (pânico). Reproduzível;
+      ComandoCentral.Bye() faz isso. Decidir se o contrato permite Close() após NotConnected
+      ou se ComandoCentral deve evitar a chamada
+    - TCPServer: sessão fechada concorrentemente com TCPServer.Close() posta "Closed" em
+      Events já fechado (pânico). O contrato diz que sessões sobrevivem ao servidor, então
+      é alcançável; Parent.Died() remove o filho antes de chamar ChildDied(), e
+      DisownAll() não espera
+    - Timeout: evento já enfileirado não é cancelado por Restart()/Stop()/Free(). Ex.: dados
+      chegam junto com to_comm, parse() reinicia to_comm, mas o evento antigo fecha a
+      conexão. Janela estreita
+    - Timeout: callback do AfterFunc pode enviar para Events depois de close(Events) em
+      TCPSession.Close() (pânico); callback não é esperado por DisownAll(). Janela estreita
+    - TCPSession: deadlock se o par enviar vários pacotes em sequência e o tratador
+      responder com Send() a cada um (to_send e Events cheios ao mesmo tempo). Não ocorre
+      no protocolo Intelbras (um pacote por vez); relevante para reuso em outros protocolos
+    - TCPSession: evento "Sent" a cada bloco enviado ocupa Events; talvez um só quando a
+      fila esvazia (depende do item anterior)
+    - TCPSession: Send() após Close() causa pânico. Contrato já proíbe; provavelmente
+      não precisa mudar
