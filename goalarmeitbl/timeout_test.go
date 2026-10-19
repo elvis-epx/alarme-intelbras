@@ -65,3 +65,13 @@ loop:
 	to.Stop()
 	to.Free()
 }
+
+// Session closed while one of its timeouts is firing
+func TestTimeoutSessionClose(t *testing.T) {
+	for i := range 5000 {
+		s := NewTCPSession(nil)
+		s.Timeout(time.Duration(i%50)*time.Microsecond, 0, "foo")
+		time.Sleep(time.Duration(i%30) * time.Microsecond)
+		s.Close()
+	}
+}

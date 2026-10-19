@@ -25,6 +25,10 @@ type Timeout struct {
 
 	cbch    chan Event
 	cbchmsg string
+
+	freed   bool           // Free() or Disowned() called, no more events
+	done    chan struct{}  // closed when freed, releases callback blocked on cbch
+	sending sync.WaitGroup // callback posting event
 }
 
 func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchmsg string, parent *Parent) *Timeout {
@@ -35,6 +39,7 @@ func NewTimeout(avgto time.Duration, fudge time.Duration, cbch chan Event, cbchm
 	timeout.eta = time.Now()
 	timeout.cbch = cbch
 	timeout.cbchmsg = cbchmsg
+	timeout.done = make(chan struct{})
 
 	// add to parent here so we are sure this happens before timeout is started and potentially emits any events
 	if parent != nil {
@@ -57,15 +62,34 @@ func (timeout *Timeout) _restart() {
 
 	timeout.impl = time.AfterFunc(relative_eta, func() {
 		timeout.mutex.Lock()
+		if timeout.freed {
+			timeout.mutex.Unlock()
+			return
+		}
 		timeout.alive = false
+		timeout.sending.Add(1)
 		timeout.mutex.Unlock()
-		timeout.cbch <- Event{timeout.cbchmsg, timeout}
+		defer timeout.sending.Done()
+
+		select {
+		case timeout.cbch <- Event{timeout.cbchmsg, timeout}:
+		case <-timeout.done:
+		}
 	})
 }
 
 func (timeout *Timeout) _stop() {
 	timeout.impl.Stop()
 	timeout.alive = false
+}
+
+// Stop for good. Caller must wait for timeout.sending after releasing the mutex
+func (timeout *Timeout) _free() {
+	timeout._stop()
+	if !timeout.freed {
+		timeout.freed = true
+		close(timeout.done)
+	}
 }
 
 // public methods for Timeout
@@ -99,10 +123,11 @@ func (timeout *Timeout) Reset(avgto time.Duration, fudge time.Duration) {
 // Stop and free timeout. This timeout won't post events after the call returns.
 func (timeout *Timeout) Free() {
 	timeout.mutex.Lock()
-	timeout._stop()
+	timeout._free()
 	parent := timeout.parent
 	timeout.parent = nil
 	timeout.mutex.Unlock()
+	timeout.sending.Wait()
 
 	if parent != nil {
 		parent.Died(timeout)
@@ -110,12 +135,13 @@ func (timeout *Timeout) Free() {
 }
 
 // Called by Parent.DisownAll() - involuntary mass disown of all children
+// This timeout won't post events after the call returns.
 func (timeout *Timeout) Disowned() {
 	timeout.mutex.Lock()
-	defer timeout.mutex.Unlock()
-
 	timeout.parent = nil
-	timeout._stop()
+	timeout._free()
+	timeout.mutex.Unlock()
+	timeout.sending.Wait()
 }
 
 // Returns a unique ChildId

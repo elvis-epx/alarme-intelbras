@@ -1,3 +1,0 @@
-TCPSession/TCPServer/TCPClient/Timeout (avaliar um a um; tentativa de solução no branch tcpsession-robustez):
-    - Timeout: callback do AfterFunc pode enviar para Events depois de close(Events) em
-      TCPSession.Close() (pânico); callback não é esperado por DisownAll(). Janela estreita
