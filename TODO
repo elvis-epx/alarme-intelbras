@@ -3,8 +3,5 @@ TCPSession/TCPServer/TCPClient/Timeout (avaliar um a um; tentativa de solução 
       Events já fechado (pânico). O contrato diz que sessões sobrevivem ao servidor, então
       é alcançável; Parent.Died() remove o filho antes de chamar ChildDied(), e
       DisownAll() não espera
-    - Timeout: evento já enfileirado não é cancelado por Restart()/Stop()/Free(). Ex.: dados
-      chegam junto com to_comm, parse() reinicia to_comm, mas o evento antigo fecha a
-      conexão. Janela estreita
     - Timeout: callback do AfterFunc pode enviar para Events depois de close(Events) em
       TCPSession.Close() (pânico); callback não é esperado por DisownAll(). Janela estreita
