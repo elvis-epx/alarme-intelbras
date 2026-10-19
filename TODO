@@ -1,7 +1,7 @@
 TCPSession/TCPServer/TCPClient/Timeout (avaliar um a um; tentativa de solução no branch tcpsession-robustez):
-    - TCPServer: sessão fechada concorrentemente com TCPServer.Close() posta "Closed" em
-      Events já fechado (pânico). O contrato diz que sessões sobrevivem ao servidor, então
-      é alcançável; Parent.Died() remove o filho antes de chamar ChildDied(), e
-      DisownAll() não espera
+    - TCPServer: sessão fechada concorrentemente com TCPServer.Close() pode postar "Closed"
+      em Events já fechado (pânico). Parent.Died() remove o filho antes de chamar
+      ChildDied(), TCPSession.Close() chama Died() fora de parent_mutex, e DisownAll()
+      não espera. Janela estreita
     - Timeout: callback do AfterFunc pode enviar para Events depois de close(Events) em
       TCPSession.Close() (pânico); callback não é esperado por DisownAll(). Janela estreita

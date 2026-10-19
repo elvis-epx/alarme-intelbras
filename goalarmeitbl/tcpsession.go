@@ -68,6 +68,11 @@ func NewTCPSession(parent *Parent) *TCPSession {
 
 	h.timeouts = NewParent("TCPSession", "Timeout", nil)
 
+	// so parent can disown this session if it is closed first
+	if parent != nil {
+		parent.Adopt(h)
+	}
+
 	return h
 }
 

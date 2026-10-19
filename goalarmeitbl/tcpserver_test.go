@@ -3,8 +3,10 @@ package goalarmeitbl
 import (
 	"bytes"
 	"log"
+	"net"
 	"slices"
 	"testing"
+	"time"
 )
 
 var (
@@ -184,4 +186,24 @@ func TestTCPServer(t *testing.T) {
 		}
 	}
 	<-server_stopped
+}
+
+// Session accepted by user must survive the server, and be closed after it
+func TestTCPServerSessionOutlivesServer(t *testing.T) {
+	srv, err := NewTCPServer("127.0.0.1:54324")
+	if err != nil {
+		t.Fatal("TCP Server creation failed")
+	}
+	conn, err := net.Dial("tcp", "127.0.0.1:54324")
+	if err != nil {
+		t.Fatal("Dial failed")
+	}
+	defer conn.Close()
+
+	evt := <-srv.Events
+	session := evt.Cargo.(*TCPSession)
+	srv.Close()
+	session.Close()
+	// parent notification happens in background, after Close() returns
+	time.Sleep(100 * time.Millisecond)
 }
