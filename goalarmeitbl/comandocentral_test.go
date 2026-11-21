@@ -3,6 +3,7 @@ package goalarmeitbl
 import (
 	"bytes"
 	"net"
+	"slices"
 	"testing"
 	"time"
 )
@@ -69,6 +70,11 @@ var ack = PacoteIsecNet2(0xf0fe, nil)
 func TestComandos(t *testing.T) {
 	status := make([]byte, 64)
 	status[0] = 0x01 // AMT-8000
+	// exemplo 2 do item 6.8 da planilha: partições 2 e 3 armadas
+	particoes := []byte{0xff, 0x00, 0x81, 0x81, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+	// exemplo 1 do item 6.21 da planilha
+	dispositivos := []byte{0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x01, 0x00, 0x11, 0x01, 0x02, 0x00}
 
 	casos := []struct {
 		comando  string
@@ -79,6 +85,9 @@ func TestComandos(t *testing.T) {
 	}{
 		{"nulo", 0, -1, nil, nil},
 		{"status", 0, 0x0b4a, []byte{}, PacoteIsecNet2(0x0b4a, status)},
+		{"particoes", 0, 0x0b20, []byte{0xff}, PacoteIsecNet2(0x0b20, particoes)},
+		{"dispositivos", 0, 0x0b50, []byte{}, PacoteIsecNet2(0x0b50, dispositivos)},
+		{"problemas", 0, 0x0b30, []byte{}, PacoteIsecNet2(0x0b30, []byte{0x80, 0x00})},
 		{"ativar", 2, 0x401e, []byte{0x02, 0x01}, PacoteIsecNet2(0x401e, nil)},
 		{"ativar", 0, 0x401e, []byte{0xff, 0x01}, PacoteIsecNet2(0x401e, nil)},
 		{"desativar", 0, 0x401e, []byte{0xff, 0x00}, PacoteIsecNet2(0x401e, nil)},
@@ -138,6 +147,82 @@ func TestComandosFalha(t *testing.T) {
 				t.Error("deveria resultar em falha")
 			}
 		})
+	}
+}
+
+func TestComandosRespostaInvalida(t *testing.T) {
+	casos := []struct {
+		comando  string
+		resposta []byte
+	}{
+		{"particoes", PacoteIsecNet2(0x0b20, []byte{0xff})},
+		{"particoes", PacoteIsecNet2(0x0b20, []byte{0x01, 0x81})},
+		{"dispositivos", PacoteIsecNet2(0x0b50, make([]byte, 27))},
+		{"problemas", PacoteIsecNet2(0x0b30, []byte{0x00})},
+		{"eventos", PacoteIsecNet2(0x3003, []byte{0x00, 0x01})},
+	}
+
+	for _, caso := range casos {
+		t.Run(caso.comando, func(t *testing.T) {
+			sub, _ := Subcomandos[caso.comando].Construtor(0)
+			if res, _ := executaComando(t, sub, authOk, caso.resposta); res != 1 {
+				t.Error("deveria resultar em falha")
+			}
+		})
+	}
+}
+
+// Evento real lido de uma central: ativação remota pelo app
+var eventoAtivacao = []byte{0x26, 0x11, 0x20, 0x23, 0x31, 0x37, 0x34, 0xa7, 0xff, 0xf1, 0x98, 0xa3, 0x00}
+
+func TestEventos(t *testing.T) {
+	// ponteiro 0x0003: os índices pedidos devem dar a volta no buffer circular
+	ponteiro := PacoteIsecNet2(0x3003, []byte{0x00, 0x00, 0x03})
+	eventos := PacoteIsecNet2(0x3900, append([]byte{0x00, 0x02}, eventoAtivacao...))
+
+	sub, _ := NewLerEventos(0)
+	res, pacotes := executaComando(t, sub, authOk, ponteiro, eventos)
+	if res != 0 {
+		t.Fatalf("resultado %d, esperado sucesso", res)
+	}
+	cmd, payload := PacoteIsecNet2Parse(pacotes[1])
+	if cmd != 0x3003 || !bytes.Equal(payload, []byte{0x00}) {
+		t.Errorf("leitura de ponteiro inesperada %s", HexPrint(pacotes[1]))
+	}
+	indices := []byte{0x00, 0x02, 0x00, 0x01, 0x00, 0x00, 0x01, 0xff, 0x01, 0xfe, 0x01, 0xfd, 0x01, 0xfc, 0x01, 0xfb}
+	cmd, payload = PacoteIsecNet2Parse(pacotes[2])
+	if cmd != 0x3900 || !bytes.Equal(payload, indices) {
+		t.Errorf("leitura de eventos inesperada %s", HexPrint(pacotes[2]))
+	}
+
+	// resposta de tamanho que não é múltiplo de uma entrada
+	sub, _ = NewLerEventos(0)
+	res, _ = executaComando(t, sub, authOk, ponteiro, PacoteIsecNet2(0x3900, eventoAtivacao))
+	if res != 1 {
+		t.Error("deveria resultar em falha")
+	}
+}
+
+func TestDescreverEvento(t *testing.T) {
+	programado := slices.Clone(eventoAtivacao)
+	programado[8] = 0x12
+	programado[9] = 0x31
+	programado[12] = 0x01
+	ilegivel := slices.Clone(eventoAtivacao)
+	ilegivel[7] = 0xff
+
+	casos := []struct {
+		evento   []byte
+		esperado string
+	}{
+		{eventoAtivacao, "2026-11-20 23:31:37 Ativacao remota app P3 (evento 407 qualif. 3 partição 03 zona/usuário 198)"},
+		{programado, "2026-11-20 23:31:37 Ativacao remota app P3 (evento 407 qualif. 3 partição 03 zona/usuário 198 programado 123 com foto)"},
+		{ilegivel, "2026-11-20 23:31:37 evento ilegível 26 11 20 23 31 37 34 ff ff f1 98 a3 00"},
+	}
+	for _, caso := range casos {
+		if d := descrever_evento(caso.evento); d != caso.esperado {
+			t.Errorf("descrição inesperada: %s", d)
+		}
 	}
 }
 

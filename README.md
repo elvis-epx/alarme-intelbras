@@ -259,6 +259,14 @@ Comandos disponíveis:
 
 - `status` retorna informações sobre o status da central.
 
+- `particoes` retorna o status de cada partição habilitada (armada, stay, em alarme, pronta para armar etc.).
+
+- `dispositivos` lista os dispositivos sem fio cadastrados (controles remotos, sensores, teclados, sirenes, repetidores e PGMs).
+
+- `problemas` retorna os problemas detectados pela central (falta de energia AC, bateria, linha telefônica, comunicação, RF).
+
+- `eventos` lista os 8 eventos mais recentes do buffer de eventos da central.
+
 - `ativar [partição]` ativa o alarme. Se a partição não for especificada, ativa todas.
 
 - `desativar [partição]` desativa o alarme.

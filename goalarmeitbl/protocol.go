@@ -442,38 +442,40 @@ func ParseRIPAlarme(pacote PacoteRIP, com_foto bool) RIPAlarme {
 		res.NrFotos = int(msg[19])
 	}
 
-	evento_contact_id, codigo_conhecido := EventosContactID[res.Codigo]
-	qualif_string := ""
-
-	if res.Tipo == 18 && codigo_conhecido {
-		if res.Qualificador == 1 {
-			qualif_string = "aber"
-			_, qualif_conhecido := evento_contact_id[qualif_string]
-			if !qualif_conhecido {
-				qualif_string = "*"
-			}
-		} else if res.Qualificador == 3 {
-			qualif_string = "rest"
-			_, qualif_conhecido := evento_contact_id[qualif_string]
-			if !qualif_conhecido {
-				qualif_string = "*"
-			}
-		} else {
-			qualif_string = "*"
-		}
-
-		padr_descricao, qualif_conhecido := evento_contact_id[qualif_string]
-		if qualif_conhecido {
-			res.CodigoConhecido = true
-			r := strings.NewReplacer("{zona}", strconv.Itoa(res.Zona),
-				"{particao}", strconv.Itoa(res.Particao))
-			res.DescricaoHumana = r.Replace(padr_descricao)
-			if com_foto {
-				fotos := fmt.Sprintf(" (com fotos, i=%d n=%d)", res.IndiceFotos, res.NrFotos)
-				res.DescricaoHumana += fotos
-			}
+	if res.Tipo == 18 {
+		res.DescricaoHumana, res.CodigoConhecido = DescricaoContactID(res.Codigo, res.Qualificador, res.Particao, res.Zona)
+		if res.CodigoConhecido && com_foto {
+			fotos := fmt.Sprintf(" (com fotos, i=%d n=%d)", res.IndiceFotos, res.NrFotos)
+			res.DescricaoHumana += fotos
 		}
 	}
 
 	return res
+}
+
+// Descrição humanamente legível de um evento Contact-ID
+// qualificador: 1 = abertura (evento novo), 3 = restauração
+// Retorna false se o código (ou o par código/qualificador) não for conhecido
+func DescricaoContactID(codigo int, qualificador int, particao int, zona int) (string, bool) {
+	evento_contact_id, codigo_conhecido := EventosContactID[codigo]
+	if !codigo_conhecido {
+		return "", false
+	}
+
+	qualif_string := "*"
+	if qualificador == 1 {
+		qualif_string = "aber"
+	} else if qualificador == 3 {
+		qualif_string = "rest"
+	}
+	if _, qualif_conhecido := evento_contact_id[qualif_string]; !qualif_conhecido {
+		qualif_string = "*"
+	}
+
+	padr_descricao, qualif_conhecido := evento_contact_id[qualif_string]
+	if !qualif_conhecido {
+		return "", false
+	}
+	r := strings.NewReplacer("{zona}", strconv.Itoa(zona), "{particao}", strconv.Itoa(particao))
+	return r.Replace(padr_descricao), true
 }
