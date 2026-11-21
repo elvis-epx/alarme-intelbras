@@ -267,6 +267,8 @@ Comandos disponíveis:
 
 - `eventos` lista os 8 eventos mais recentes do buffer de eventos da central.
 
+- `sinal` mostra o nível de sinal (0 a 10) de cada dispositivo sem fio cadastrado.
+
 - `ativar [partição]` ativa o alarme. Se a partição não for especificada, ativa todas.
 
 - `desativar [partição]` desativa o alarme.

@@ -381,6 +381,86 @@ func NewLerEventos(_ int) (ComandoCentralSub, string) {
 	return comando, ""
 }
 
+// Solicita nível de sinal dos dispositivos sem fio (comando 0B73), um tipo de dispositivo por vez
+type SolicitarSinal struct {
+	pendentes []TipoDispositivoSF
+}
+
+type TipoDispositivoSF struct {
+	codigo byte
+	nome   string
+}
+
+var tipos_dispositivo_sf = []TipoDispositivoSF{
+	{0x01, "Sensor (zona)"},
+	{0x02, "Teclado"},
+	{0x03, "Sirene"},
+	{0x04, "Repetidor"},
+	{0x06, "PGM"},
+	{0x07, "Fechadura"},
+}
+
+func (comando *SolicitarSinal) Autenticado(super *ComandoCentral) {
+	fmt.Println()
+	fmt.Println()
+	fmt.Println("*******************************************")
+	fmt.Println("Nível de sinal dos dispositivos sem fio (0-10):")
+	comando.proximo(super)
+}
+
+func (comando *SolicitarSinal) proximo(super *ComandoCentral) {
+	if len(comando.pendentes) == 0 {
+		fmt.Println("*******************************************")
+		fmt.Println()
+		super.Despedida()
+		return
+	}
+	pacote := PacoteIsecNet2(0x0b73, []byte{comando.pendentes[0].codigo})
+	super.EnviarPacote(pacote, comando.RespostaSinal)
+}
+
+func (comando *SolicitarSinal) RespostaSinal(super *ComandoCentral, cmd int, payload []byte) {
+	if cmd != 0x0b73 {
+		fmt.Printf("RespostaSinal: resp inesperada %04x\n", cmd)
+		super.Bye(true)
+		return
+	}
+
+	tipo := comando.pendentes[0]
+	if len(payload) < 1 || payload[0] != tipo.codigo {
+		fmt.Printf("RespostaSinal: resposta inválida %s\n", HexPrint(payload))
+		super.Bye(true)
+		return
+	}
+	comando.pendentes = comando.pendentes[1:]
+
+	// um octeto por dispositivo, a partir do 1; 0xff = posição vazia
+	for i, status := range payload[1:] {
+		if status == 0xff {
+			continue
+		}
+		// nibble baixo: nível de sinal
+		// Pela planilha, o nibble alto seria a rota (0 = direto, 1-4 = repetidor), mas
+		// numa central real os valores não corresponderam aos sensores ligados ao repetidor;
+		// por isso não é interpretado, apenas exibido junto com o octeto bruto
+		//
+		// TODO revisitar a hipótese do nibble alto indicar o repetidor. Observado numa AMT-8000
+		// (firmware 2.3.1) com um repetidor: zonas 01, 07 e 10 com nibble alto 0x9 (bit 7 + bit 4,
+		// que seria "repetidor 1" ignorando o bit 7), demais zonas com 0x0. Porém as zonas que
+		// supostamente usam o repetidor são 01, 09 e 10 (sem certeza), e a zona 07 não deveria.
+		// Teste possível: desligar o repetidor e observar quais valores mudam.
+		fmt.Printf("\t%s %02d: sinal %d (%02x)\n", tipo.nome, i+1, status&0x0f, status)
+	}
+
+	comando.proximo(super)
+}
+
+func NewSolicitarSinal(_ int) (ComandoCentralSub, string) {
+	comando := new(SolicitarSinal)
+	comando.pendentes = slices.Clone(tipos_dispositivo_sf)
+	return comando, ""
+}
+
 // Desarmar o alarme da central
 type DesativarCentral struct {
 	particao int
@@ -573,6 +653,7 @@ func init() {
 		"dispositivos":   DescComandoSub{"", false, NewSolicitarDispositivos},
 		"problemas":      DescComandoSub{"", false, NewSolicitarProblemas},
 		"eventos":        DescComandoSub{"", false, NewLerEventos},
+		"sinal":          DescComandoSub{"", false, NewSolicitarSinal},
 		"ativar":         DescComandoSub{"[partição] (se omitida, ativa todas)", true, NewAtivarCentral},
 		"desativar":      DescComandoSub{"[partição] (se omitida, desativa todas)", true, NewDesativarCentral},
 		"desligarsirene": DescComandoSub{"[partição] (se omitida, desliga todas)", true, NewDesligarSirene},

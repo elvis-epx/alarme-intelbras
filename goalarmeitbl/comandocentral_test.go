@@ -226,6 +226,38 @@ func TestDescreverEvento(t *testing.T) {
 	}
 }
 
+func TestSinal(t *testing.T) {
+	// um sensor (valor visto numa central real) e uma posição vazia
+	respostas := [][]byte{authOk, PacoteIsecNet2(0x0b73, []byte{0x01, 0x97, 0xff})}
+	tipos := []byte{0x01, 0x02, 0x03, 0x04, 0x06, 0x07}
+	for _, tipo := range tipos[1:] {
+		respostas = append(respostas, PacoteIsecNet2(0x0b73, []byte{tipo, 0xff}))
+	}
+
+	sub, _ := NewSolicitarSinal(0)
+	res, pacotes := executaComando(t, sub, respostas...)
+	if res != 0 {
+		t.Fatalf("resultado %d, esperado sucesso", res)
+	}
+	// autenticação, um pedido por tipo, despedida
+	if len(pacotes) != len(tipos)+2 {
+		t.Fatalf("%d pacotes, esperados %d", len(pacotes), len(tipos)+2)
+	}
+	for i, tipo := range tipos {
+		cmd, payload := PacoteIsecNet2Parse(pacotes[i+1])
+		if cmd != 0x0b73 || !bytes.Equal(payload, []byte{tipo}) {
+			t.Errorf("pedido inesperado %s", HexPrint(pacotes[i+1]))
+		}
+	}
+
+	// resposta com tipo diferente do pedido
+	sub, _ = NewSolicitarSinal(0)
+	res, _ = executaComando(t, sub, authOk, PacoteIsecNet2(0x0b73, []byte{0x02, 0x0a}))
+	if res != 1 {
+		t.Error("deveria resultar em falha")
+	}
+}
+
 func TestComandoNaoConectado(t *testing.T) {
 	// porta livre, sem ninguém escutando
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
